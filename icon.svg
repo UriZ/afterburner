@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" fill="#1a1a2e"/>
+  <polygon points="64,20 80,70 64,60 48,70" fill="#e94560"/>
+  <polygon points="40,65 88,65 96,80 32,80" fill="#0f3460"/>
+  <polygon points="58,70 70,70 72,90 56,90" fill="#e94560"/>
+  <rect x="60" y="85" width="8" height="15" fill="#f5a623"/>
+  <text x="64" y="115" text-anchor="middle" fill="#e94560" font-size="14" font-weight="bold" font-family="monospace">AB</text>
+</svg>
