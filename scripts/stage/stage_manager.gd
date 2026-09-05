@@ -14,7 +14,7 @@ const BONUS_MISSILE_REWARD := 30
 
 ## Node references — set via _ready() by finding siblings in the scene tree.
 var _ground: MeshInstance3D
-var _sky_rect: ColorRect
+var _environment: WorldEnvironment
 var _enemy_spawner: Node3D
 
 var _stage_timer: float = 0.0
@@ -27,7 +27,7 @@ var _announce_label: Label
 
 func _ready() -> void:
 	_ground = get_parent().get_node_or_null("Ground")
-	_sky_rect = get_parent().get_node_or_null("SkyLayer/SkyRect")
+	_environment = get_parent().get_node_or_null("WorldEnvironment")
 	_enemy_spawner = get_parent().get_node_or_null("EnemySpawner")
 	_create_announce_label()
 	_apply_stage(GameState.current_stage)
@@ -95,11 +95,13 @@ func _apply_stage(stage_number: int) -> void:
 		mat.set_shader_parameter("color_a", data["ground_a"])
 		mat.set_shader_parameter("color_b", data["ground_b"])
 
-	# Apply sky shader colors
-	if _sky_rect and _sky_rect.material is ShaderMaterial:
-		var mat := _sky_rect.material as ShaderMaterial
-		mat.set_shader_parameter("color_top", data["sky_top"])
-		mat.set_shader_parameter("color_horizon", data["sky_horizon"])
+	# Apply sky shader colors via Environment Sky material
+	if _environment and _environment.environment:
+		var sky: Sky = _environment.environment.sky
+		if sky and sky.sky_material is ShaderMaterial:
+			var mat := sky.sky_material as ShaderMaterial
+			mat.set_shader_parameter("color_top", data["sky_top"])
+			mat.set_shader_parameter("color_horizon", data["sky_horizon"])
 
 	# Apply difficulty to enemy spawner
 	if _enemy_spawner:

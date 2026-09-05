@@ -57,7 +57,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	match _state:
 		State.ATTRACT:
-			if event.is_action("start") or (event is InputEventKey and event.keycode == KEY_ENTER):
+			if _is_start_pressed(event):
 				_enter_music_select()
 		State.MUSIC_SELECT:
 			if event.is_action("move_up"):
@@ -66,8 +66,22 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif event.is_action("move_down"):
 				_selected_track = (_selected_track + 1) % TRACK_NAMES.size()
 				_update_track_highlight()
-			elif event.is_action("start") or (event is InputEventKey and event.keycode == KEY_ENTER):
+			elif _is_start_pressed(event):
 				_start_game()
+
+
+func _is_start_pressed(event: InputEvent) -> bool:
+	if event.is_action("start"):
+		return true
+	if event is InputEventKey:
+		var key_event := event as InputEventKey
+		# Check both keycode and physical_keycode since the input map may use either.
+		# Accept Enter and Space as common arcade start keys.
+		if key_event.keycode in [KEY_ENTER, KEY_SPACE]:
+			return true
+		if key_event.physical_keycode in [KEY_ENTER, KEY_SPACE]:
+			return true
+	return false
 
 
 func _enter_music_select() -> void:
