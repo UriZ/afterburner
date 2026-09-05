@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3 uid="uid://enemy_jet_001"]
+
+[ext_resource type="Script" path="res://scripts/enemies/enemy_jet.gd" id="1_enemy_script"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_1"]
+radius = 0.8
+
+[node name="EnemyJet" type="Area3D"]
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("1_enemy_script")
+
+[node name="EnemySprite" type="Sprite3D" parent="."]
+pixel_size = 0.03
+alpha_cut = 2
+billboard = 0
+shaded = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("SphereShape3D_1")

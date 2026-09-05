@@ -1,9 +1,10 @@
-[gd_scene load_steps=9 format=3 uid="uid://main_scene_001"]
+[gd_scene load_steps=10 format=3 uid="uid://main_scene_001"]
 
 [ext_resource type="Shader" path="res://assets/shaders/sky_gradient.gdshader" id="1_sky_shader"]
 [ext_resource type="Shader" path="res://assets/shaders/ground_scroll.gdshader" id="2_ground_shader"]
 [ext_resource type="Script" path="res://scripts/stage/ground_scroll.gd" id="3_ground_script"]
 [ext_resource type="PackedScene" uid="uid://player_jet_001" path="res://scenes/player/player_jet.tscn" id="4_player_jet"]
+[ext_resource type="Script" path="res://scripts/enemies/enemy_spawner.gd" id="5_enemy_spawner"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_sky"]
 shader = ExtResource("1_sky_shader")
@@ -54,3 +55,8 @@ script = ExtResource("3_ground_script")
 scroll_speed = 8.0
 
 [node name="PlayerJet" parent="." instance=ExtResource("4_player_jet")]
+
+[node name="EnemySpawner" type="Node3D" parent="."]
+script = ExtResource("5_enemy_spawner")
+spawn_interval = 3.0
+enabled = true
