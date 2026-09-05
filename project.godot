@@ -6,7 +6,7 @@
 
 config/name="After Burner"
 config/description="Faithful recreation of SEGA's classic After Burner II arcade game"
-run/main_scene=""
+run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6")
 config/icon="res://icon.svg"
 
@@ -90,3 +90,4 @@ start={
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
+environment/defaults/default_clear_color=Color(0, 0, 0, 0)

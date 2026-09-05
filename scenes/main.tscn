@@ -1,0 +1,53 @@
+[gd_scene load_steps=8 format=3 uid="uid://main_scene_001"]
+
+[ext_resource type="Shader" path="res://assets/shaders/sky_gradient.gdshader" id="1_sky_shader"]
+[ext_resource type="Shader" path="res://assets/shaders/ground_scroll.gdshader" id="2_ground_shader"]
+[ext_resource type="Script" path="res://scripts/stage/ground_scroll.gd" id="3_ground_script"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_sky"]
+shader = ExtResource("1_sky_shader")
+shader_parameter/color_top = Color(0.05, 0.05, 0.3, 1)
+shader_parameter/color_horizon = Color(0.5, 0.7, 0.95, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ground"]
+shader = ExtResource("2_ground_shader")
+shader_parameter/color_a = Color(0.76, 0.6, 0.42, 1)
+shader_parameter/color_b = Color(0.65, 0.5, 0.35, 1)
+shader_parameter/scroll_speed = 8.0
+shader_parameter/tile_scale = 20.0
+shader_parameter/scroll_offset = 0.0
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 1
+background_color = Color(0, 0, 0, 0)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_1"]
+size = Vector2(500, 500)
+
+[node name="Main" type="Node3D"]
+
+[node name="SkyLayer" type="CanvasLayer" parent="."]
+layer = -1
+
+[node name="SkyRect" type="ColorRect" parent="SkyLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+material = SubResource("ShaderMaterial_sky")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.996195, 0.0871557, 0, -0.0871557, 0.996195, 0, 5, 0)
+fov = 70.0
+near = 0.05
+far = 500.0
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_1")
+material_override = SubResource("ShaderMaterial_ground")
+script = ExtResource("3_ground_script")
+scroll_speed = 8.0
