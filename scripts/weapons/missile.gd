@@ -19,6 +19,7 @@ func _ready() -> void:
 	_initial_scale = scale
 	_start_position = global_position
 	_velocity = Vector3(0, 0, -1).normalized()
+	area_entered.connect(_on_area_entered)
 
 
 func _process(delta: float) -> void:
@@ -40,3 +41,10 @@ func _process(delta: float) -> void:
 	var t := dist / (SPEED * MAX_LIFETIME)
 	var s := maxf(1.0 - t * SCALE_RATE, 0.1)
 	scale = _initial_scale * s
+
+
+func _on_area_entered(area: Area3D) -> void:
+	# Hit an enemy (layer 3 = bit 4)
+	if area.collision_layer & 4 and area.has_method("take_damage"):
+		area.take_damage(1)
+	queue_free()

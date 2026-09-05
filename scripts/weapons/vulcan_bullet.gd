@@ -13,6 +13,7 @@ var _initial_scale := Vector3.ONE
 
 func _ready() -> void:
 	_initial_scale = scale
+	area_entered.connect(_on_area_entered)
 
 
 func _process(delta: float) -> void:
@@ -27,3 +28,10 @@ func _process(delta: float) -> void:
 
 	if _distance_traveled >= MAX_DISTANCE:
 		queue_free()
+
+
+func _on_area_entered(area: Area3D) -> void:
+	# Hit an enemy (layer 3 = bit 4)
+	if area.collision_layer & 4 and area.has_method("take_damage"):
+		area.take_damage(1)
+	queue_free()

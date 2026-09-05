@@ -6,8 +6,8 @@
 radius = 0.8
 
 [node name="EnemyJet" type="Area3D"]
-collision_layer = 2
-collision_mask = 0
+collision_layer = 4
+collision_mask = 2
 script = ExtResource("1_enemy_script")
 
 [node name="EnemySprite" type="Sprite3D" parent="."]

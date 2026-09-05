@@ -58,6 +58,8 @@ static var _explosion_scene: PackedScene = null
 func _ready() -> void:
 	add_to_group("enemies")
 	_apply_type_data()
+	# Wire score: when destroyed, add score to GameState
+	destroyed.connect(GameState.add_score)
 	# Map int visual index to EnemySpriteGenerator enum at runtime
 	var visual_id: int = TYPE_DATA[enemy_type]["visual"]
 	_sprite.texture = _SpriteGen.generate_texture(
@@ -147,8 +149,8 @@ func _find_player() -> Node3D:
 static func _create_bullet() -> Area3D:
 	## Creates a simple enemy bullet as an Area3D with a small mesh.
 	var bullet := Area3D.new()
-	bullet.collision_layer = 4   # enemy bullet layer
-	bullet.collision_mask = 1    # player layer
+	bullet.collision_layer = 8   # layer 4: enemy bullets
+	bullet.collision_mask = 1    # layer 1: player
 
 	var mesh_instance := MeshInstance3D.new()
 	var sphere := SphereMesh.new()

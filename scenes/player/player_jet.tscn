@@ -1,7 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://player_jet_001"]
+[gd_scene load_steps=6 format=3 uid="uid://player_jet_001"]
 
 [ext_resource type="Script" path="res://scripts/player/player_jet.gd" id="1_player_script"]
 [ext_resource type="Script" path="res://scripts/weapons/weapon_manager.gd" id="2_weapon_manager"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_player"]
+radius = 0.6
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_1"]
 direction = Vector3(0, -0.5, 1)
@@ -36,3 +39,10 @@ process_material = SubResource("ParticleProcessMaterial_1")
 
 [node name="WeaponManager" type="Node3D" parent="."]
 script = ExtResource("2_weapon_manager")
+
+[node name="HitArea" type="Area3D" parent="."]
+collision_layer = 1
+collision_mask = 12
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HitArea"]
+shape = SubResource("SphereShape3D_player")

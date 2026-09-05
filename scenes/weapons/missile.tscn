@@ -1,6 +1,10 @@
-[gd_scene load_steps=6 format=3 uid="uid://missile_001"]
+[gd_scene load_steps=7 format=3 uid="uid://missile_001"]
 
 [ext_resource type="Script" path="res://scripts/weapons/missile.gd" id="1_missile_script"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_missile"]
+radius = 0.1
+height = 0.6
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
 albedo_color = Color(0.85, 0.85, 0.85, 1.0)
@@ -27,11 +31,16 @@ color_ramp = null
 size = Vector2(0.1, 0.1)
 
 [node name="Missile" type="Area3D"]
+collision_layer = 2
+collision_mask = 4
 script = ExtResource("1_missile_script")
 
 [node name="MissileMesh" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 mesh = SubResource("CylinderMesh_body")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_missile")
 
 [node name="SmokeTrail" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.3)
