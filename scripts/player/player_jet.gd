@@ -4,14 +4,14 @@ extends Node3D
 @export var acceleration: float = 25.0
 @export var deceleration: float = 20.0
 
-const MOVE_MIN := Vector2(-5.0, 3.0)
-const MOVE_MAX := Vector2(5.0, 4.8)
+const MOVE_MIN := Vector2(-5.0, 2.5)
+const MOVE_MAX := Vector2(5.0, 4.2)
 const BANK_DEAD_ZONE := 0.1
 const BANK_SOFT_THRESHOLD := 0.4
 
-# Camera at (0,5,0) looking forward+slightly-up (forward=(0,0.259,-0.966)).
-# At (0, 4.4, -8.0): NDC_y≈-0.50 (bottom quarter), sprite≈18% screen height with pixel_size=0.03.
-const RESPAWN_POSITION := Vector3(0.0, 4.4, -8.0)
+# Camera at (0,5,0) with 20deg downward tilt.
+# Jet at (0, 3.8, -8.0) places it at ~80% from screen top (bottom 20%).
+const RESPAWN_POSITION := Vector3(0.0, 3.8, -8.0)
 const DEATH_DURATION := 2.0
 const INVINCIBILITY_DURATION := 2.0
 const FLASH_INTERVAL := 0.1
@@ -23,6 +23,7 @@ var _is_invincible := false
 var _death_timer := 0.0
 var _invincibility_timer := 0.0
 var _flash_timer := 0.0
+var _camera: Camera3D
 
 @onready var _sprite: Sprite3D = $JetSprite
 @onready var _hit_area: Area3D = $HitArea
@@ -39,6 +40,7 @@ func _ready() -> void:
 	_is_invincible = true
 	_invincibility_timer = 3.0
 	_hit_area.collision_mask = 0
+	_camera = get_viewport().get_camera_3d()
 
 
 func _process(delta: float) -> void:
@@ -97,6 +99,12 @@ func _update_banking(horizontal_input: float) -> void:
 		frame = 2  # center
 	_sprite.frame = frame
 
+	if _camera:
+		var target_roll := -horizontal_input * 10.0
+		_camera.rotation_degrees.z = move_toward(
+			_camera.rotation_degrees.z, target_roll, 60.0 * get_process_delta_time()
+		)
+
 
 func _on_hit_area_entered(area: Area3D) -> void:
 	if _is_dying or _is_invincible:
@@ -152,6 +160,8 @@ func _respawn() -> void:
 	rotation_degrees = Vector3.ZERO
 	_sprite.frame = 2  # center banking frame
 	_velocity = Vector2.ZERO
+	if _camera:
+		_camera.rotation_degrees.z = 0.0
 
 	# Start invincibility
 	_is_invincible = true

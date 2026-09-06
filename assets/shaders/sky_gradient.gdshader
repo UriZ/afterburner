@@ -1,15 +1,15 @@
 shader_type sky;
 
 // Uniforms kept for stage_manager.gd compatibility.
-uniform vec4 color_top : source_color = vec4(0.02, 0.05, 0.35, 1.0);
-uniform vec4 color_horizon : source_color = vec4(0.50, 0.70, 0.95, 1.0);
+uniform vec4 color_top : source_color = vec4(0.02, 0.04, 0.25, 1.0);
+uniform vec4 color_horizon : source_color = vec4(0.20, 0.40, 0.78, 1.0);
 
-// Sky gradient stops (top to bottom)
-const vec3 SKY_TOP     = vec3(0.02, 0.05, 0.35);
-const vec3 SKY_UPPER   = vec3(0.05, 0.15, 0.60);
-const vec3 SKY_MID     = vec3(0.15, 0.35, 0.80);
-const vec3 SKY_HORIZON = vec3(0.50, 0.70, 0.95);
-const vec3 SKY_HAZE    = vec3(0.75, 0.85, 0.98);
+// Sky gradient stops (top to bottom) — deep arcade blues, no white haze
+const vec3 SKY_TOP     = vec3(0.02, 0.04, 0.25);
+const vec3 SKY_UPPER   = vec3(0.05, 0.12, 0.50);
+const vec3 SKY_MID     = vec3(0.12, 0.28, 0.65);
+const vec3 SKY_HORIZON = vec3(0.20, 0.40, 0.78);
+const vec3 SKY_HAZE    = vec3(0.20, 0.40, 0.78);
 
 // Cloud colors
 const vec3 CLOUD_BRIGHT = vec3(0.92, 0.94, 1.00);
@@ -74,7 +74,7 @@ void sky() {
 	// Below horizon falloff
 	if (EYEDIR.y < 0.0) {
 		float below = clamp(-EYEDIR.y * 5.0, 0.0, 1.0);
-		sky_color = mix(SKY_HAZE, vec3(0.1, 0.15, 0.3), below);
+		sky_color = mix(SKY_HORIZON, vec3(0.1, 0.15, 0.3), below);
 	}
 
 	COLOR = sky_color;

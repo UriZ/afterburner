@@ -5,7 +5,7 @@ render_mode unshaded, cull_disabled;
 // color_a tints the overall ocean hue. color_b is unused but kept for API compat.
 uniform vec4 color_a : source_color = vec4(0.10, 0.25, 0.70, 1.0);
 uniform vec4 color_b : source_color = vec4(0.05, 0.15, 0.50, 1.0);
-uniform float scroll_speed : hint_range(0.0, 10.0) = 8.0;
+uniform float scroll_speed : hint_range(0.0, 30.0) = 18.0;
 uniform float tile_scale : hint_range(1.0, 64.0) = 20.0;
 uniform float scroll_offset = 0.0;
 
@@ -16,8 +16,8 @@ const vec3 OCEAN_LIGHT = vec3(0.20, 0.45, 0.85);
 const vec3 OCEAN_FOAM  = vec3(0.70, 0.80, 0.95);
 const vec3 OCEAN_WHITE = vec3(0.90, 0.95, 1.00);
 
-// Sky color for horizon fade
-const vec3 SKY_HAZE = vec3(0.75, 0.85, 0.98);
+// Sky color for horizon fade (matches sky horizon — no white haze)
+const vec3 SKY_HAZE = vec3(0.20, 0.40, 0.78);
 
 // Simple hash noise
 float hash(float n) {
@@ -28,10 +28,9 @@ void fragment() {
 	vec2 uv = UV;
 
 	// Perspective-compressed horizontal bands.
-	// pow(uv.y, 0.4) compresses bands near horizon (low uv.y), widens near camera.
 	// UV.y = 0 is the near edge (bottom of ground plane), UV.y = 1 is far edge (horizon).
-	// We invert so horizon is at high values for the pow compression.
-	float perspective_y = pow(1.0 - uv.y, 0.4);
+	// pow(uv.y, 2.5) makes bands dramatically wider near camera and hairline-thin at horizon.
+	float perspective_y = pow(uv.y, 2.5);
 	float band_value = fract(perspective_y * 20.0 + scroll_offset * 0.08);
 
 	// Band color cycling: 5 zones per cycle

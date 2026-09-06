@@ -307,3 +307,71 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Improvement Insights**:
 - [workflow]: Audio features need live playback testing — headless mode cannot verify that sounds actually play correctly through speakers
 - [CLAUDE.md]: Document the AudioManager autoload and its public API (play_music, play_vulcan_fire, play_missile_launch, play_explosion, play_lockon_beep) for other developers
+
+---
+### [2026-09-06 14:00] — ui-designer — #15 (relates to #9, #13)
+**Task**: Diagnose 3D perspective failures vs original After Burner II arcade and produce actionable fix specs
+**Result**: COMPLETED
+**Elements designed**: Player jet sprite angle, player jet size/position, ground perspective shader, horizon line placement, sky colors, enemy saturation, world-tilt camera roll, HUD color scheme
+**Key design decisions**:
+- Player jet must be redrawn as top-rear 3/4 view (dorsal view showing wing tops, canopy, engine nozzles) — the current direct-rear view is the #1 visual failure; every source confirms the original camera is "behind and above"
+- Ground scroll speed must triple (8.0 → 18.0+) — multiple sources describe "nauseating" speed; our current rate reads as leisurely
+- Horizon line needs to sit at 50–55% from top (currently ~40%) — camera X rotation +15° → +20°
+- Sky gradient must be deeper/more saturated — deep navy `#050A40` top to electric blue `#3366C7` at horizon, eliminating the current white haze
+- World-tilt on banking (camera Z-roll ±8–10° tracking bank angle) is a critical speed/immersion cue that the original uses but we do not have
+- Player jet pixel_size: 0.03 → 0.055 and Z position: -8.0 → -5.5 to achieve target 20% screen height at bottom-center
+**Improvement Insights**:
+- [ui-designer.md]: Require the designer agent to use `/screenshot` command to view the actual game state before diagnosing — all diagnosis was from code reading which is valid but seeing the screenshot would confirm or correct assumptions
+- [workflow]: Visual design tasks should come with a screenshot from the `/screenshot` command so the agent isn't blind — saves multiple rounds of inference from code reading
+- [CLAUDE.md]: Document the pixel_size / Z-position / screen-percentage relationship formula so future agents don't have to re-derive it: `screen_height_fraction ≈ (sprite_height_px × pixel_size) / (2 × Z_distance × tan(FOV/2))`
+
+---
+### [2026-09-06 10:00] — developer — #18
+**Task**: Add camera Z-roll on player banking
+**Result**: COMPLETED
+**Files changed**: scripts/player/player_jet.gd
+**Key changes**:
+- player_jet.gd:26 — added `var _camera: Camera3D` field
+- player_jet.gd:43 — `_camera = get_viewport().get_camera_3d()` in `_ready()`
+- player_jet.gd:102-106 — camera roll in `_update_banking()`: `move_toward` toward `-horizontal_input * 10.0` at 60°/s
+- player_jet.gd:157 — reset `_camera.rotation_degrees.z = 0.0` in `_respawn()` to clear roll after death
+**Testing**: GDScript syntax check passes (GameState autoload error is expected in headless standalone mode). Logic reviewed manually — null guard on `_camera`, smooth lerp via `move_toward`, roll resets on respawn.
+**Improvement Insights**:
+- [developer.md]: Note that `get_viewport().get_camera_3d()` returns null until the viewport is fully set up — calling it in `_ready()` is fine for autoloaded scenes but may need deferral in edge cases
+
+---
+### [2026-09-06 12:00] — senior-developer — #16
+**Task**: Redraw player jet sprite as top-rear 3/4 dorsal view
+**Result**: COMPLETED
+**Files changed**: scripts/player/jet_sprite_generator.gd, scenes/player/player_jet.tscn, tests/test_jet_sprite_generator.gd
+**Key changes**:
+- jet_sprite_generator.gd: Complete rewrite. Frame size 128x96 -> 160x96 (800x96 sheet). Dorsal view with wings as dominant element spanning cols 20-140. Independent wing scaling for banking (not uniform squish). Cockpit canopy dark blue dome. Foreshortened engine nozzles and short afterburner flames.
+- player_jet.tscn:26 — pixel_size 0.03 -> 0.055 for ~20% screen height
+- test_jet_sprite_generator.gd: Rewritten with 9 tests / 16 assertions covering new dimensions, wing span, canopy colors, banking asymmetry
+**Technical decisions**: (1) Banking uses per-wing scale factors rather than trig-based cos(bank) transform — gives more artistic control over foreshortening ratios. (2) Wings drawn as swept-back delta shapes with quadratic ease-in on leading edge for realistic F-14 sweep geometry. (3) Afterburner flames shortened to 10px (vs 24px old) since viewed from above they're foreshortened.
+**Testing**: All 16 test assertions pass. Godot project loads cleanly. Frame pixel counts confirm L/R symmetry in banking (frames 1/3 identical, 0/4 near-identical).
+**Improvement Insights**:
+- [CLAUDE.md]: Sprite generator tests should specify explicit pixel coordinate ranges in acceptance criteria to make judge gates deterministic
+- [criteria.md]: Add visual sprite criteria — "shape reads as X from a distance" is hard to test programmatically; consider screenshot-based visual QA for sprite work
+
+---
+### [2026-09-06 12:00] — senior-developer — #17
+**Task**: Fix ground speed, perspective formula, camera angle, and sky colors
+**Result**: COMPLETED
+**Files changed**: assets/shaders/ground_scroll.gdshader, assets/shaders/sky_gradient.gdshader, scenes/main.tscn, scripts/player/player_jet.gd, scripts/stage/ground_scroll.gd
+**Key changes**:
+- ground_scroll.gdshader:8 — scroll_speed default 8.0->18.0, hint_range upper 10->30
+- ground_scroll.gdshader:33 — perspective formula pow(1.0-uv.y, 0.4) -> pow(uv.y, 2.5) for dramatic near-wide/far-thin bands
+- ground_scroll.gdshader:20 — SKY_HAZE changed from white (0.75,0.85,0.98) to match sky horizon (0.20,0.40,0.78)
+- sky_gradient.gdshader:8-12 — all sky stops replaced with deeper blues, SKY_HAZE=SKY_HORIZON to eliminate white
+- sky_gradient.gdshader:77 — below-horizon falloff uses SKY_HORIZON instead of SKY_HAZE
+- scenes/main.tscn:40 — camera transform updated from 15deg to 20deg X rotation
+- scenes/main.tscn:13-14 — sky shader params updated to new deep blue defaults
+- scenes/main.tscn:27,49 — scroll_speed 8.0->18.0 in both shader param and export
+- scripts/player/player_jet.gd:7-8 — MOVE_MIN.y 3.0->2.5, MOVE_MAX.y 4.8->4.2
+- scripts/player/player_jet.gd:14 — RESPAWN_POSITION Y 4.4->3.8 for new camera angle
+- scripts/stage/ground_scroll.gd:3 — scroll_speed default 8.0->18.0
+**Technical decisions**: (1) Used pow(uv.y, 2.5) instead of pow(1.0-uv.y, ...) — simpler and correct since UV.y=0 is near camera; high exponent compresses horizon bands. (2) Set SKY_HAZE equal to SKY_HORIZON rather than removing it, to avoid breaking the gradient logic structure. (3) Lowered player Y by 0.6 units to compensate for 5deg additional camera downtilt.
+**Testing**: Godot --import passes clean. All shader syntax valid. GDScript compiles (GameState autoload error expected in headless mode).
+**Improvement Insights**:
+- [workflow]: When changing camera angle, a screenshot verification step would catch positioning issues faster than manual math

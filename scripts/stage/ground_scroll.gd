@@ -1,6 +1,6 @@
 extends MeshInstance3D
 
-@export var scroll_speed: float = 8.0
+@export var scroll_speed: float = 18.0
 
 var _offset: float = 0.0
 

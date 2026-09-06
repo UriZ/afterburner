@@ -1,33 +1,58 @@
 class_name JetSpriteGenerator
 extends RefCounted
 
-## Generates a 640x96 sprite sheet with 5 rear-view F-14 banking frames.
-## Bank angles: [-35, -15, 0, 15, 35] degrees (hard-left to hard-right).
+## Generates an 800x96 sprite sheet with 5 top-rear dorsal-view F-14 banking frames.
+## View: ~25-30deg elevation above and behind — you see the TOP of the wings,
+## cockpit canopy as a dark dome, engines foreshortened at the bottom.
+## Banking: one wing foreshortens while the other extends (roll perspective).
 
-const FRAME_W := 128
+const FRAME_W := 160
 const FRAME_H := 96
 const FRAME_COUNT := 5
-const SHEET_WIDTH := FRAME_W * FRAME_COUNT
-const CENTER := 64  # horizontal center of each frame (FRAME_W / 2)
+const SHEET_WIDTH := FRAME_W * FRAME_COUNT  # 800
+const CENTER_X := 80  # horizontal center of each frame
+const CENTER_Y := 48  # vertical center
 
-const BANK_ANGLES := [-35.0, -15.0, 0.0, 15.0, 35.0]
+# Banking parameters: [left_wing_scale, right_wing_scale, fuselage_shift_x]
+# Frame 0: hard left bank — left wing foreshortens, right extends
+# Frame 1: soft left bank
+# Frame 2: level flight — symmetric
+# Frame 3: soft right bank
+# Frame 4: hard right bank
+const BANK_PARAMS := [
+	[0.30, 1.15, -6],   # hard left
+	[0.65, 1.08, -3],   # soft left
+	[1.00, 1.00,  0],   # center
+	[1.08, 0.65,  3],   # soft right
+	[1.15, 0.30,  6],   # hard right
+]
 
-# Palette — warmer fuselage for contrast against blue sky/ocean
-const COLOR_FUSELAGE := Color(0.60, 0.58, 0.55)
-const COLOR_FUSELAGE_LIT := Color(0.70, 0.68, 0.65)
-const COLOR_FIN := Color(0.45, 0.50, 0.60)
-const COLOR_FIN_EDGE := Color(0.38, 0.43, 0.53)
-const COLOR_STABILIZER := Color(0.40, 0.45, 0.55)
-const COLOR_NOZZLE_OUTER := Color(0.20, 0.20, 0.22)
-const COLOR_NOZZLE_INNER := Color(0.85, 0.45, 0.10)
-const COLOR_NOZZLE_RING := Color(0.50, 0.30, 0.15)
-const COLOR_AFTERBURN_1 := Color(1.00, 0.85, 0.30)
-const COLOR_AFTERBURN_2 := Color(1.00, 0.50, 0.08)
-const COLOR_AFTERBURN_3 := Color(0.85, 0.25, 0.05)
-const COLOR_AFTERBURN_TIP := Color(0.60, 0.10, 0.02)
-const COLOR_SPINE_LIGHT := Color(0.75, 0.73, 0.70)
-const COLOR_PANEL_LINE := Color(0.48, 0.46, 0.43)
-const COLOR_FAIRING := Color(0.50, 0.48, 0.46)
+# --- Palette ---
+# Fuselage top surface (lit by sun from above)
+const COL_FUSE_TOP := Color(0.68, 0.66, 0.62)
+const COL_FUSE_MID := Color(0.58, 0.56, 0.52)
+const COL_FUSE_DARK := Color(0.45, 0.43, 0.40)
+# Wings — slightly bluer tint (painted metal)
+const COL_WING_TOP := Color(0.60, 0.62, 0.65)
+const COL_WING_MID := Color(0.50, 0.52, 0.56)
+const COL_WING_EDGE := Color(0.42, 0.44, 0.48)
+# Cockpit canopy — dark blue dome
+const COL_CANOPY := Color(0.10, 0.37, 0.66)  # #1A5FA8 ≈
+const COL_CANOPY_HIGHLIGHT := Color(0.30, 0.55, 0.80)
+const COL_CANOPY_FRAME := Color(0.35, 0.34, 0.32)
+# Tail fins
+const COL_FIN := Color(0.48, 0.50, 0.55)
+const COL_FIN_EDGE := Color(0.38, 0.40, 0.45)
+# Engine nozzles (foreshortened, viewed from above — small)
+const COL_NOZZLE := Color(0.22, 0.22, 0.24)
+const COL_NOZZLE_GLOW := Color(0.80, 0.40, 0.10)
+# Afterburner
+const COL_FLAME_CORE := Color(1.00, 0.90, 0.40)
+const COL_FLAME_MID := Color(1.00, 0.55, 0.10)
+const COL_FLAME_OUTER := Color(0.85, 0.28, 0.05)
+# Detail lines
+const COL_PANEL_LINE := Color(0.42, 0.40, 0.38)
+const COL_INTAKE := Color(0.35, 0.35, 0.37)
 
 
 static func generate_sprite_sheet() -> ImageTexture:
@@ -35,257 +60,327 @@ static func generate_sprite_sheet() -> ImageTexture:
 	image.fill(Color(0, 0, 0, 0))
 
 	for i in range(FRAME_COUNT):
-		_draw_jet_frame(image, i, BANK_ANGLES[i])
+		_draw_frame(image, i)
 
 	return ImageTexture.create_from_image(image)
 
 
-static func _draw_jet_frame(image: Image, frame_index: int, bank_angle: float) -> void:
-	var ox := frame_index * FRAME_W
-	var bank_rad := deg_to_rad(bank_angle)
-	var cos_b := cos(bank_rad)
-	var sin_b := sin(bank_rad)
-	var shift_x := roundi(sin_b * 16.0)
-	var is_hard_bank := absf(bank_angle) > 30.0
+static func _draw_frame(img: Image, frame: int) -> void:
+	var ox := frame * FRAME_W
+	var params: Array = BANK_PARAMS[frame]
+	var lw_scale: float = params[0]
+	var rw_scale: float = params[1]
+	var shift_x: int = params[2]
 
-	var h_offset := shift_x
+	# Draw order: back to front (painter's algorithm)
+	# 1. Afterburner flames (behind everything)
+	_draw_afterburners(img, ox, shift_x)
+	# 2. Tail fins (behind fuselage top)
+	_draw_tail_fins(img, ox, lw_scale, rw_scale, shift_x)
+	# 3. Wings (the dominant element)
+	_draw_wings(img, ox, lw_scale, rw_scale, shift_x)
+	# 4. Fuselage spine (on top of wings)
+	_draw_fuselage(img, ox, shift_x)
+	# 5. Cockpit canopy (topmost, forward of fuselage)
+	_draw_canopy(img, ox, shift_x)
+	# 6. Engine nozzles (visible at bottom, foreshortened)
+	_draw_nozzles(img, ox, shift_x)
+	# 7. Panel lines and detail
+	_draw_details(img, ox, lw_scale, rw_scale, shift_x)
 
-	# --- Fuselage main body ---
-	# Main rect: cols 48-78, rows 16-76 (was 24-39, 8-38)
-	_draw_rect_banked(image, ox, 48, 78, 16, 76, cos_b, h_offset, COLOR_FUSELAGE)
-	# Top narrows: cols 54-72, rows 12-16 (was 27-36, 6-8)
-	_draw_rect_banked(image, ox, 54, 72, 12, 16, cos_b, h_offset, COLOR_FUSELAGE)
-	# Rounded bottom: cols 52-74, rows 78-82 (was 26-37, 39-41)
-	_draw_rect_banked(image, ox, 52, 74, 78, 82, cos_b, h_offset, COLOR_FUSELAGE)
 
-	# --- Panel line along fuselage center (1px darker line) ---
-	_draw_rect_banked(image, ox, 63, 64, 14, 76, cos_b, h_offset, COLOR_PANEL_LINE)
+# --- FUSELAGE: Central spine running from nose to tail ---
+# Viewed from above, it's a long narrow shape, widest at mid-body.
+static func _draw_fuselage(img: Image, ox: int, sx: int) -> void:
+	var cx := CENTER_X + sx
 
-	# --- Cockpit spine ---
-	# Cols 58-68, rows 16-32 (was 29-34, 8-16)
-	_draw_rect_banked(image, ox, 58, 68, 16, 32, cos_b, h_offset, COLOR_SPINE_LIGHT)
+	# Nose cone (rows 10-20) — narrow point
+	for row in range(10, 20):
+		var t := float(row - 10) / 10.0
+		var hw := roundi(lerpf(2.0, 6.0, t))
+		_hline(img, ox, cx - hw, cx + hw, row, COL_FUSE_TOP)
 
-	# --- Tail fins with inward taper ---
-	var draw_left_fin := true
-	var draw_right_fin := true
-	if is_hard_bank:
-		if bank_angle < 0:
-			draw_right_fin = false
+	# Forward fuselage (rows 20-36) — widens to cockpit area
+	for row in range(20, 36):
+		var t := float(row - 20) / 16.0
+		var hw := roundi(lerpf(6.0, 10.0, t))
+		_hline(img, ox, cx - hw, cx + hw, row, COL_FUSE_TOP)
+
+	# Mid fuselage (rows 36-60) — widest, between the wings
+	for row in range(36, 60):
+		var t := float(row - 36) / 24.0
+		var hw := roundi(lerpf(10.0, 12.0, t))
+		var col := COL_FUSE_TOP if t < 0.5 else COL_FUSE_MID
+		_hline(img, ox, cx - hw, cx + hw, row, col)
+
+	# Rear fuselage (rows 60-78) — narrows toward engines
+	for row in range(60, 78):
+		var t := float(row - 60) / 18.0
+		var hw := roundi(lerpf(12.0, 8.0, t))
+		_hline(img, ox, cx - hw, cx + hw, row, COL_FUSE_MID)
+
+	# Engine housing (rows 78-86) — splits into two nacelles
+	for row in range(78, 86):
+		var t := float(row - 78) / 8.0
+		var hw := roundi(lerpf(8.0, 6.0, t))
+		# Left nacelle
+		_hline(img, ox, cx - hw, cx - 2, row, COL_FUSE_DARK)
+		# Right nacelle
+		_hline(img, ox, cx + 2, cx + hw, row, COL_FUSE_DARK)
+
+	# Center spine highlight (single bright line down the middle)
+	for row in range(12, 76):
+		_set_px(img, ox + cx, row, COL_FUSE_TOP.lerp(Color.WHITE, 0.15))
+
+
+# --- WINGS: The dominant visual element ---
+# From above, wings are wide swept-back delta shapes extending from the mid-fuselage.
+# Each wing is drawn independently with its own scale for banking.
+static func _draw_wings(img: Image, ox: int, lw_scale: float, rw_scale: float, sx: int) -> void:
+	var cx := CENTER_X + sx
+
+	# Wing vertical span: rows 38-56 (centered around row 47)
+	# At row 38 (leading edge), wings start narrow near fuselage
+	# At row ~47, maximum span (20px to 140px in level flight)
+	# At row 56 (trailing edge), wings sweep back to fuselage
+
+	# Left wing
+	_draw_single_wing(img, ox, cx, lw_scale, true)
+	# Right wing
+	_draw_single_wing(img, ox, cx, rw_scale, false)
+
+
+static func _draw_single_wing(img: Image, ox: int, cx: int, scale: float, is_left: bool) -> void:
+	# Wing geometry: swept-back shape
+	# Leading edge: row 36, starts at fuselage edge
+	# Max chord: row 44, extends to max span
+	# Trailing edge: row 56, sweeps back
+
+	var wing_rows_start := 36
+	var wing_rows_peak := 44
+	var wing_rows_end := 56
+	var max_span := roundi(60.0 * scale)  # distance from center at widest point
+
+	if max_span < 3:
+		return  # Too foreshortened to draw
+
+	for row in range(wing_rows_start, wing_rows_end + 1):
+		var span: int
+		if row <= wing_rows_peak:
+			# Leading edge: span increases linearly
+			var t := float(row - wing_rows_start) / float(wing_rows_peak - wing_rows_start)
+			span = roundi(lerpf(8.0 * scale, float(max_span), t * t))  # quadratic ease-in for sweep
 		else:
-			draw_left_fin = false
+			# Trailing edge: span decreases, but with a straighter trailing edge
+			var t := float(row - wing_rows_peak) / float(wing_rows_end - wing_rows_peak)
+			span = roundi(lerpf(float(max_span), 14.0 * scale, t))
 
-	if draw_left_fin:
-		# Main body: cols 44-52, rows 8-44 (was 22-26, 4-22)
-		var fin_scale := 1.0 if bank_angle <= 0 else cos_b
-		_draw_fin_tapered(image, ox, 44, 52, 8, 44, true, cos_b, h_offset, fin_scale, COLOR_FIN)
-		# Fin edge highlight (inward taper detail)
-		_draw_rect_banked(image, ox, 51, 52, 8, 40, cos_b, h_offset, COLOR_FIN_EDGE)
+		if span < 1:
+			continue
 
-	if draw_right_fin:
-		# Main body: cols 74-82, rows 8-44 (was 37-41, 4-22)
-		var fin_scale := 1.0 if bank_angle >= 0 else cos_b
-		_draw_fin_tapered(image, ox, 74, 82, 8, 44, false, cos_b, h_offset, fin_scale, COLOR_FIN)
-		# Fin edge highlight
-		_draw_rect_banked(image, ox, 74, 75, 8, 40, cos_b, h_offset, COLOR_FIN_EDGE)
-
-	# Soft bank: near fin extends up slightly
-	if not is_hard_bank and absf(bank_angle) > 5.0:
-		if bank_angle < 0:
-			_draw_rect_banked(image, ox, 46, 50, 6, 8, cos_b, h_offset, COLOR_FIN)
+		# Color: lighter near leading edge, darker toward trailing edge
+		var row_t := float(row - wing_rows_start) / float(wing_rows_end - wing_rows_start)
+		var col: Color
+		if row_t < 0.3:
+			col = COL_WING_TOP
+		elif row_t < 0.7:
+			col = COL_WING_MID
 		else:
-			_draw_rect_banked(image, ox, 76, 80, 6, 8, cos_b, h_offset, COLOR_FIN)
+			col = COL_WING_EDGE
 
-	# --- Horizontal stabilizers ---
-	# Left: cols 28-46, rows 60-68 (was 14-23, 30-34)
-	_draw_stabilizer_left(image, ox, 28, 46, 60, 68, cos_b, h_offset, COLOR_STABILIZER)
-	# Right: cols 80-98, rows 60-68 (was 40-49, 30-34)
-	_draw_stabilizer_right(image, ox, 80, 98, 60, 68, cos_b, h_offset, COLOR_STABILIZER)
+		# Wing edge highlight on the outboard tip (1px lighter)
+		var fuselage_hw := 10  # don't draw over fuselage
 
-	# --- Wing root fairings where stabilizers meet fuselage ---
-	_draw_rect_banked(image, ox, 44, 50, 58, 66, cos_b, h_offset, COLOR_FAIRING)
-	_draw_rect_banked(image, ox, 76, 82, 58, 66, cos_b, h_offset, COLOR_FAIRING)
-
-	# Hard bank: show a wing stub on the upward side
-	if is_hard_bank:
-		if bank_angle < 0:
-			# Cols 20-44, rows 24-32 (was 10-22, 12-16)
-			_draw_rect_banked(image, ox, 20, 44, 24, 32, cos_b, h_offset, COLOR_STABILIZER)
+		if is_left:
+			var x_start := maxi(0, cx - span)
+			var x_end := cx - fuselage_hw
+			if x_start < x_end:
+				_hline(img, ox, x_start, x_end, row, col)
+				# Leading/trailing edge highlight
+				if row == wing_rows_start or row == wing_rows_end:
+					_hline(img, ox, x_start, x_end, row, COL_WING_EDGE)
+				# Wingtip highlight
+				_set_px(img, ox + x_start, row, COL_WING_EDGE)
 		else:
-			# Cols 82-106, rows 24-32 (was 41-53, 12-16)
-			_draw_rect_banked(image, ox, 82, 106, 24, 32, cos_b, h_offset, COLOR_STABILIZER)
-
-	# --- Engine nozzles with concentric ring detail ---
-	# Left nozzle: cols 52-62, rows 80-88 (was 26-31, 40-44)
-	_draw_oval_banked(image, ox, 52, 62, 80, 88, cos_b, h_offset, COLOR_NOZZLE_OUTER)
-	_draw_oval_banked(image, ox, 54, 60, 81, 87, cos_b, h_offset, COLOR_NOZZLE_RING)
-	_draw_rect_banked(image, ox, 55, 59, 82, 86, cos_b, h_offset, COLOR_NOZZLE_INNER)
-
-	# Right nozzle: cols 64-74, rows 80-88 (was 32-37, 40-44)
-	_draw_oval_banked(image, ox, 64, 74, 80, 88, cos_b, h_offset, COLOR_NOZZLE_OUTER)
-	_draw_oval_banked(image, ox, 66, 72, 81, 87, cos_b, h_offset, COLOR_NOZZLE_RING)
-	_draw_rect_banked(image, ox, 67, 71, 82, 86, cos_b, h_offset, COLOR_NOZZLE_INNER)
-
-	# --- Afterburner flames (24px long, was 12) ---
-	var left_nozzle_cx := roundi((52 + 62) * 0.5 * cos_b) + (CENTER - roundi(CENTER * cos_b)) + h_offset
-	var right_nozzle_cx := roundi((64 + 74) * 0.5 * cos_b) + (CENTER - roundi(CENTER * cos_b)) + h_offset
-	_draw_afterburner_flame(image, ox, left_nozzle_cx, 89)
-	_draw_afterburner_flame(image, ox, right_nozzle_cx, 89)
+			var x_start := cx + fuselage_hw
+			var x_end := mini(FRAME_W - 1, cx + span)
+			if x_start < x_end:
+				_hline(img, ox, x_start, x_end, row, col)
+				if row == wing_rows_start or row == wing_rows_end:
+					_hline(img, ox, x_start, x_end, row, COL_WING_EDGE)
+				_set_px(img, ox + x_end, row, COL_WING_EDGE)
 
 
-# --- Drawing helpers ---
+# --- COCKPIT CANOPY: Dark blue dome visible from above ---
+# Prominent feature at rows 20-32, centered on fuselage
+static func _draw_canopy(img: Image, ox: int, sx: int) -> void:
+	var cx := CENTER_X + sx
 
-## Applies horizontal banking transform to a column coordinate.
-## Squishes x toward center (col 64) by cos_b, then shifts by h_offset.
-static func _bank_x(col: int, cos_b: float, h_offset: int) -> int:
-	return roundi((col - CENTER) * cos_b) + CENTER + h_offset
+	# Canopy frame (slightly wider than the canopy itself)
+	for row in range(19, 34):
+		var t := float(row - 19) / 15.0
+		# Oval shape: widest at center
+		var dist_from_center := absf(t - 0.5) * 2.0
+		var hw := roundi(lerpf(5.0, 1.0, dist_from_center * dist_from_center))
+		_hline(img, ox, cx - hw - 1, cx + hw + 1, row, COL_CANOPY_FRAME)
+
+	# Canopy glass — dark blue dome
+	for row in range(20, 33):
+		var t := float(row - 20) / 13.0
+		var dist_from_center := absf(t - 0.45) * 2.0  # Slightly forward-biased peak
+		var hw := roundi(lerpf(4.0, 1.0, dist_from_center * dist_from_center))
+		_hline(img, ox, cx - hw, cx + hw, row, COL_CANOPY)
+
+	# Specular highlight on canopy (a bright streak)
+	for row in range(22, 28):
+		_set_px(img, ox + cx - 1, row, COL_CANOPY_HIGHLIGHT)
+		if row >= 23 and row <= 26:
+			_set_px(img, ox + cx - 2, row, COL_CANOPY_HIGHLIGHT)
 
 
-## Draw a filled rectangle with horizontal banking applied.
-static func _draw_rect_banked(
-	image: Image, ox: int,
-	col_left: int, col_right: int, row_top: int, row_bottom: int,
-	cos_b: float, h_offset: int, color: Color
-) -> void:
-	var x0 := _bank_x(col_left, cos_b, h_offset)
-	var x1 := _bank_x(col_right, cos_b, h_offset)
-	if x0 > x1:
-		var tmp := x0
-		x0 = x1
-		x1 = tmp
-	for y in range(row_top, row_bottom + 1):
-		for x in range(x0, x1 + 1):
-			if _in_bounds(image, ox + x, y):
-				image.set_pixel(ox + x, y, color)
+# --- TAIL FINS: Twin vertical stabilizers ---
+# Viewed from above, these appear as narrow shapes projecting upward from the rear fuselage.
+# They are "above" the fuselage plane so they project outward at an angle.
+static func _draw_tail_fins(img: Image, ox: int, lw_scale: float, rw_scale: float, sx: int) -> void:
+	var cx := CENTER_X + sx
+
+	# Each fin projects outward and slightly backward from the rear fuselage
+	# In top-down view, they appear as angled lines/slivers
+	var fin_base_row := 64
+	var fin_tip_row := 56
+
+	# Left fin — angles outward to the left
+	var left_spread := roundi(8.0 * lw_scale)
+	if left_spread >= 2:
+		for row in range(fin_tip_row, fin_base_row + 1):
+			var t := float(row - fin_tip_row) / float(fin_base_row - fin_tip_row)
+			var offset := roundi(lerpf(float(left_spread), 4.0, t))
+			var fin_x := cx - offset
+			_set_px(img, ox + fin_x, row, COL_FIN)
+			_set_px(img, ox + fin_x - 1, row, COL_FIN)
+			if t > 0.3 and t < 0.8:
+				_set_px(img, ox + fin_x + 1, row, COL_FIN_EDGE)
+
+	# Right fin — angles outward to the right
+	var right_spread := roundi(8.0 * rw_scale)
+	if right_spread >= 2:
+		for row in range(fin_tip_row, fin_base_row + 1):
+			var t := float(row - fin_tip_row) / float(fin_base_row - fin_tip_row)
+			var offset := roundi(lerpf(float(right_spread), 4.0, t))
+			var fin_x := cx + offset
+			_set_px(img, ox + fin_x, row, COL_FIN)
+			_set_px(img, ox + fin_x + 1, row, COL_FIN)
+			if t > 0.3 and t < 0.8:
+				_set_px(img, ox + fin_x - 1, row, COL_FIN_EDGE)
 
 
-## Draw a filled oval inscribed in the given bounding box, with banking.
-static func _draw_oval_banked(
-	image: Image, ox: int,
-	col_left: int, col_right: int, row_top: int, row_bottom: int,
-	cos_b: float, h_offset: int, color: Color
-) -> void:
-	var bx0 := _bank_x(col_left, cos_b, h_offset)
-	var bx1 := _bank_x(col_right, cos_b, h_offset)
-	if bx0 > bx1:
-		var tmp := bx0
-		bx0 = bx1
-		bx1 = tmp
-	var cx_2 := bx0 + bx1
-	var cy_2 := row_top + row_bottom
-	var rx := (bx1 - bx0)
-	var ry := (row_bottom - row_top)
+# --- ENGINE NOZZLES: Small foreshortened circles at the bottom ---
+# Viewed from above, nozzles are foreshortened — appear as small ovals.
+static func _draw_nozzles(img: Image, ox: int, sx: int) -> void:
+	var cx := CENTER_X + sx
+	var nozzle_row := 82
+
+	# Left nozzle (centered at cx-5)
+	_draw_oval(img, ox, cx - 8, cx - 2, nozzle_row - 2, nozzle_row + 2, COL_NOZZLE)
+	_draw_oval(img, ox, cx - 7, cx - 3, nozzle_row - 1, nozzle_row + 1, COL_NOZZLE_GLOW)
+
+	# Right nozzle (centered at cx+5)
+	_draw_oval(img, ox, cx + 2, cx + 8, nozzle_row - 2, nozzle_row + 2, COL_NOZZLE)
+	_draw_oval(img, ox, cx + 3, cx + 7, nozzle_row - 1, nozzle_row + 1, COL_NOZZLE_GLOW)
+
+
+# --- AFTERBURNER FLAMES: Small orange glow below nozzles ---
+static func _draw_afterburners(img: Image, ox: int, sx: int) -> void:
+	var cx := CENTER_X + sx
+	# Shorter flames than the old rear view (foreshortened perspective)
+	_draw_flame(img, ox, cx - 5, 85)
+	_draw_flame(img, ox, cx + 5, 85)
+
+
+static func _draw_flame(img: Image, ox: int, flame_cx: int, start_row: int) -> void:
+	var flame_len := 10  # Short — viewed from above
+	for row_off in range(flame_len):
+		var row := start_row + row_off
+		if row >= FRAME_H:
+			break
+		var t := float(row_off) / float(flame_len - 1)
+		var hw := roundi(lerpf(3.0, 0.0, t))
+		# Flicker
+		if row_off > 1 and row_off < flame_len - 1 and row_off % 2 == 0:
+			hw = maxi(0, hw - 1)
+
+		for dx in range(-hw, hw + 1):
+			var px := ox + flame_cx + dx
+			if not _in_bounds(img, px, row):
+				continue
+			var dist := absf(float(dx)) / float(maxi(hw, 1))
+			var col: Color
+			if dist < 0.35:
+				col = COL_FLAME_CORE
+			elif dist < 0.65:
+				col = COL_FLAME_MID
+			else:
+				col = COL_FLAME_OUTER
+			img.set_pixel(px, row, col)
+
+
+# --- DETAIL LINES: Panel lines, intake shadows, wing markings ---
+static func _draw_details(img: Image, ox: int, lw_scale: float, rw_scale: float, sx: int) -> void:
+	var cx := CENTER_X + sx
+
+	# Fuselage center panel line
+	for row in range(20, 78):
+		_set_px(img, ox + cx, row, COL_PANEL_LINE)
+
+	# Intake shadows on fuselage sides (rows 50-62)
+	for row in range(50, 62):
+		_set_px(img, ox + cx - 8, row, COL_INTAKE)
+		_set_px(img, ox + cx + 8, row, COL_INTAKE)
+
+	# Wing spar lines (structural detail running along each wing)
+	var spar_row := 46  # Near the middle of the wing span
+	var left_span := roundi(55.0 * lw_scale)
+	var right_span := roundi(55.0 * rw_scale)
+
+	if left_span > 12:
+		for x in range(cx - left_span + 4, cx - 12):
+			_set_px(img, ox + x, spar_row, COL_PANEL_LINE)
+			_set_px(img, ox + x, spar_row + 4, COL_PANEL_LINE)
+
+	if right_span > 12:
+		for x in range(cx + 12, cx + right_span - 4):
+			_set_px(img, ox + x, spar_row, COL_PANEL_LINE)
+			_set_px(img, ox + x, spar_row + 4, COL_PANEL_LINE)
+
+
+# --- Drawing primitives ---
+
+static func _hline(img: Image, ox: int, x0: int, x1: int, row: int, color: Color) -> void:
+	var xa := mini(x0, x1)
+	var xb := maxi(x0, x1)
+	for x in range(xa, xb + 1):
+		_set_px(img, ox + x, row, color)
+
+
+static func _set_px(img: Image, x: int, y: int, color: Color) -> void:
+	if _in_bounds(img, x, y):
+		img.set_pixel(x, y, color)
+
+
+static func _draw_oval(img: Image, ox: int, x0: int, x1: int, y0: int, y1: int, color: Color) -> void:
+	var cx_2 := x0 + x1
+	var cy_2 := y0 + y1
+	var rx := x1 - x0
+	var ry := y1 - y0
 	if rx <= 0 or ry <= 0:
 		return
-	for y in range(row_top, row_bottom + 1):
-		for x in range(bx0, bx1 + 1):
+	for y in range(y0, y1 + 1):
+		for x in range(x0, x1 + 1):
 			var dx := 2 * x - cx_2
 			var dy := 2 * y - cy_2
 			if dx * dx * ry * ry + dy * dy * rx * rx <= rx * rx * ry * ry:
-				if _in_bounds(image, ox + x, y):
-					image.set_pixel(ox + x, y, color)
+				_set_px(img, ox + x, y, color)
 
 
-## Draw a tail fin with slight inward taper.
-## is_left: true for left fin (tapers inward toward right), false for right fin.
-static func _draw_fin_tapered(
-	image: Image, ox: int,
-	col_left: int, col_right: int, row_top: int, row_bottom: int,
-	is_left: bool,
-	cos_b: float, h_offset: int, _scale: float, color: Color
-) -> void:
-	var height := row_bottom - row_top
-	if height <= 0:
-		return
-	for row in range(row_top, row_bottom + 1):
-		# t=0 at top (tip), t=1 at bottom (base)
-		var t := float(row - row_top) / float(height)
-		# Taper: at the tip, narrow by 2px on the inward side
-		var taper := roundi((1.0 - t) * 2.0)
-		var cl := col_left
-		var cr := col_right
-		if is_left:
-			cl += taper  # left fin tapers inward (tip shifts right)
-		else:
-			cr -= taper  # right fin tapers inward (tip shifts left)
-		if cl <= cr:
-			_draw_rect_banked(image, ox, cl, cr, row, row, cos_b, h_offset, color)
-
-
-## Draw left horizontal stabilizer (tapers: full height at right edge, 1px at left).
-static func _draw_stabilizer_left(
-	image: Image, ox: int,
-	col_left: int, col_right: int, row_top: int, row_bottom: int,
-	cos_b: float, h_offset: int, color: Color
-) -> void:
-	var full_height := row_bottom - row_top
-	var span := col_right - col_left
-	if span <= 0:
-		return
-	for col in range(col_left, col_right + 1):
-		var t := float(col - col_left) / float(span)
-		var h := maxi(1, roundi(t * full_height))
-		var mid := (row_top + row_bottom) / 2
-		var bx := _bank_x(col, cos_b, h_offset)
-		for dy in range(-h / 2, h / 2 + 1):
-			if _in_bounds(image, ox + bx, mid + dy):
-				image.set_pixel(ox + bx, mid + dy, color)
-
-
-## Draw right horizontal stabilizer (tapers: full height at left edge, 1px at right).
-static func _draw_stabilizer_right(
-	image: Image, ox: int,
-	col_left: int, col_right: int, row_top: int, row_bottom: int,
-	cos_b: float, h_offset: int, color: Color
-) -> void:
-	var full_height := row_bottom - row_top
-	var span := col_right - col_left
-	if span <= 0:
-		return
-	for col in range(col_left, col_right + 1):
-		var t := float(col_right - col) / float(span)
-		var h := maxi(1, roundi(t * full_height))
-		var mid := (row_top + row_bottom) / 2
-		var bx := _bank_x(col, cos_b, h_offset)
-		for dy in range(-h / 2, h / 2 + 1):
-			if _in_bounds(image, ox + bx, mid + dy):
-				image.set_pixel(ox + bx, mid + dy, color)
-
-
-## Draw afterburner flame below a nozzle center.
-## 4 layers tapering from 8px wide to 1px over 24px length, with width flicker.
-static func _draw_afterburner_flame(
-	image: Image, ox: int, nozzle_cx: int, start_row: int
-) -> void:
-	var flame_length := 24
-	var max_half_width := 4  # 8px total width
-
-	for row_offset in range(flame_length):
-		var row := start_row + row_offset
-		if row >= FRAME_H:
-			break
-		var t := float(row_offset) / float(flame_length - 1)
-		# Taper from max_half_width down to 0
-		var half_w := roundi(lerpf(float(max_half_width), 0.0, t))
-		# Flickering width variation: +/- 1px based on row parity
-		if row_offset > 2 and row_offset < flame_length - 2:
-			half_w += 1 if (row_offset % 3 == 0) else 0
-
-		for dx in range(-half_w, half_w + 1):
-			var px := ox + nozzle_cx + dx
-			if not _in_bounds(image, px, row):
-				continue
-			var dist := absf(float(dx)) / float(maxi(half_w, 1))
-			var color: Color
-			if dist < 0.25:
-				color = COLOR_AFTERBURN_1  # inner white-yellow core
-			elif dist < 0.50:
-				color = COLOR_AFTERBURN_2  # mid orange ring
-			elif dist < 0.75:
-				color = COLOR_AFTERBURN_3  # outer red ring
-			else:
-				color = COLOR_AFTERBURN_TIP  # edge glow
-			image.set_pixel(px, row, color)
-
-
-static func _in_bounds(image: Image, x: int, y: int) -> bool:
-	return x >= 0 and x < image.get_width() and y >= 0 and y < image.get_height()
+static func _in_bounds(img: Image, x: int, y: int) -> bool:
+	return x >= 0 and x < img.get_width() and y >= 0 and y < img.get_height()
