@@ -3,12 +3,12 @@ extends Node3D
 ## Spawns waves of enemy jets on a timer.
 ## Data-driven: wave definitions are arrays of dictionaries.
 
-const SPAWN_Z := -80.0
-const SPAWN_Y_MIN := 2.0
-const SPAWN_Y_MAX := 6.0
+const SPAWN_Z := -50.0
+const SPAWN_Y_MIN := 5.0  # enemies must fly above player (player MOVE_MAX.y = 4.8)
+const SPAWN_Y_MAX := 7.0
 const SPAWN_X_RANGE := 8.0
 
-@export var spawn_interval: float = 3.0
+@export var spawn_interval: float = 5.0
 @export var enabled: bool = true
 
 var _spawn_timer: float = 0.0
@@ -21,20 +21,24 @@ var _enemy_scene: PackedScene = null
 # type: EnemyType enum value
 # count: number of enemies
 var wave_definitions: Array[Dictionary] = [
-	{"type": 0, "count": 3, "formation": "v"},       # 3 fighters in V
-	{"type": 1, "count": 4, "formation": "line"},     # 4 interceptors in line
-	{"type": 0, "count": 5, "formation": "v"},        # 5 fighters in V
-	{"type": 2, "count": 2, "formation": "line"},     # 2 bombers in line
-	{"type": 0, "count": 4, "formation": "scattered"},# 4 fighters scattered
-	{"type": 1, "count": 3, "formation": "v"},        # 3 interceptors in V
-	{"type": 2, "count": 1, "formation": "scattered"},# 1 bomber
-	{"type": 0, "count": 5, "formation": "scattered"},# 5 fighters scattered
+	{"type": 0, "count": 2, "formation": "v"},        # 2 fighters in V
+	{"type": 0, "count": 2, "formation": "line"},      # 2 fighters in line
+	{"type": 1, "count": 2, "formation": "v"},         # 2 interceptors in V
+	{"type": 0, "count": 3, "formation": "v"},         # 3 fighters in V
+	{"type": 2, "count": 1, "formation": "line"},      # 1 bomber
+	{"type": 0, "count": 3, "formation": "scattered"}, # 3 fighters scattered
+	{"type": 1, "count": 3, "formation": "v"},         # 3 interceptors in V
+	{"type": 2, "count": 2, "formation": "line"},      # 2 bombers in line
+	{"type": 0, "count": 4, "formation": "scattered"}, # 4 fighters scattered
+	{"type": 1, "count": 4, "formation": "v"},         # 4 interceptors in V
+	{"type": 2, "count": 2, "formation": "scattered"}, # 2 bombers scattered
+	{"type": 0, "count": 5, "formation": "scattered"}, # 5 fighters scattered
 ]
 
 
 func _ready() -> void:
 	_enemy_scene = load("res://scenes/enemies/enemy_jet.tscn")
-	_spawn_timer = 1.0  # short initial delay
+	_spawn_timer = 5.0  # delay first wave so player has time to orient
 	# Ensure the player jet is in the "player" group so enemies can find it.
 	# We do this here because we can't modify the player scene (separate agent).
 	_add_player_to_group.call_deferred()
@@ -128,7 +132,7 @@ func _scattered_formation(count: int, cx: float, cy: float) -> Array[Vector3]:
 
 	for i in range(count):
 		var x := cx + randf_range(-SPAWN_X_RANGE * 0.4, SPAWN_X_RANGE * 0.4)
-		var y := cy + randf_range(-1.0, 1.0)
+		var y := maxf(SPAWN_Y_MIN, cy + randf_range(-0.5, 1.0))
 		var z := SPAWN_Z + randf_range(-10.0, 0.0)
 		positions.append(Vector3(x, y, z))
 

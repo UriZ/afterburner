@@ -11,7 +11,7 @@ collision_mask = 2
 script = ExtResource("1_enemy_script")
 
 [node name="EnemySprite" type="Sprite3D" parent="."]
-pixel_size = 0.03
+pixel_size = 0.08
 alpha_cut = 2
 billboard = 0
 shaded = false

@@ -5,15 +5,15 @@ extends RefCounted
 
 const STAGES := [
 	# Stage 1: Ocean - calm blue waters
-	{ "ground_a": Color(0.1, 0.3, 0.7), "ground_b": Color(0.08, 0.25, 0.6), "sky_top": Color(0.05, 0.05, 0.3), "sky_horizon": Color(0.5, 0.7, 0.95), "spawn_interval": 3.0, "enemies_per_wave": 3, "is_bonus": false },
+	{ "ground_a": Color(0.1, 0.3, 0.7), "ground_b": Color(0.08, 0.25, 0.6), "sky_top": Color(0.05, 0.05, 0.3), "sky_horizon": Color(0.5, 0.7, 0.95), "spawn_interval": 5.0, "enemies_per_wave": 2, "is_bonus": false },
 	# Stage 2: Ocean - deeper blue
-	{ "ground_a": Color(0.05, 0.2, 0.6), "ground_b": Color(0.04, 0.15, 0.5), "sky_top": Color(0.04, 0.04, 0.28), "sky_horizon": Color(0.45, 0.65, 0.9), "spawn_interval": 2.8, "enemies_per_wave": 3, "is_bonus": false },
+	{ "ground_a": Color(0.05, 0.2, 0.6), "ground_b": Color(0.04, 0.15, 0.5), "sky_top": Color(0.04, 0.04, 0.28), "sky_horizon": Color(0.45, 0.65, 0.9), "spawn_interval": 4.0, "enemies_per_wave": 2, "is_bonus": false },
 	# Stage 3: Desert - tan sand
-	{ "ground_a": Color(0.76, 0.6, 0.42), "ground_b": Color(0.65, 0.5, 0.35), "sky_top": Color(0.15, 0.1, 0.3), "sky_horizon": Color(0.8, 0.6, 0.4), "spawn_interval": 2.7, "enemies_per_wave": 3, "is_bonus": false },
+	{ "ground_a": Color(0.76, 0.6, 0.42), "ground_b": Color(0.65, 0.5, 0.35), "sky_top": Color(0.15, 0.1, 0.3), "sky_horizon": Color(0.8, 0.6, 0.4), "spawn_interval": 3.5, "enemies_per_wave": 3, "is_bonus": false },
 	# Stage 4: Desert - reddish
-	{ "ground_a": Color(0.8, 0.5, 0.3), "ground_b": Color(0.7, 0.4, 0.25), "sky_top": Color(0.2, 0.1, 0.25), "sky_horizon": Color(0.85, 0.55, 0.35), "spawn_interval": 2.6, "enemies_per_wave": 4, "is_bonus": false },
+	{ "ground_a": Color(0.8, 0.5, 0.3), "ground_b": Color(0.7, 0.4, 0.25), "sky_top": Color(0.2, 0.1, 0.25), "sky_horizon": Color(0.85, 0.55, 0.35), "spawn_interval": 3.0, "enemies_per_wave": 3, "is_bonus": false },
 	# Stage 5: Forest - green
-	{ "ground_a": Color(0.2, 0.5, 0.2), "ground_b": Color(0.15, 0.4, 0.15), "sky_top": Color(0.05, 0.08, 0.2), "sky_horizon": Color(0.4, 0.65, 0.5), "spawn_interval": 2.5, "enemies_per_wave": 4, "is_bonus": false },
+	{ "ground_a": Color(0.2, 0.5, 0.2), "ground_b": Color(0.15, 0.4, 0.15), "sky_top": Color(0.05, 0.08, 0.2), "sky_horizon": Color(0.4, 0.65, 0.5), "spawn_interval": 2.7, "enemies_per_wave": 4, "is_bonus": false },
 	# Stage 6: BONUS - Ocean flyover
 	{ "ground_a": Color(0.0, 0.35, 0.8), "ground_b": Color(0.0, 0.28, 0.7), "sky_top": Color(0.1, 0.15, 0.5), "sky_horizon": Color(0.5, 0.75, 1.0), "spawn_interval": 2.5, "enemies_per_wave": 2, "is_bonus": true },
 	# Stage 7: Mountain - grey rock

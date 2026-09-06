@@ -86,6 +86,9 @@ func _handle_request(client: StreamPeerTCP, data: String) -> void:
 			var x: float = request.get("x", 0.0)
 			var y: float = request.get("y", 0.0)
 			_send_response(client, _cmd_click(x, y))
+		"key":
+			var key_name: String = request.get("key", "")
+			_send_response(client, _cmd_key(key_name))
 		_:
 			_send_response(client, {"error": "Unknown command: %s" % cmd})
 
@@ -128,6 +131,27 @@ func _send_mouse_release() -> void:
 	release.global_position = _deferred_release
 	release.pressed = false
 	get_viewport().push_input(release)
+
+
+func _cmd_key(key_name: String) -> Dictionary:
+	var keycode := OS.find_keycode_from_string(key_name)
+	if keycode == KEY_NONE:
+		return {"error": "Unknown key: %s" % key_name}
+	var press := InputEventKey.new()
+	press.keycode = keycode
+	press.physical_keycode = keycode
+	press.pressed = true
+	get_viewport().push_input(press)
+	var release := InputEventKey.new()
+	release.keycode = keycode
+	release.physical_keycode = keycode
+	release.pressed = false
+	call_deferred("_send_deferred_key_release", release)
+	return {"ok": true, "key": key_name}
+
+
+func _send_deferred_key_release(event: InputEventKey) -> void:
+	get_viewport().push_input(event)
 
 
 func _cmd_get_runtime_tree() -> Dictionary:

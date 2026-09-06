@@ -4,12 +4,14 @@ extends Node3D
 @export var acceleration: float = 25.0
 @export var deceleration: float = 20.0
 
-const MOVE_MIN := Vector2(-6.0, 1.5)
-const MOVE_MAX := Vector2(6.0, 5.5)
+const MOVE_MIN := Vector2(-5.0, 3.0)
+const MOVE_MAX := Vector2(5.0, 4.8)
 const BANK_DEAD_ZONE := 0.1
 const BANK_SOFT_THRESHOLD := 0.4
 
-const RESPAWN_POSITION := Vector3(0.0, 3.0, -8.0)
+# Camera at (0,5,0) looking forward+slightly-up (forward=(0,0.259,-0.966)).
+# At (0, 4.4, -8.0): NDC_y≈-0.50 (bottom quarter), sprite≈18% screen height with pixel_size=0.03.
+const RESPAWN_POSITION := Vector3(0.0, 4.4, -8.0)
 const DEATH_DURATION := 2.0
 const INVINCIBILITY_DURATION := 2.0
 const FLASH_INTERVAL := 0.1
@@ -33,6 +35,10 @@ func _ready() -> void:
 	position = RESPAWN_POSITION
 	_sprite.texture = JetSpriteGenerator.generate_sprite_sheet()
 	_hit_area.area_entered.connect(_on_hit_area_entered)
+	# Grant invincibility at game start so the player isn't killed immediately
+	_is_invincible = true
+	_invincibility_timer = 3.0
+	_hit_area.collision_mask = 0
 
 
 func _process(delta: float) -> void:

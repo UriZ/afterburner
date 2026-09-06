@@ -16,28 +16,28 @@ const TYPE_DATA := {
 	EnemyType.FIGHTER: {
 		"speed": 15.0,
 		"health": 1,
-		"fire_interval": 3.0,
+		"fire_interval": 5.0,
 		"score": 100,
 		"visual": 0,
 	},
 	EnemyType.INTERCEPTOR: {
 		"speed": 25.0,
 		"health": 1,
-		"fire_interval": 2.0,
+		"fire_interval": 3.5,
 		"score": 200,
 		"visual": 1,
 	},
 	EnemyType.BOMBER: {
 		"speed": 10.0,
 		"health": 2,
-		"fire_interval": 1.2,
+		"fire_interval": 2.5,
 		"score": 500,
 		"visual": 2,
 	},
 }
 
 const DESPAWN_Z := 5.0
-const BULLET_SPEED := 30.0
+const BULLET_SPEED := 20.0
 const BULLET_LIFETIME := 3.0
 
 var enemy_type: EnemyType = EnemyType.FIGHTER
@@ -65,8 +65,8 @@ func _ready() -> void:
 	_sprite.texture = _SpriteGen.generate_texture(
 		visual_id as _SpriteGen.EnemyVisual
 	)
-	# Start fire timer with some randomness so enemies don't all fire in sync
-	_fire_timer = randf_range(0.5, fire_interval)
+	# Delay first shot so enemies don't fire immediately on spawn
+	_fire_timer = randf_range(fire_interval * 0.8, fire_interval * 1.5)
 	# Flight direction: mostly toward camera (+Z), with slight drift
 	_direction = Vector3(_x_drift, 0.0, 1.0).normalized()
 

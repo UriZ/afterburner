@@ -19,6 +19,7 @@ func _init() -> void:
 	test_scattered_formation_count()
 	test_scattered_formation_variation()
 	test_wave_definitions_valid()
+	test_spawn_z_visible_range()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -156,4 +157,14 @@ func test_wave_definitions_valid() -> void:
 			break
 	assert_true(all_valid, "All wave definitions have valid type, count, and formation")
 	assert_true(spawner.wave_definitions.size() > 0, "At least one wave definition exists")
+	spawner.free()
+
+
+func test_spawn_z_visible_range() -> void:
+	print("\ntest_spawn_z_visible_range:")
+	var spawner := _create_spawner()
+	# SPAWN_Z must be close enough that enemies are visible at spawn.
+	# Camera at Z=0; -80 was too far, -50 is the target.
+	assert_true(spawner.SPAWN_Z >= -60.0, "SPAWN_Z is not too far (-60 max)")
+	assert_true(spawner.SPAWN_Z <= -30.0, "SPAWN_Z is far enough for approach (-30 min)")
 	spawner.free()

@@ -31,7 +31,7 @@ billboard = 0
 shaded = false
 
 [node name="AfterburnerFlame" type="GPUParticles3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.15, 0.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.35, 0.6)
 amount = 12
 lifetime = 0.3
 draw_pass_1 = SubResource("QuadMesh_particle")
