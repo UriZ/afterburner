@@ -24,7 +24,7 @@ func _ready() -> void:
 	texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	hframes = FRAME_COUNT
 	frame = 0
-	pixel_size = 0.006  # world size: ~0.38 units for 64px
+	pixel_size = 0.025  # world size: ~1.6 units for 64px
 
 	texture = _build_sheet()
 

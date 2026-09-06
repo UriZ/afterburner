@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameState="*res://scripts/autoload/game_state.gd"
+AudioManager="*res://scripts/autoload/audio_manager.gd"
 McpBridgeGame="*res://mcp_bridge_game.gd"
 
 [display]

@@ -8,7 +8,7 @@ const SPAWN_Y_MIN := 5.0  # enemies must fly above player (player MOVE_MAX.y = 4
 const SPAWN_Y_MAX := 7.0
 const SPAWN_X_RANGE := 8.0
 
-@export var spawn_interval: float = 5.0
+@export var spawn_interval: float = 2.0
 @export var enabled: bool = true
 
 var _spawn_timer: float = 0.0

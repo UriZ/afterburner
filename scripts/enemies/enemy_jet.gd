@@ -109,6 +109,7 @@ func take_damage(amount: int = 1) -> void:
 
 func _die() -> void:
 	destroyed.emit(score_value)
+	AudioManager.play_explosion()
 	_spawn_explosion()
 	queue_free()
 

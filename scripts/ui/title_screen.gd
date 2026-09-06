@@ -108,4 +108,5 @@ func _update_track_highlight() -> void:
 func _start_game() -> void:
 	GameState.reset()
 	GameState.phase = GameState.Phase.PLAYING
+	AudioManager.play_music(_selected_track)
 	get_tree().change_scene_to_file("res://scenes/main.tscn")

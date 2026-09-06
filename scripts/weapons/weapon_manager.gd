@@ -50,6 +50,7 @@ func _fire_vulcan() -> void:
 		return
 
 	_vulcan_cooldown = VULCAN_FIRE_INTERVAL
+	AudioManager.play_vulcan_fire()
 
 	var bullet: Area3D = VulcanBulletScene.instantiate()
 	# Spawn at the player jet's world position with slight random spread
@@ -68,6 +69,7 @@ func _fire_missile() -> void:
 		return  # no missiles left
 
 	_missile_cooldown = MISSILE_FIRE_COOLDOWN
+	AudioManager.play_missile_launch()
 
 	var missile: Area3D = MissileScene.instantiate()
 	missile.position = get_parent().global_position
@@ -79,6 +81,7 @@ func _fire_missile() -> void:
 func _update_lockon() -> void:
 	# Scan for enemies in the "enemies" group that fall within the lock-on
 	# reticle zone on screen.
+	var prev_target := _locked_target
 	_locked_target = null
 
 	var camera := get_viewport().get_camera_3d()
@@ -104,6 +107,10 @@ func _update_lockon() -> void:
 			if d < best_dist:
 				best_dist = d
 				_locked_target = enemy
+
+	# Play lock-on beep when acquiring a new target
+	if _locked_target != null and _locked_target != prev_target:
+		AudioManager.play_lockon_beep()
 
 
 func _find_scene_root() -> Node:
