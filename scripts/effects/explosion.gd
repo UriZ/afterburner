@@ -1,12 +1,12 @@
 extends Sprite3D
 
-## 8-frame procedural sprite-sheet explosion. Frees itself when done.
+## 10-frame procedural sprite-sheet explosion. Frees itself when done.
 
-const FRAME_COUNT := 8
-const FRAME_DURATION := 0.05  # seconds per frame — 0.4s total
-const SHEET_W := 512
-const SHEET_H := 64
-const CELL := 64  # px per frame
+const FRAME_COUNT := 10
+const FRAME_DURATION := 0.1   # seconds per frame — 1.0s total
+const SHEET_W := 1280
+const SHEET_H := 128
+const CELL := 128  # px per frame
 
 const EXPL_FLASH    := Color(1.00, 1.00, 1.00)
 const EXPL_CORE     := Color(1.00, 0.95, 0.40)
@@ -24,7 +24,7 @@ func _ready() -> void:
 	texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	hframes = FRAME_COUNT
 	frame = 0
-	pixel_size = 0.025  # world size: ~1.6 units for 64px
+	pixel_size = 0.06  # world size: ~7.68 units for 128px
 
 	texture = _build_sheet()
 
@@ -55,40 +55,53 @@ func _build_sheet() -> ImageTexture:
 
 
 func _draw_frame(img: Image, frame_idx: int, ox: int) -> void:
-	var cx := ox + 32
-	var cy := 32
+	var cx := ox + 64
+	var cy := 64
 
 	match frame_idx:
 		0:
-			_circle(img, cx, cy, 8, EXPL_FLASH)
+			# White flash — instant bang
+			_circle(img, cx, cy, 20, EXPL_FLASH)
 		1:
-			_circle(img, cx, cy, 12, EXPL_CORE)
-			_ring(img, cx, cy, 14, 16, EXPL_ORANGE)
-			_circle(img, cx, cy, 3, EXPL_FLASH)
+			# Fireball expanding
+			_circle(img, cx, cy, 30, EXPL_ORANGE)
+			_circle(img, cx, cy, 10, EXPL_FLASH)
 		2:
-			_circle(img, cx, cy, 10, EXPL_CORE)
-			_ring(img, cx, cy, 13, 16, EXPL_ORANGE)
-			_ring(img, cx, cy, 17, 20, EXPL_RED)
-			_ring(img, cx, cy, 20, 22, EXPL_SMOKE_LT)
+			# Peak fireball
+			_circle(img, cx, cy, 42, EXPL_ORANGE)
+			_circle(img, cx, cy, 28, EXPL_CORE)
+			_circle(img, cx, cy, 8, EXPL_FLASH)
 		3:
-			_irregular_circle(img, cx, cy, 8, EXPL_CORE, frame_idx)
-			_ring(img, cx, cy, 12, 16, EXPL_ORANGE)
-			_ring(img, cx, cy, 18, 22, EXPL_DARKRED)
-			_smoke_wisps(img, cx, cy, 22, 28, EXPL_SMOKE_LT)
+			# Fireball + first smoke ring
+			_circle(img, cx, cy, 48, EXPL_ORANGE)
+			_circle(img, cx, cy, 30, EXPL_CORE)
+			_ring(img, cx, cy, 48, 54, EXPL_RED)
 		4:
-			_circle(img, cx, cy, 12, EXPL_ORANGE)
-			_ring(img, cx, cy, 14, 20, EXPL_DARKRED)
-			_ring(img, cx, cy, 21, 26, EXPL_SMOKE_DK)
-			_sparse_pixels(img, cx, cy, 26, 30, EXPL_SMOKE_DK)
+			# Smoke expanding
+			_circle(img, cx, cy, 35, EXPL_ORANGE)
+			_ring(img, cx, cy, 38, 52, EXPL_DARKRED)
+			_ring(img, cx, cy, 52, 58, EXPL_SMOKE_LT)
 		5:
-			_blobs(img, cx, cy, 14, EXPL_ORANGE)
-			_ring(img, cx, cy, 16, 24, EXPL_SMOKE_LT)
-			_ring(img, cx, cy, 24, 28, EXPL_SMOKE_DK)
+			# Fire subsiding
+			_circle(img, cx, cy, 25, EXPL_ORANGE)
+			_ring(img, cx, cy, 28, 44, EXPL_DARKRED)
+			_ring(img, cx, cy, 44, 55, EXPL_SMOKE_LT)
 		6:
-			_irregular_circle(img, cx, cy, 20, EXPL_SMOKE_DK, frame_idx)
-			_ring(img, cx, cy, 14, 20, Color(0.35, 0.30, 0.28))
+			# Smoke column grows
+			_circle(img, cx, cy, 20, EXPL_DARKRED)
+			_ring(img, cx, cy, 22, 40, EXPL_SMOKE_LT)
+			_ring(img, cx, cy, 40, 56, EXPL_SMOKE_DK)
 		7:
-			_sparse_pixels(img, cx, cy, 0, 16, Color(0.40, 0.36, 0.33, 0.6))
+			# Mostly smoke
+			_circle(img, cx, cy, 10, EXPL_DARKRED)
+			_ring(img, cx, cy, 12, 45, EXPL_SMOKE_DK)
+		8:
+			# Dissipating smoke — half alpha
+			var smoke_fade := Color(EXPL_SMOKE_DK.r, EXPL_SMOKE_DK.g, EXPL_SMOKE_DK.b, 0.5)
+			_circle(img, cx, cy, 40, smoke_fade)
+		9:
+			# Last wisps — sparse pixels
+			_sparse_pixels(img, cx, cy, 0, 30, Color(0.3, 0.28, 0.26, 0.4))
 
 
 # ---------------------------------------------------------------------------
@@ -110,38 +123,6 @@ func _ring(img: Image, cx: int, cy: int, r_inner: int, r_outer: int, col: Color)
 			var d2 := (x - cx) * (x - cx) + (y - cy) * (y - cy)
 			if _in_bounds(img, x, y) and d2 <= r2_out and d2 >= r2_in:
 				img.set_pixel(x, y, col)
-
-
-func _irregular_circle(img: Image, cx: int, cy: int, r: int, col: Color, seed_val: int) -> void:
-	# Slightly bumpy circle using a cheap per-angle wobble
-	for y in range(cy - r - 4, cy + r + 5):
-		for x in range(cx - r - 4, cx + r + 5):
-			if not _in_bounds(img, x, y):
-				continue
-			var dx := x - cx
-			var dy := y - cy
-			var dist := sqrt(float(dx * dx + dy * dy))
-			var angle := atan2(float(dy), float(dx))
-			var wobble := 1.0 + 0.25 * sin(angle * 5.0 + seed_val)
-			if dist <= r * wobble:
-				img.set_pixel(x, y, col)
-
-
-func _smoke_wisps(img: Image, cx: int, cy: int, r_min: int, r_max: int, col: Color) -> void:
-	# Diagonal blobs at 45° angles
-	for angle_deg in [45, 135, 225, 315]:
-		var rad := deg_to_rad(float(angle_deg))
-		for dist in range(r_min, r_max):
-			var px := cx + int(dist * cos(rad))
-			var py := cy + int(dist * sin(rad))
-			_circle(img, px, py, 2, col)
-
-
-func _blobs(img: Image, cx: int, cy: int, r: int, col: Color) -> void:
-	# Asymmetric blob cluster
-	_circle(img, cx - 2, cy - 1, r, col)
-	_circle(img, cx + 3, cy + 2, r - 2, col)
-	_circle(img, cx - 1, cy + 3, r - 3, col)
 
 
 func _sparse_pixels(img: Image, cx: int, cy: int, r_min: int, r_max: int, col: Color) -> void:

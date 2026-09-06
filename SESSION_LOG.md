@@ -375,3 +375,79 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Testing**: Godot --import passes clean. All shader syntax valid. GDScript compiles (GameState autoload error expected in headless mode).
 **Improvement Insights**:
 - [workflow]: When changing camera angle, a screenshot verification step would catch positioning issues faster than manual math
+
+---
+### 2026-09-06 — judge — Critical State Assessment
+**Gate type**: final (overall game state audit)
+**Verdict**: FAIL
+**Score**: 4/10
+**Key gaps**: (1) Player and enemy sprites are flat-colored geometric shapes, not recognizable aircraft. (2) No Super Scaler multi-resolution sprite system. (3) Explosions too small and too fast. (4) Audio uses basic waveforms, not FM synthesis character. (5) No barrel roll, no ground variety, no enemy approach animation.
+**Top 5 fixes**: Enemy sprites, player jet sprite, explosion scale/duration, multi-resolution sprite scaling, audio FM synthesis.
+**Improvement Insights**:
+- criteria.md: Add sprite fidelity criterion and Super Scaler technique requirement
+- CLAUDE.md: Note that procedural sprite generation is stopgap, not target
+
+---
+### 2026-09-06 14:30 — ui-designer — #19
+**Task**: Diagnose why procedural jet sprites produce blobs, specify exact fixes for player jet, enemy jets, and explosions
+**Result**: COMPLETED
+**Elements designed**: Player F-14 sprite (5 banking frames), Enemy Fighter (48×48 red), Enemy Interceptor (48×48 green), Enemy Bomber (64×64 grey), Explosion (10-frame, 128px cell)
+**Key design decisions**:
+- Kept procedural generation — the architecture is sound; specific functions are broken
+- Root cause of enemy blobs identified: `_draw_delta_wing()` walks a diagonal pixel-wide line instead of filling a triangle. Spec replaces it with `_draw_filled_wing_triangle()` that uses hline fills row by row
+- Player jet lacks 5 F-14 identity markers: twin-boom tail gap, two-seat tandem canopy, fixed wing gloves, variable-sweep crease lines, and separation between fuselage/wing luminance values
+- Explosion scaled 4x (cell 64→128px, pixel_size 0.025→0.06), duration 2.5x (0.4→1.0s), frames 8→10
+- Spec is pixel-level specific: exact x/y coordinates for every geometry element, exact hex colors, exact function signature for the replacement wing fill algorithm
+**Improvement Insights**:
+- [ui-designer.md]: Add a mandatory "function-level diagnosis" step before writing specs — previous specs failed because they described WHAT should look like, not WHY the code produced wrong output. Diagnosing the broken drawing primitive first made this spec 10x more actionable
+- [workflow]: UI designer should verify previous spec comments on the issue before starting work, to avoid repeating directions that already failed
+- [criteria.md]: Add criterion: "wing surfaces must be filled triangular regions; single-pixel diagonal draws are automatically FAIL"
+
+---
+### 2026-09-06 15:00 — developer — #19
+**Task**: Fix explosions — scale up cell, pixel_size, frame count, duration; redraw 10 frames for 128px canvas
+**Result**: COMPLETED
+**Files changed**: `scripts/effects/explosion.gd`
+**Key changes**:
+- explosion.gd:5-9 — FRAME_COUNT 8→10, FRAME_DURATION 0.05→0.1, SHEET_W 512→1280, SHEET_H 64→128, CELL 64→128
+- explosion.gd:27 — pixel_size 0.025→0.06 (world size 1.6→7.68 units)
+- explosion.gd:57-88 — _draw_frame rewritten for 10 frames at cx=64,cy=64 with spec radii; removed unused helpers (_irregular_circle, _smoke_wisps, _blobs)
+**Testing**: `godot --headless --check-only` — no parse errors. Constants verified: 10×128=1280 matches SHEET_W; max ring r_outer=58 stays within 64px half-cell boundary.
+**Improvement Insights**:
+- [developer.md]: When removing helper functions check they're not called from outside the file first. In this case they were all private and only called from _draw_frame, safe to remove.
+
+---
+### [2026-09-06 14:30] — senior-developer — #19
+**Task**: Fix enemy jet sprites — wings drawn as lines instead of filled triangles
+**Result**: COMPLETED
+**Files changed**: scripts/enemies/enemy_sprite_generator.gd, tests/test_enemy_sprite_generator.gd
+**Key changes**:
+- enemy_sprite_generator.gd:243-278 — Replaced `_draw_delta_wing()` with `_draw_filled_wing_triangle()` using horizontal line fills per row instead of diagonal pixel walk
+- enemy_sprite_generator.gd:9-36 — Updated all color palettes to higher saturation/contrast per UI spec; added shadow colors for trailing edge depth
+- enemy_sprite_generator.gd:97-101 — Updated fighter wing calls: wider span (tip at col 2/46), new function signature
+- enemy_sprite_generator.gd:141-143 — Updated interceptor wing calls: tips at col 5/43
+- enemy_sprite_generator.gd:183-185 — Updated bomber wing calls: tips at col 2/62; added fuselage highlight spine and bomb bay belly stripe
+- test_enemy_sprite_generator.gd — Added 3 wing fill verification tests counting opaque pixels in wing regions
+**Technical decisions**: (1) Used horizontal line fill algorithm (hline per row from fuselage to interpolated edge) rather than scanline polygon fill — simpler, matches existing `_draw_hline` helper, and delta wings are always triangles with one vertical edge. (2) Shadow on trailing 20% of rows via t > 0.80 threshold rather than per-pixel distance — cheap and effective for implying wing depth. (3) Leading edge gets full-row highlight on first row only, outermost pixel highlighted on every row — gives wing a bright leading edge without overwhelming the fill color.
+**Testing**: 17/17 tests pass. Wing fill tests confirm fighter ~230-257 opaque pixels per wing (old code ~25), interceptor ~172-184, bomber ~341-350. No regressions in existing tests.
+**Improvement Insights**:
+- [criteria.md]: Add a "sprite readability" criterion — minimum opaque pixel count in expected regions, testable programmatically
+- [CLAUDE.md]: Document that procedural sprite drawing should use horizontal line fills for filled shapes, not diagonal pixel walks — this was the root cause of a major visual bug
+
+---
+### [2026-09-06 12:00] — senior-developer — #19
+**Task**: Fix player jet sprite — add 5 missing F-14 identity markers
+**Result**: COMPLETED
+**Files changed**: scripts/player/jet_sprite_generator.gd, tests/test_jet_sprite_generator.gd
+**Key changes**:
+- jet_sprite_generator.gd:87-100 — Twin tail boom gap: rear fuselage rows 68-80 now split into two nacelles with transparent 6px center gap
+- jet_sprite_generator.gd:160-177 — Tandem canopy: replaced single oval with two separate bumps (front rows 18-27, rear rows 28-34) with gap at row 27
+- jet_sprite_generator.gd:120-145 — Wing gloves: new `_draw_wing_glove()` draws darker trapezoidal root sections (COL_GLOVE) at cx-10 to cx-22
+- jet_sprite_generator.gd:228-237 — Sweep crease line: panel line at glove/panel boundary (cx+-22) rows 36-54
+- jet_sprite_generator.gd:30-55 — Palette overhaul: fuselage-wing luminance gap increased from 0.08 to 0.13, distinct hue separation (grey-tan vs blue-grey)
+- jet_sprite_generator.gd:222-225 — Panel line now skips canopy rows 18-35 to avoid overwriting canopy glass
+**Technical decisions**: (1) Drew gloves before movable panels (painter's algorithm) so the darker glove color shows at the root while panels extend outward. (2) Used scale-aware crease line position (22.0 * bank_scale) so the crease follows banking foreshortening correctly. (3) Skipped spine panel line over canopy area — drawing detail lines last means they can overwrite anything; needed explicit row exclusion.
+**Testing**: 27/27 tests pass (16 existing + 11 new). New tests cover: twin tail boom gap transparency + nacelle presence, tandem canopy two-bump detection with gap check, glove-darker-than-panel luminance comparison, sweep crease dark pixel count, fuselage/wing luminance gap >= 0.10.
+**Improvement Insights**:
+- [criteria.md]: Add per-identity-marker test criteria for procedural sprites — each visual feature should be independently verifiable
+- [CLAUDE.md]: When drawing detail/panel lines last, explicitly skip regions owned by other features (canopy, insignia) — blind full-row lines cause subtle overwrite bugs

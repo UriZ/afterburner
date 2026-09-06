@@ -6,29 +6,34 @@ extends RefCounted
 
 const FRAME_SIZE := 48
 
-# --- Fighter colors (Red) ---
-const FIGHTER_NOSE = Color(0.85, 0.15, 0.12)
-const FIGHTER_FUSELAGE = Color(0.70, 0.12, 0.10)
-const FIGHTER_WING = Color(0.60, 0.10, 0.08)
-const FIGHTER_CANOPY = Color(0.20, 0.55, 0.90)
-const FIGHTER_CANOPY_HLT = Color(0.80, 0.90, 1.00)
-const FIGHTER_INTAKE = Color(0.10, 0.08, 0.08)
-const FIGHTER_EDGE = Color(1.00, 0.60, 0.60)
+# --- Fighter colors (Red) — saturated per UI spec ---
+const FIGHTER_NOSE = Color(0.88, 0.16, 0.13)       # #E02820 bright red highlight
+const FIGHTER_FUSELAGE = Color(0.70, 0.10, 0.08)   # #B31A14 deep red
+const FIGHTER_WING = Color(0.54, 0.08, 0.06)        # #891410 dark red wing surface
+const FIGHTER_WING_SHADOW = Color(0.38, 0.06, 0.04) # Trailing edge shadow
+const FIGHTER_CANOPY = Color(0.14, 0.53, 0.80)      # #2488CC cyan-blue
+const FIGHTER_CANOPY_HLT = Color(0.78, 0.91, 1.00)  # #C8E8FF white highlight
+const FIGHTER_INTAKE = Color(0.08, 0.06, 0.06)      # #141010 near-black
+const FIGHTER_EDGE = Color(0.83, 0.25, 0.19)        # #D44030 bright red-orange edge
 
-# --- Interceptor colors (Green) ---
-const INTERCEPTOR_NOSE = Color(0.15, 0.75, 0.30)
-const INTERCEPTOR_FUSE = Color(0.10, 0.55, 0.22)
-const INTERCEPTOR_WING = Color(0.08, 0.40, 0.16)
-const INTERCEPTOR_CANOPY = Color(0.20, 0.55, 0.90)
-const INTERCEPTOR_EDGE = Color(0.60, 1.00, 0.70)
+# --- Interceptor colors (Green) — more saturated ---
+const INTERCEPTOR_NOSE = Color(0.09, 0.63, 0.24)    # #18A03C bright green highlight
+const INTERCEPTOR_FUSE = Color(0.06, 0.44, 0.16)    # #0F7028 deep green
+const INTERCEPTOR_WING = Color(0.04, 0.31, 0.13)    # #0A5020 dark green wing
+const INTERCEPTOR_WING_SHADOW = Color(0.03, 0.22, 0.09) # Trailing edge shadow
+const INTERCEPTOR_CANOPY = Color(0.14, 0.53, 0.80)  # #2488CC cyan-blue
+const INTERCEPTOR_EDGE = Color(0.19, 0.82, 0.38)    # #30D060 bright green edge
 
-# --- Bomber colors (Grey) ---
-const BOMBER_NOSE = Color(0.65, 0.65, 0.68)
-const BOMBER_FUSELAGE = Color(0.45, 0.45, 0.48)
-const BOMBER_WING = Color(0.35, 0.35, 0.38)
-const BOMBER_ENGINE = Color(0.20, 0.20, 0.22)
-const BOMBER_CANOPY = Color(0.20, 0.55, 0.90)
-const BOMBER_EDGE = Color(0.85, 0.85, 0.90)
+# --- Bomber colors (Grey) — higher contrast ---
+const BOMBER_NOSE = Color(0.63, 0.64, 0.66)         # #A0A4A8 light nose
+const BOMBER_FUSELAGE = Color(0.50, 0.52, 0.53)     # #808488 blue-grey body
+const BOMBER_FUSELAGE_HLT = Color(0.66, 0.67, 0.69) # #A8ACAF highlight
+const BOMBER_WING = Color(0.35, 0.36, 0.38)         # #585C60 darker wings
+const BOMBER_WING_SHADOW = Color(0.25, 0.26, 0.28)  # Trailing edge shadow
+const BOMBER_ENGINE = Color(0.22, 0.23, 0.24)       # #383A3C engine pods
+const BOMBER_CANOPY = Color(0.14, 0.53, 0.80)       # #2488CC cyan-blue
+const BOMBER_EDGE = Color(0.67, 0.67, 0.69)         # #AAAAAF light edge
+const BOMBER_BELLY = Color(0.38, 0.39, 0.41)        # #606468 bomb bay stripe
 
 
 enum EnemyVisual { FIGHTER, INTERCEPTOR, BOMBER }
@@ -89,11 +94,11 @@ static func _draw_fighter(img: Image) -> void:
 	_draw_rect(img, 21, 8, 26, 14, FIGHTER_CANOPY)
 	_draw_rect(img, 22, 8, 25, 10, FIGHTER_CANOPY_HLT)
 
-	# --- Wings: delta triangles ---
-	# Left wing: from col 19 row 10 to col 2 row 35
-	_draw_delta_wing(img, 19, 10, 2, 35, 4, FIGHTER_WING, FIGHTER_EDGE)
-	# Right wing: mirror — from col 28 row 10 to col 45 row 35
-	_draw_delta_wing(img, 28, 10, 45, 35, 4, FIGHTER_WING, FIGHTER_EDGE)
+	# --- Wings: filled delta triangles ---
+	# Left wing: fuselage at col 19, tip at col 2, leading edge row 10, trailing edge row 36
+	_draw_filled_wing_triangle(img, 19, 2, 10, 36, FIGHTER_WING, FIGHTER_EDGE, FIGHTER_WING_SHADOW)
+	# Right wing: fuselage at col 29, tip at col 46, leading edge row 10, trailing edge row 36
+	_draw_filled_wing_triangle(img, 29, 46, 10, 36, FIGHTER_WING, FIGHTER_EDGE, FIGHTER_WING_SHADOW)
 
 	# --- Engine intakes ---
 	# Left oval cols 16-20 rows 22-28
@@ -133,9 +138,9 @@ static func _draw_interceptor(img: Image) -> void:
 	# Highlight
 	_draw_rect(img, 22, 11, 24, 13, Color(0.80, 0.90, 1.00))
 
-	# Wings reach col 6 and col 41 — more angular, thinner
-	_draw_delta_wing(img, 20, 12, 6, 34, 3, INTERCEPTOR_WING, INTERCEPTOR_EDGE)
-	_draw_delta_wing(img, 27, 12, 41, 34, 3, INTERCEPTOR_WING, INTERCEPTOR_EDGE)
+	# Wings reach col 5 and col 43 — angular, thinner than fighter
+	_draw_filled_wing_triangle(img, 20, 5, 12, 34, INTERCEPTOR_WING, INTERCEPTOR_EDGE, INTERCEPTOR_WING_SHADOW)
+	_draw_filled_wing_triangle(img, 27, 43, 12, 34, INTERCEPTOR_WING, INTERCEPTOR_EDGE, INTERCEPTOR_WING_SHADOW)
 
 	# Engine intakes (smaller, angular)
 	_draw_filled_oval(img, 18, 24, 2, 3, Color(0.06, 0.06, 0.06))
@@ -175,23 +180,31 @@ static func _draw_bomber(img: Image) -> void:
 	_draw_rect(img, 29, 13, 34, 19, BOMBER_CANOPY)
 	_draw_rect(img, 30, 13, 33, 16, Color(0.80, 0.90, 1.00))
 
-	# --- Wings: wide span, tips reach col 4 and col 59 at row 36 ---
-	_draw_delta_wing(img, 24, 16, 4, 36, 5, BOMBER_WING, BOMBER_EDGE)
-	_draw_delta_wing(img, 39, 16, 59, 36, 5, BOMBER_WING, BOMBER_EDGE)
+	# --- Wings: wide span, tips reach col 2 and col 62 ---
+	_draw_filled_wing_triangle(img, 24, 2, 16, 40, BOMBER_WING, BOMBER_EDGE, BOMBER_WING_SHADOW)
+	_draw_filled_wing_triangle(img, 39, 62, 16, 40, BOMBER_WING, BOMBER_EDGE, BOMBER_WING_SHADOW)
+
+	# --- Fuselage highlight stripe (center spine) ---
+	for row in range(13, 49):
+		_safe_pixel(img, 31, row, BOMBER_FUSELAGE_HLT)
+		_safe_pixel(img, 32, row, BOMBER_FUSELAGE_HLT)
+
+	# --- Bomb bay belly stripe (rows 28-30) ---
+	_draw_rect(img, 26, 28, 37, 30, BOMBER_BELLY)
 
 	# --- Twin engine pods under wings ---
-	# Left pod: cols 10-16, rows 30-40
-	_draw_rect(img, 10, 30, 16, 40, BOMBER_ENGINE)
-	_safe_pixel(img, 10, 30, BOMBER_EDGE)
-	_safe_pixel(img, 16, 30, BOMBER_EDGE)
+	# Left pod: cols 10-16, rows 28-38
+	_draw_rect(img, 10, 28, 16, 38, BOMBER_ENGINE)
+	_safe_pixel(img, 10, 28, BOMBER_EDGE)
+	_safe_pixel(img, 16, 28, BOMBER_EDGE)
 	# Intake circle on left pod
-	_draw_filled_oval(img, 13, 33, 2, 2, Color(0.08, 0.08, 0.10))
-	# Right pod: cols 47-53, rows 30-40
-	_draw_rect(img, 47, 30, 53, 40, BOMBER_ENGINE)
-	_safe_pixel(img, 47, 30, BOMBER_EDGE)
-	_safe_pixel(img, 53, 30, BOMBER_EDGE)
+	_draw_filled_oval(img, 13, 31, 2, 2, Color(0.08, 0.08, 0.10))
+	# Right pod: cols 47-53, rows 28-38
+	_draw_rect(img, 47, 28, 53, 38, BOMBER_ENGINE)
+	_safe_pixel(img, 47, 28, BOMBER_EDGE)
+	_safe_pixel(img, 53, 28, BOMBER_EDGE)
 	# Intake circle on right pod
-	_draw_filled_oval(img, 50, 33, 2, 2, Color(0.08, 0.08, 0.10))
+	_draw_filled_oval(img, 50, 31, 2, 2, Color(0.08, 0.08, 0.10))
 
 
 # =============================================================================
@@ -227,27 +240,39 @@ static func _draw_filled_oval(
 				_safe_pixel(img, cx + dx, cy + dy, color)
 
 
-static func _draw_delta_wing(
+static func _draw_filled_wing_triangle(
 	img: Image,
-	root_x: int, root_y: int,
-	tip_x: int, tip_y: int,
-	root_thickness: int,
+	fuselage_x: int,
+	tip_x: int,
+	lead_y: int,
+	trail_y: int,
 	fill_color: Color,
-	edge_color: Color
+	edge_color: Color,
+	shadow_color: Color = Color(-1, -1, -1, -1)
 ) -> void:
-	## Draws a filled delta-wing triangle from (root_x, root_y) to (tip_x, tip_y).
-	## Thickness tapers from root_thickness at the root to 1px at the tip.
-	var rows := absi(tip_y - root_y)
-	if rows == 0:
+	## Draws a filled delta-wing triangle using horizontal line fills.
+	## Triangle vertices: (fuselage_x, lead_y), (tip_x, lead_y), (fuselage_x, trail_y)
+	## At lead_y the wing is at maximum span (tip_x). At trail_y it tapers back to fuselage_x.
+	## shadow_color is applied to the trailing 20% of rows for depth.
+	var rows := trail_y - lead_y
+	if rows <= 0:
 		return
-	var y_dir := 1 if tip_y > root_y else -1
+	var use_shadow := shadow_color.a >= 0.0
+
 	for i in range(rows + 1):
 		var t := float(i) / float(rows)
-		var y := root_y + i * y_dir
-		var x := roundi(lerpf(float(root_x), float(tip_x), t))
-		var thickness := maxi(1, roundi(lerpf(float(root_thickness), 1.0, t)))
-		# Draw vertical strip at this x,y
-		for dy in range(-thickness / 2, (thickness + 1) / 2):
-			_safe_pixel(img, x, y + dy, fill_color)
-		# Edge pixel at leading edge
-		_safe_pixel(img, x, y - thickness / 2, edge_color)
+		var row := lead_y + i
+		# Outboard edge sweeps from tip_x back to fuselage_x
+		var x_out := roundi(lerpf(float(tip_x), float(fuselage_x), t))
+		var x_start := mini(fuselage_x, x_out)
+		var x_end := maxi(fuselage_x, x_out)
+		# Choose fill: shadow for trailing 20% of rows
+		var row_color := fill_color
+		if use_shadow and t > 0.80:
+			row_color = shadow_color
+		_draw_hline(img, x_start, x_end, row, row_color)
+		# Leading edge highlight: outermost pixel
+		_safe_pixel(img, x_out, row, edge_color)
+		# Top edge highlight on the first row (leading edge line)
+		if i == 0:
+			_draw_hline(img, x_start, x_end, row, edge_color)

@@ -19,6 +19,11 @@ func _init() -> void:
 	test_wings_span_wide()
 	test_canopy_colors_present()
 	test_banking_asymmetry()
+	test_twin_tail_boom_gap()
+	test_tandem_canopy_two_bumps()
+	test_wing_glove_darker_than_panel()
+	test_sweep_crease_line()
+	test_fuselage_wing_contrast()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -161,3 +166,120 @@ func test_banking_asymmetry() -> void:
 			if img.get_pixel(ox + x, y).a > 0.0:
 				right_pixels += 1
 	assert_true(right_pixels > left_pixels, "hard left bank: right wing wider than left (L=%d, R=%d)" % [left_pixels, right_pixels])
+
+
+func test_twin_tail_boom_gap() -> void:
+	# The F-14's rear fuselage (rows 68-80) must have a transparent gap between
+	# the two engine nacelles. Check that center pixels in this region are transparent.
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160  # center frame
+	var cx := 80
+	var transparent_gap_pixels := 0
+	for y in range(70, 78):
+		var c := img.get_pixel(ox + cx, y)
+		if c.a < 0.01:
+			transparent_gap_pixels += 1
+	assert_true(transparent_gap_pixels >= 4, "twin tail boom gap has transparent center pixels (%d)" % transparent_gap_pixels)
+
+	# Also verify nacelle pixels exist on both sides of the gap
+	var left_nacelle := 0
+	var right_nacelle := 0
+	for y in range(70, 78):
+		if img.get_pixel(ox + cx - 5, y).a > 0.0:
+			left_nacelle += 1
+		if img.get_pixel(ox + cx + 5, y).a > 0.0:
+			right_nacelle += 1
+	assert_true(left_nacelle >= 4, "left nacelle has pixels (%d)" % left_nacelle)
+	assert_true(right_nacelle >= 4, "right nacelle has pixels (%d)" % right_nacelle)
+
+
+func test_tandem_canopy_two_bumps() -> void:
+	# The F-14 has TWO canopy bumps with a gap between them (around row 27).
+	# Check: canopy glass exists in rows 20-26 (front) AND rows 29-33 (rear),
+	# with a non-canopy row at row 27.
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+
+	var front_canopy_blue := 0
+	for y in range(20, 26):
+		var c := img.get_pixel(ox + cx, y)
+		if c.b > 0.5 and c.r < 0.4:
+			front_canopy_blue += 1
+
+	var rear_canopy_blue := 0
+	for y in range(29, 34):
+		var c := img.get_pixel(ox + cx, y)
+		if c.b > 0.4 and c.r < 0.4:
+			rear_canopy_blue += 1
+
+	# Gap row 27 should NOT be canopy blue
+	var gap_color := img.get_pixel(ox + cx, 27)
+	var gap_is_not_canopy := gap_color.b < 0.5 or gap_color.r > 0.3
+
+	assert_true(front_canopy_blue >= 3, "front canopy has blue pixels (%d)" % front_canopy_blue)
+	assert_true(rear_canopy_blue >= 2, "rear canopy has blue pixels (%d)" % rear_canopy_blue)
+	assert_true(gap_is_not_canopy, "gap between canopies at row 27 is not canopy blue")
+
+
+func test_wing_glove_darker_than_panel() -> void:
+	# The wing glove (COL_GLOVE) should be darker than the movable wing panel (COL_WING_TOP).
+	# Sample pixels: glove at cx-16 (inside glove range), panel at cx-40 (in movable panel range).
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+	var sample_row := 42  # mid-wing
+
+	var glove_pixel := img.get_pixel(ox + cx - 16, sample_row)
+	var panel_pixel := img.get_pixel(ox + cx - 40, sample_row)
+
+	# Both should be opaque
+	assert_true(glove_pixel.a > 0.0, "glove pixel is opaque at cx-16")
+	assert_true(panel_pixel.a > 0.0, "panel pixel is opaque at cx-40")
+
+	# Glove should be darker (lower luminance) than panel
+	var glove_lum := glove_pixel.r * 0.299 + glove_pixel.g * 0.587 + glove_pixel.b * 0.114
+	var panel_lum := panel_pixel.r * 0.299 + panel_pixel.g * 0.587 + panel_pixel.b * 0.114
+	assert_true(glove_lum < panel_lum, "glove is darker than movable panel (glove=%.3f, panel=%.3f)" % [glove_lum, panel_lum])
+
+
+func test_sweep_crease_line() -> void:
+	# A sweep crease panel line should exist at cx-22 (left) spanning rows 36-54.
+	# This is a dark line marking where the glove meets the movable panel.
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+	var crease_x := cx - 22  # glove/panel boundary
+
+	var panel_line_count := 0
+	for y in range(38, 52):
+		var c := img.get_pixel(ox + crease_x, y)
+		# Panel line should be relatively dark
+		var lum := c.r * 0.299 + c.g * 0.587 + c.b * 0.114
+		if c.a > 0.0 and lum < 0.50:
+			panel_line_count += 1
+	assert_true(panel_line_count >= 6, "sweep crease line has dark pixels at cx-22 (%d)" % panel_line_count)
+
+
+func test_fuselage_wing_contrast() -> void:
+	# The fuselage (COL_FUSE_TOP ~0.69 luminance) and wings (COL_WING_TOP ~0.57 luminance)
+	# must have at least 0.10 luminance gap to be visually distinguishable.
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+
+	# Sample fuselage pixel (center of body, row 40)
+	var fuse_pixel := img.get_pixel(ox + cx + 2, 40)  # +2 to avoid spine highlight
+	var fuse_lum := fuse_pixel.r * 0.299 + fuse_pixel.g * 0.587 + fuse_pixel.b * 0.114
+
+	# Sample wing pixel (far out on wing, row 40)
+	var wing_pixel := img.get_pixel(ox + cx + 35, 40)
+	var wing_lum := wing_pixel.r * 0.299 + wing_pixel.g * 0.587 + wing_pixel.b * 0.114
+
+	var gap := absf(fuse_lum - wing_lum)
+	assert_true(gap >= 0.10, "fuselage/wing luminance gap >= 0.10 (gap=%.3f, fuse=%.3f, wing=%.3f)" % [gap, fuse_lum, wing_lum])

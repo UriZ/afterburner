@@ -17,6 +17,9 @@ func _init() -> void:
 	test_generate_bomber_texture()
 	test_bomber_is_larger()
 	test_textures_are_different()
+	test_fighter_wings_are_filled()
+	test_interceptor_wings_are_filled()
+	test_bomber_wings_are_filled()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -99,3 +102,64 @@ func test_textures_are_different() -> void:
 		if different:
 			break
 	assert_true(different, "Fighter and interceptor textures differ")
+
+
+## Count non-transparent pixels in a rectangular region of an image.
+func _count_opaque_pixels(img: Image, x0: int, y0: int, x1: int, y1: int) -> int:
+	var count := 0
+	for y in range(y0, y1 + 1):
+		for x in range(x0, x1 + 1):
+			if x >= 0 and x < img.get_width() and y >= 0 and y < img.get_height():
+				if img.get_pixel(x, y).a > 0.0:
+					count += 1
+	return count
+
+
+func test_fighter_wings_are_filled() -> void:
+	print("\ntest_fighter_wings_are_filled:")
+	var tex := EnemySpriteGenerator.generate_texture(
+		EnemySpriteGenerator.EnemyVisual.FIGHTER
+	)
+	var img := tex.get_image()
+	# Left wing area: cols 2-18, rows 10-36 — should have substantial fill
+	var left_opaque := _count_opaque_pixels(img, 2, 10, 18, 36)
+	# Area is 17*27 = 459 pixels. A filled triangle should cover ~50% = ~230 pixels.
+	# Old broken code produced ~25 pixels (a thin diagonal line).
+	assert_true(left_opaque > 100,
+		"Fighter left wing has filled surface (%d opaque pixels, need >100)" % left_opaque)
+	# Right wing area: cols 29-46, rows 10-36
+	var right_opaque := _count_opaque_pixels(img, 29, 10, 46, 36)
+	assert_true(right_opaque > 100,
+		"Fighter right wing has filled surface (%d opaque pixels, need >100)" % right_opaque)
+
+
+func test_interceptor_wings_are_filled() -> void:
+	print("\ntest_interceptor_wings_are_filled:")
+	var tex := EnemySpriteGenerator.generate_texture(
+		EnemySpriteGenerator.EnemyVisual.INTERCEPTOR
+	)
+	var img := tex.get_image()
+	# Left wing area: cols 5-19, rows 12-34
+	var left_opaque := _count_opaque_pixels(img, 5, 12, 19, 34)
+	assert_true(left_opaque > 60,
+		"Interceptor left wing has filled surface (%d opaque pixels, need >60)" % left_opaque)
+	# Right wing area: cols 28-43, rows 12-34
+	var right_opaque := _count_opaque_pixels(img, 28, 12, 43, 34)
+	assert_true(right_opaque > 60,
+		"Interceptor right wing has filled surface (%d opaque pixels, need >60)" % right_opaque)
+
+
+func test_bomber_wings_are_filled() -> void:
+	print("\ntest_bomber_wings_are_filled:")
+	var tex := EnemySpriteGenerator.generate_texture(
+		EnemySpriteGenerator.EnemyVisual.BOMBER
+	)
+	var img := tex.get_image()
+	# Left wing area: cols 2-23, rows 16-40
+	var left_opaque := _count_opaque_pixels(img, 2, 16, 23, 40)
+	assert_true(left_opaque > 150,
+		"Bomber left wing has filled surface (%d opaque pixels, need >150)" % left_opaque)
+	# Right wing area: cols 40-62, rows 16-40
+	var right_opaque := _count_opaque_pixels(img, 40, 16, 62, 40)
+	assert_true(right_opaque > 150,
+		"Bomber right wing has filled surface (%d opaque pixels, need >150)" % right_opaque)

@@ -27,32 +27,35 @@ const BANK_PARAMS := [
 	[1.15, 0.30,  6],   # hard right
 ]
 
-# --- Palette ---
-# Fuselage top surface (lit by sun from above)
-const COL_FUSE_TOP := Color(0.68, 0.66, 0.62)
-const COL_FUSE_MID := Color(0.58, 0.56, 0.52)
-const COL_FUSE_DARK := Color(0.45, 0.43, 0.40)
-# Wings — slightly bluer tint (painted metal)
-const COL_WING_TOP := Color(0.60, 0.62, 0.65)
-const COL_WING_MID := Color(0.50, 0.52, 0.56)
-const COL_WING_EDGE := Color(0.42, 0.44, 0.48)
-# Cockpit canopy — dark blue dome
-const COL_CANOPY := Color(0.10, 0.37, 0.66)  # #1A5FA8 ≈
-const COL_CANOPY_HIGHLIGHT := Color(0.30, 0.55, 0.80)
-const COL_CANOPY_FRAME := Color(0.35, 0.34, 0.32)
-# Tail fins
-const COL_FIN := Color(0.48, 0.50, 0.55)
-const COL_FIN_EDGE := Color(0.38, 0.40, 0.45)
-# Engine nozzles (foreshortened, viewed from above — small)
-const COL_NOZZLE := Color(0.22, 0.22, 0.24)
-const COL_NOZZLE_GLOW := Color(0.80, 0.40, 0.10)
+# --- Palette (revised for F-14 identity and contrast) ---
+# Fuselage — light grey-tan, sun-lit
+const COL_FUSE_TOP := Color(0.706, 0.690, 0.659)    # #B4B0A8
+const COL_FUSE_MID := Color(0.478, 0.471, 0.439)    # #7A7870
+const COL_FUSE_DARK := Color(0.235, 0.231, 0.220)   # #3C3B38
+# Wings — blue-grey, clearly distinct from fuselage
+const COL_WING_TOP := Color(0.549, 0.565, 0.600)    # #8C9099
+const COL_WING_SHADOW := Color(0.337, 0.353, 0.376) # #565A60
+# Fixed wing gloves — darker than movable panels
+const COL_GLOVE := Color(0.431, 0.447, 0.471)       # #6E7278
+# Cockpit canopy
+const COL_CANOPY := Color(0.102, 0.373, 0.659)      # #1A5FA8
+const COL_CANOPY_HIGHLIGHT := Color(0.420, 0.702, 0.910) # #6BB3E8
+const COL_CANOPY_FRAME := Color(0.165, 0.161, 0.149)    # #2A2926
+# Engine nozzles
+const COL_NACELLE := Color(0.118, 0.118, 0.125)     # #1E1E20
+const COL_NOZZLE_RIM := Color(0.290, 0.290, 0.314)  # #4A4A50
+const COL_NOZZLE_GLOW := Color(0.800, 0.400, 0.078) # #CC6614
 # Afterburner
-const COL_FLAME_CORE := Color(1.00, 0.90, 0.40)
-const COL_FLAME_MID := Color(1.00, 0.55, 0.10)
-const COL_FLAME_OUTER := Color(0.85, 0.28, 0.05)
-# Detail lines
-const COL_PANEL_LINE := Color(0.42, 0.40, 0.38)
-const COL_INTAKE := Color(0.35, 0.35, 0.37)
+const COL_FLAME_CORE := Color(1.000, 0.910, 0.400)  # #FFE866
+const COL_FLAME_MID := Color(1.000, 0.549, 0.102)   # #FF8C1A
+const COL_FLAME_OUTER := Color(0.800, 0.133, 0.000) # #CC2200
+# Panel/detail lines — 0.25 darker than surface
+const COL_PANEL := Color(0.416, 0.408, 0.376)       # #6A6860
+# Tail fins (reuse wing shadow — they are in shadow from above)
+const COL_FIN := Color(0.337, 0.353, 0.376)
+const COL_FIN_EDGE := Color(0.275, 0.290, 0.314)
+# Intake shadows
+const COL_INTAKE := Color(0.235, 0.231, 0.220)
 
 
 static func generate_sprite_sheet() -> ImageTexture:
@@ -77,234 +80,267 @@ static func _draw_frame(img: Image, frame: int) -> void:
 	_draw_afterburners(img, ox, shift_x)
 	# 2. Tail fins (behind fuselage top)
 	_draw_tail_fins(img, ox, lw_scale, rw_scale, shift_x)
-	# 3. Wings (the dominant element)
+	# 3. Wings — gloves first, then movable panels
 	_draw_wings(img, ox, lw_scale, rw_scale, shift_x)
-	# 4. Fuselage spine (on top of wings)
+	# 4. Fuselage spine (on top of wings) — now with twin tail boom gap
 	_draw_fuselage(img, ox, shift_x)
-	# 5. Cockpit canopy (topmost, forward of fuselage)
+	# 5. Cockpit canopy — now tandem two-seat
 	_draw_canopy(img, ox, shift_x)
 	# 6. Engine nozzles (visible at bottom, foreshortened)
 	_draw_nozzles(img, ox, shift_x)
-	# 7. Panel lines and detail
+	# 7. Panel lines and detail — now includes sweep crease
 	_draw_details(img, ox, lw_scale, rw_scale, shift_x)
 
 
-# --- FUSELAGE: Central spine running from nose to tail ---
-# Viewed from above, it's a long narrow shape, widest at mid-body.
+# --- FUSELAGE: Central spine with twin tail boom gap ---
+# The rear fuselage splits into two engine nacelles with a transparent gap between them.
+# This is the #1 F-14 identifier from above.
 static func _draw_fuselage(img: Image, ox: int, sx: int) -> void:
 	var cx := CENTER_X + sx
 
-	# Nose cone (rows 10-20) — narrow point
-	for row in range(10, 20):
-		var t := float(row - 10) / 10.0
-		var hw := roundi(lerpf(2.0, 6.0, t))
+	# Nose cone (rows 4-18) — long pointed radome
+	for row in range(4, 10):
+		var t := float(row - 4) / 6.0
+		var hw := roundi(lerpf(1.0, 4.0, t))
 		_hline(img, ox, cx - hw, cx + hw, row, COL_FUSE_TOP)
 
-	# Forward fuselage (rows 20-36) — widens to cockpit area
-	for row in range(20, 36):
-		var t := float(row - 20) / 16.0
-		var hw := roundi(lerpf(6.0, 10.0, t))
+	for row in range(10, 18):
+		var t := float(row - 10) / 8.0
+		var hw := roundi(lerpf(4.0, 7.0, t))
 		_hline(img, ox, cx - hw, cx + hw, row, COL_FUSE_TOP)
 
-	# Mid fuselage (rows 36-60) — widest, between the wings
-	for row in range(36, 60):
-		var t := float(row - 36) / 24.0
-		var hw := roundi(lerpf(10.0, 12.0, t))
+	# Forward fuselage (rows 18-36) — under cockpit area
+	for row in range(18, 36):
+		var t := float(row - 18) / 18.0
+		var hw := roundi(lerpf(7.0, 10.0, t))
+		_hline(img, ox, cx - hw, cx + hw, row, COL_FUSE_TOP)
+
+	# Mid fuselage (rows 36-54) — widest, at wing attachment
+	for row in range(36, 54):
+		var t := float(row - 36) / 18.0
+		var hw := roundi(lerpf(10.0, 10.0, t))
 		var col := COL_FUSE_TOP if t < 0.5 else COL_FUSE_MID
 		_hline(img, ox, cx - hw, cx + hw, row, col)
 
-	# Rear fuselage (rows 60-78) — narrows toward engines
-	for row in range(60, 78):
-		var t := float(row - 60) / 18.0
-		var hw := roundi(lerpf(12.0, 8.0, t))
+	# Rear fuselage (rows 54-68) — narrows toward engine split
+	for row in range(54, 68):
+		var t := float(row - 54) / 14.0
+		var hw := roundi(lerpf(10.0, 7.0, t))
 		_hline(img, ox, cx - hw, cx + hw, row, COL_FUSE_MID)
 
-	# Engine housing (rows 78-86) — splits into two nacelles
-	for row in range(78, 86):
-		var t := float(row - 78) / 8.0
-		var hw := roundi(lerpf(8.0, 6.0, t))
-		# Left nacelle
-		_hline(img, ox, cx - hw, cx - 2, row, COL_FUSE_DARK)
-		# Right nacelle
-		_hline(img, ox, cx + 2, cx + hw, row, COL_FUSE_DARK)
+	# Twin tail boom split (rows 68-80) — TWO nacelles with transparent GAP
+	# This is the critical F-14 identity marker
+	for row in range(68, 80):
+		var t := float(row - 68) / 12.0
+		var outer_hw := roundi(lerpf(7.0, 7.0, t))
+		var gap_hw := 3  # cx-3 to cx+3 is transparent/gap
+		# Left nacelle: cx-outer_hw to cx-gap_hw
+		_hline(img, ox, cx - outer_hw, cx - gap_hw, row, COL_FUSE_DARK)
+		# Right nacelle: cx+gap_hw to cx+outer_hw
+		_hline(img, ox, cx + gap_hw, cx + outer_hw, row, COL_FUSE_DARK)
+		# The gap (cx-2 to cx+2) stays transparent — no fill
 
 	# Center spine highlight (single bright line down the middle)
-	for row in range(12, 76):
+	for row in range(8, 68):
 		_set_px(img, ox + cx, row, COL_FUSE_TOP.lerp(Color.WHITE, 0.15))
 
 
-# --- WINGS: The dominant visual element ---
-# From above, wings are wide swept-back delta shapes extending from the mid-fuselage.
-# Each wing is drawn independently with its own scale for banking.
+# --- WINGS: Fixed gloves + movable panels ---
+# The F-14 has fixed trapezoidal wing gloves (darker, non-sweeping root sections)
+# and variable-sweep movable panels extending outward.
 static func _draw_wings(img: Image, ox: int, lw_scale: float, rw_scale: float, sx: int) -> void:
 	var cx := CENTER_X + sx
 
-	# Wing vertical span: rows 38-56 (centered around row 47)
-	# At row 38 (leading edge), wings start narrow near fuselage
-	# At row ~47, maximum span (20px to 140px in level flight)
-	# At row 56 (trailing edge), wings sweep back to fuselage
-
-	# Left wing
+	# Draw gloves first (they sit between fuselage and movable panels)
+	_draw_wing_glove(img, ox, cx, lw_scale, true)
+	_draw_wing_glove(img, ox, cx, rw_scale, false)
+	# Then movable panels on top
 	_draw_single_wing(img, ox, cx, lw_scale, true)
-	# Right wing
 	_draw_single_wing(img, ox, cx, rw_scale, false)
 
 
-static func _draw_single_wing(img: Image, ox: int, cx: int, scale: float, is_left: bool) -> void:
-	# Wing geometry: swept-back shape
-	# Leading edge: row 36, starts at fuselage edge
-	# Max chord: row 44, extends to max span
-	# Trailing edge: row 56, sweeps back
+# --- FIXED WING GLOVES: Trapezoidal root section, darker than movable panels ---
+# Rows 36-54, extends from fuselage edge (cx+-12) outward to cx+-22.
+# This is an F-14 identifier — no other fighter has this visible glove geometry.
+static func _draw_wing_glove(img: Image, ox: int, cx: int, scale: float, is_left: bool) -> void:
+	var glove_inner := 10   # starts at fuselage edge
+	var glove_leading := roundi(22.0 * scale)  # wider at leading edge (row 36)
+	var glove_trailing := roundi(18.0 * scale)  # narrower at trailing edge (row 54)
 
-	var wing_rows_start := 36
-	var wing_rows_peak := 44
-	var wing_rows_end := 56
-	var max_span := roundi(60.0 * scale)  # distance from center at widest point
+	if glove_leading < 4:
+		return  # Too foreshortened
 
-	if max_span < 3:
-		return  # Too foreshortened to draw
-
-	for row in range(wing_rows_start, wing_rows_end + 1):
-		var span: int
-		if row <= wing_rows_peak:
-			# Leading edge: span increases linearly
-			var t := float(row - wing_rows_start) / float(wing_rows_peak - wing_rows_start)
-			span = roundi(lerpf(8.0 * scale, float(max_span), t * t))  # quadratic ease-in for sweep
-		else:
-			# Trailing edge: span decreases, but with a straighter trailing edge
-			var t := float(row - wing_rows_peak) / float(wing_rows_end - wing_rows_peak)
-			span = roundi(lerpf(float(max_span), 14.0 * scale, t))
-
-		if span < 1:
-			continue
-
-		# Color: lighter near leading edge, darker toward trailing edge
-		var row_t := float(row - wing_rows_start) / float(wing_rows_end - wing_rows_start)
-		var col: Color
-		if row_t < 0.3:
-			col = COL_WING_TOP
-		elif row_t < 0.7:
-			col = COL_WING_MID
-		else:
-			col = COL_WING_EDGE
-
-		# Wing edge highlight on the outboard tip (1px lighter)
-		var fuselage_hw := 10  # don't draw over fuselage
+	for row in range(36, 55):
+		var t := float(row - 36) / 18.0
+		var outer := roundi(lerpf(float(glove_leading), float(glove_trailing), t))
 
 		if is_left:
-			var x_start := maxi(0, cx - span)
-			var x_end := cx - fuselage_hw
+			var x_start := cx - outer
+			var x_end := cx - glove_inner
 			if x_start < x_end:
-				_hline(img, ox, x_start, x_end, row, col)
-				# Leading/trailing edge highlight
-				if row == wing_rows_start or row == wing_rows_end:
-					_hline(img, ox, x_start, x_end, row, COL_WING_EDGE)
-				# Wingtip highlight
-				_set_px(img, ox + x_start, row, COL_WING_EDGE)
+				_hline(img, ox, x_start, x_end, row, COL_GLOVE)
+				# Outer edge darker
+				_set_px(img, ox + x_start, row, COL_WING_SHADOW)
 		else:
-			var x_start := cx + fuselage_hw
-			var x_end := mini(FRAME_W - 1, cx + span)
+			var x_start := cx + glove_inner
+			var x_end := cx + outer
+			if x_start < x_end:
+				_hline(img, ox, x_start, x_end, row, COL_GLOVE)
+				_set_px(img, ox + x_end, row, COL_WING_SHADOW)
+
+
+# --- MOVABLE WING PANELS: Swept-back triangles extending from gloves ---
+static func _draw_single_wing(img: Image, ox: int, cx: int, scale: float, is_left: bool) -> void:
+	# Wing extends from glove outer edge outward
+	# Leading edge at row 36 is widest, trailing edge at row 54 sweeps back
+	var glove_outer := roundi(22.0 * scale)  # where glove ends = wing inner edge
+	var max_span := roundi(60.0 * scale)     # maximum wing tip distance from center
+
+	if max_span < 5:
+		return
+
+	# The movable panel is a filled triangle:
+	# Leading edge (row 36): from glove_outer to max_span (horizontal)
+	# Trailing edge sweeps back from max_span at row 36 to glove_outer at row 54
+	for row in range(36, 55):
+		var t := float(row - 36) / 18.0
+		# Outer edge sweeps back from max_span toward fuselage
+		var outer := roundi(lerpf(float(max_span), float(glove_outer), t))
+		var inner := glove_outer
+
+		# Color: lighter near leading edge, shadow at trailing 20%
+		var col: Color
+		if t < 0.80:
+			col = COL_WING_TOP
+		else:
+			col = COL_WING_SHADOW
+
+		if is_left:
+			var x_start := maxi(0, cx - outer)
+			var x_end := cx - inner
 			if x_start < x_end:
 				_hline(img, ox, x_start, x_end, row, col)
-				if row == wing_rows_start or row == wing_rows_end:
-					_hline(img, ox, x_start, x_end, row, COL_WING_EDGE)
-				_set_px(img, ox + x_end, row, COL_WING_EDGE)
+				# Wingtip highlight
+				_set_px(img, ox + x_start, row, COL_WING_SHADOW)
+		else:
+			var x_start := cx + inner
+			var x_end := mini(FRAME_W - 1, cx + outer)
+			if x_start < x_end:
+				_hline(img, ox, x_start, x_end, row, col)
+				_set_px(img, ox + x_end, row, COL_WING_SHADOW)
 
 
-# --- COCKPIT CANOPY: Dark blue dome visible from above ---
-# Prominent feature at rows 20-32, centered on fuselage
+# --- COCKPIT CANOPY: Tandem two-seat (front + rear bumps) ---
+# The F-14 has a pilot and RIO in tandem — two canopy bumps separated by a frame line.
 static func _draw_canopy(img: Image, ox: int, sx: int) -> void:
 	var cx := CENTER_X + sx
 
-	# Canopy frame (slightly wider than the canopy itself)
-	for row in range(19, 34):
-		var t := float(row - 19) / 15.0
-		# Oval shape: widest at center
-		var dist_from_center := absf(t - 0.5) * 2.0
-		var hw := roundi(lerpf(5.0, 1.0, dist_from_center * dist_from_center))
+	# --- Front canopy (rows 18-27) ---
+	# Frame outline first
+	for row in range(18, 28):
+		var t := float(row - 18) / 9.0
+		var dist := absf(t - 0.45) * 2.0
+		var hw := roundi(lerpf(4.0, 1.0, dist * dist))
 		_hline(img, ox, cx - hw - 1, cx + hw + 1, row, COL_CANOPY_FRAME)
 
-	# Canopy glass — dark blue dome
-	for row in range(20, 33):
-		var t := float(row - 20) / 13.0
-		var dist_from_center := absf(t - 0.45) * 2.0  # Slightly forward-biased peak
-		var hw := roundi(lerpf(4.0, 1.0, dist_from_center * dist_from_center))
+	# Front canopy glass
+	for row in range(19, 27):
+		var t := float(row - 19) / 7.0
+		var dist := absf(t - 0.4) * 2.0
+		var hw := roundi(lerpf(3.5, 1.0, dist * dist))
 		_hline(img, ox, cx - hw, cx + hw, row, COL_CANOPY)
 
-	# Specular highlight on canopy (a bright streak)
-	for row in range(22, 28):
+	# Specular highlight on front canopy (left side)
+	for row in range(20, 24):
 		_set_px(img, ox + cx - 1, row, COL_CANOPY_HIGHLIGHT)
-		if row >= 23 and row <= 26:
+		if row >= 21 and row <= 23:
 			_set_px(img, ox + cx - 2, row, COL_CANOPY_HIGHLIGHT)
+
+	# --- Gap between canopies (row 27) — fuselage spine visible ---
+	_hline(img, ox, cx - 3, cx + 3, 27, COL_FUSE_MID)
+
+	# --- Rear canopy (rows 28-34) — smaller, no specular ---
+	for row in range(28, 35):
+		var t := float(row - 28) / 6.0
+		var dist := absf(t - 0.45) * 2.0
+		var hw := roundi(lerpf(3.0, 1.0, dist * dist))
+		_hline(img, ox, cx - hw - 1, cx + hw + 1, row, COL_CANOPY_FRAME)
+
+	# Rear canopy glass — slightly darker (in shadow of front canopy)
+	var rear_canopy_col := COL_CANOPY.lerp(Color.BLACK, 0.15)
+	for row in range(29, 34):
+		var t := float(row - 29) / 4.0
+		var dist := absf(t - 0.4) * 2.0
+		var hw := roundi(lerpf(2.5, 1.0, dist * dist))
+		_hline(img, ox, cx - hw, cx + hw, row, rear_canopy_col)
 
 
 # --- TAIL FINS: Twin vertical stabilizers ---
-# Viewed from above, these appear as narrow shapes projecting upward from the rear fuselage.
-# They are "above" the fuselage plane so they project outward at an angle.
+# Viewed from above, narrow slivers projecting from each nacelle.
 static func _draw_tail_fins(img: Image, ox: int, lw_scale: float, rw_scale: float, sx: int) -> void:
 	var cx := CENTER_X + sx
 
-	# Each fin projects outward and slightly backward from the rear fuselage
-	# In top-down view, they appear as angled lines/slivers
-	var fin_base_row := 64
-	var fin_tip_row := 56
+	# Fins project from nacelles (rows 58-68), angled outward
+	var fin_tip_row := 58
+	var fin_base_row := 68
 
-	# Left fin — angles outward to the left
-	var left_spread := roundi(8.0 * lw_scale)
-	if left_spread >= 2:
+	# Left fin — 3px wide band at cx-10 to cx-7
+	var left_spread := roundi(10.0 * lw_scale)
+	if left_spread >= 3:
 		for row in range(fin_tip_row, fin_base_row + 1):
 			var t := float(row - fin_tip_row) / float(fin_base_row - fin_tip_row)
-			var offset := roundi(lerpf(float(left_spread), 4.0, t))
+			var offset := roundi(lerpf(float(left_spread), 7.0, t))
 			var fin_x := cx - offset
 			_set_px(img, ox + fin_x, row, COL_FIN)
-			_set_px(img, ox + fin_x - 1, row, COL_FIN)
-			if t > 0.3 and t < 0.8:
-				_set_px(img, ox + fin_x + 1, row, COL_FIN_EDGE)
+			_set_px(img, ox + fin_x + 1, row, COL_FIN)
+			_set_px(img, ox + fin_x + 2, row, COL_FIN_EDGE)
 
-	# Right fin — angles outward to the right
-	var right_spread := roundi(8.0 * rw_scale)
-	if right_spread >= 2:
+	# Right fin — mirror
+	var right_spread := roundi(10.0 * rw_scale)
+	if right_spread >= 3:
 		for row in range(fin_tip_row, fin_base_row + 1):
 			var t := float(row - fin_tip_row) / float(fin_base_row - fin_tip_row)
-			var offset := roundi(lerpf(float(right_spread), 4.0, t))
+			var offset := roundi(lerpf(float(right_spread), 7.0, t))
 			var fin_x := cx + offset
 			_set_px(img, ox + fin_x, row, COL_FIN)
-			_set_px(img, ox + fin_x + 1, row, COL_FIN)
-			if t > 0.3 and t < 0.8:
-				_set_px(img, ox + fin_x - 1, row, COL_FIN_EDGE)
+			_set_px(img, ox + fin_x - 1, row, COL_FIN)
+			_set_px(img, ox + fin_x - 2, row, COL_FIN_EDGE)
 
 
-# --- ENGINE NOZZLES: Small foreshortened circles at the bottom ---
-# Viewed from above, nozzles are foreshortened — appear as small ovals.
+# --- ENGINE NOZZLES: Twin nozzles at tail of each nacelle ---
 static func _draw_nozzles(img: Image, ox: int, sx: int) -> void:
 	var cx := CENTER_X + sx
-	var nozzle_row := 82
+	var nozzle_row := 80
 
-	# Left nozzle (centered at cx-5)
-	_draw_oval(img, ox, cx - 8, cx - 2, nozzle_row - 2, nozzle_row + 2, COL_NOZZLE)
-	_draw_oval(img, ox, cx - 7, cx - 3, nozzle_row - 1, nozzle_row + 1, COL_NOZZLE_GLOW)
+	# Left nozzle (on left nacelle, centered around cx-5)
+	_draw_oval(img, ox, cx - 9, cx - 5, nozzle_row - 2, nozzle_row + 3, COL_NOZZLE_RIM)
+	_draw_oval(img, ox, cx - 8, cx - 6, nozzle_row - 1, nozzle_row + 2, COL_NACELLE)
+	# Glow center
+	_set_px(img, ox + cx - 7, nozzle_row, COL_NOZZLE_GLOW)
+	_set_px(img, ox + cx - 7, nozzle_row + 1, COL_NOZZLE_GLOW)
 
-	# Right nozzle (centered at cx+5)
-	_draw_oval(img, ox, cx + 2, cx + 8, nozzle_row - 2, nozzle_row + 2, COL_NOZZLE)
-	_draw_oval(img, ox, cx + 3, cx + 7, nozzle_row - 1, nozzle_row + 1, COL_NOZZLE_GLOW)
+	# Right nozzle (mirror)
+	_draw_oval(img, ox, cx + 5, cx + 9, nozzle_row - 2, nozzle_row + 3, COL_NOZZLE_RIM)
+	_draw_oval(img, ox, cx + 6, cx + 8, nozzle_row - 1, nozzle_row + 2, COL_NACELLE)
+	_set_px(img, ox + cx + 7, nozzle_row, COL_NOZZLE_GLOW)
+	_set_px(img, ox + cx + 7, nozzle_row + 1, COL_NOZZLE_GLOW)
 
 
-# --- AFTERBURNER FLAMES: Small orange glow below nozzles ---
+# --- AFTERBURNER FLAMES: Twin flames from each nozzle ---
 static func _draw_afterburners(img: Image, ox: int, sx: int) -> void:
 	var cx := CENTER_X + sx
-	# Shorter flames than the old rear view (foreshortened perspective)
-	_draw_flame(img, ox, cx - 5, 85)
-	_draw_flame(img, ox, cx + 5, 85)
+	_draw_flame(img, ox, cx - 7, 86)
+	_draw_flame(img, ox, cx + 7, 86)
 
 
 static func _draw_flame(img: Image, ox: int, flame_cx: int, start_row: int) -> void:
-	var flame_len := 10  # Short — viewed from above
+	var flame_len := 10
 	for row_off in range(flame_len):
 		var row := start_row + row_off
 		if row >= FRAME_H:
 			break
 		var t := float(row_off) / float(flame_len - 1)
-		var hw := roundi(lerpf(3.0, 0.0, t))
+		var hw := roundi(lerpf(2.5, 0.0, t))
 		# Flicker
 		if row_off > 1 and row_off < flame_len - 1 and row_off % 2 == 0:
 			hw = maxi(0, hw - 1)
@@ -324,33 +360,40 @@ static func _draw_flame(img: Image, ox: int, flame_cx: int, start_row: int) -> v
 			img.set_pixel(px, row, col)
 
 
-# --- DETAIL LINES: Panel lines, intake shadows, wing markings ---
+# --- DETAIL LINES: Panel lines, sweep crease, structural markings ---
 static func _draw_details(img: Image, ox: int, lw_scale: float, rw_scale: float, sx: int) -> void:
 	var cx := CENTER_X + sx
 
-	# Fuselage center panel line
-	for row in range(20, 78):
-		_set_px(img, ox + cx, row, COL_PANEL_LINE)
+	# Center spine panel line (nose to tail boom split, skip canopy area rows 18-35)
+	for row in range(8, 18):
+		_set_px(img, ox + cx, row, COL_PANEL)
+	for row in range(36, 68):
+		_set_px(img, ox + cx, row, COL_PANEL)
+
+	# Fuselage spine rib lines — horizontal structural markers
+	for rib_row in [22, 36, 54, 68]:
+		var hw := 6
+		if rib_row == 36 or rib_row == 54:
+			hw = 9
+		_hline(img, ox, cx - hw, cx + hw, rib_row, COL_PANEL)
+
+	# Wing sweep crease — marks the glove/movable-panel joint
+	# Vertical line at cx+-22 from row 36 to 54
+	var left_crease_x := roundi(22.0 * lw_scale)
+	var right_crease_x := roundi(22.0 * rw_scale)
+
+	if left_crease_x >= 5:
+		for row in range(36, 55):
+			_set_px(img, ox + cx - left_crease_x, row, COL_PANEL)
+
+	if right_crease_x >= 5:
+		for row in range(36, 55):
+			_set_px(img, ox + cx + right_crease_x, row, COL_PANEL)
 
 	# Intake shadows on fuselage sides (rows 50-62)
 	for row in range(50, 62):
 		_set_px(img, ox + cx - 8, row, COL_INTAKE)
 		_set_px(img, ox + cx + 8, row, COL_INTAKE)
-
-	# Wing spar lines (structural detail running along each wing)
-	var spar_row := 46  # Near the middle of the wing span
-	var left_span := roundi(55.0 * lw_scale)
-	var right_span := roundi(55.0 * rw_scale)
-
-	if left_span > 12:
-		for x in range(cx - left_span + 4, cx - 12):
-			_set_px(img, ox + x, spar_row, COL_PANEL_LINE)
-			_set_px(img, ox + x, spar_row + 4, COL_PANEL_LINE)
-
-	if right_span > 12:
-		for x in range(cx + 12, cx + right_span - 4):
-			_set_px(img, ox + x, spar_row, COL_PANEL_LINE)
-			_set_px(img, ox + x, spar_row + 4, COL_PANEL_LINE)
 
 
 # --- Drawing primitives ---
