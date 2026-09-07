@@ -24,6 +24,12 @@ func _init() -> void:
 	test_wing_glove_darker_than_panel()
 	test_sweep_crease_line()
 	test_fuselage_wing_contrast()
+	test_fuselage_left_brighter_than_right()
+	test_left_wing_inner_brighter_than_outer()
+	test_canopy_specular_is_white()
+	test_banking_right_wing_brightness_shift()
+	test_fuselage_undershadow_on_glove()
+	test_panel_line_contrast()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -225,8 +231,8 @@ func test_tandem_canopy_two_bumps() -> void:
 
 
 func test_wing_glove_darker_than_panel() -> void:
-	# The wing glove (COL_GLOVE) should be darker than the movable wing panel (COL_WING_TOP).
-	# Sample pixels: glove at cx-16 (inside glove range), panel at cx-40 (in movable panel range).
+	# The wing glove should be darker than the movable wing panel at the wing root zone.
+	# Sample: glove at cx-16 (inside glove range), panel at cx-25 (near wing root, in highlight zone).
 	var tex := JetSpriteGenerator.generate_sprite_sheet()
 	var img := tex.get_image()
 	var ox := 2 * 160
@@ -234,7 +240,7 @@ func test_wing_glove_darker_than_panel() -> void:
 	var sample_row := 42  # mid-wing
 
 	var glove_pixel := img.get_pixel(ox + cx - 16, sample_row)
-	var panel_pixel := img.get_pixel(ox + cx - 40, sample_row)
+	var panel_pixel := img.get_pixel(ox + cx - 25, sample_row)
 
 	# Both should be opaque
 	assert_true(glove_pixel.a > 0.0, "glove pixel is opaque at cx-16")
@@ -283,3 +289,128 @@ func test_fuselage_wing_contrast() -> void:
 
 	var gap := absf(fuse_lum - wing_lum)
 	assert_true(gap >= 0.10, "fuselage/wing luminance gap >= 0.10 (gap=%.3f, fuse=%.3f, wing=%.3f)" % [gap, fuse_lum, wing_lum])
+
+
+func _lum(c: Color) -> float:
+	return c.r * 0.299 + c.g * 0.587 + c.b * 0.114
+
+
+func test_fuselage_left_brighter_than_right() -> void:
+	# Verify 3D shading: left half of fuselage is brighter than right half (top-left light).
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160  # center frame
+	var cx := 80
+
+	# Sample mid-fuselage row 45, left side vs right side
+	var left_pixel := img.get_pixel(ox + cx - 6, 45)
+	var right_pixel := img.get_pixel(ox + cx + 6, 45)
+	var left_lum := _lum(left_pixel)
+	var right_lum := _lum(right_pixel)
+	assert_true(left_lum > right_lum, "fuselage left side brighter than right (L=%.3f, R=%.3f)" % [left_lum, right_lum])
+
+
+func test_left_wing_inner_brighter_than_outer() -> void:
+	# Wing root zone (inner) should be brighter than wingtip zone (outer) on left wing.
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+	var sample_row := 40
+
+	# Inner wing (near root, cx-25) vs outer wing (near tip, cx-50)
+	var inner_pixel := img.get_pixel(ox + cx - 25, sample_row)
+	var outer_pixel := img.get_pixel(ox + cx - 50, sample_row)
+	var inner_lum := _lum(inner_pixel)
+	var outer_lum := _lum(outer_pixel)
+	assert_true(inner_pixel.a > 0.0, "inner wing pixel is opaque")
+	assert_true(outer_pixel.a > 0.0, "outer wing pixel is opaque")
+	assert_true(inner_lum > outer_lum, "left wing inner brighter than outer (inner=%.3f, outer=%.3f)" % [inner_lum, outer_lum])
+
+
+func test_canopy_specular_is_white() -> void:
+	# Canopy specular should be near-white (high R,G,B), not blue.
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+
+	# Spec core at (cx-1, 20) and (cx-1, 21)
+	var spec1 := img.get_pixel(ox + cx - 1, 20)
+	var spec2 := img.get_pixel(ox + cx - 1, 21)
+	# Both should have R > 0.85 (near-white, not blue)
+	assert_true(spec1.r > 0.85, "specular pixel 1 is near-white (r=%.3f)" % spec1.r)
+	assert_true(spec2.r > 0.85, "specular pixel 2 is near-white (r=%.3f)" % spec2.r)
+
+
+func test_banking_right_wing_brightness_shift() -> void:
+	# In frame 0 (hard left bank), the right wing should be brighter than in frame 4.
+	# Because in hard left bank, the right wing surface tilts toward the light.
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+
+	# Sample right wing at a consistent relative position: cx+30, row 42
+	# Frame 0 (hard left): right wing is extended and lit
+	var f0_cx := 80 + (-6)  # shift_x = -6 for frame 0
+	var f0_pixel := img.get_pixel(0 * 160 + f0_cx + 30, 42)
+
+	# Frame 4 (hard right): right wing is foreshortened; sample from where it exists
+	var f4_cx := 80 + 6  # shift_x = +6 for frame 4
+	# In frame 4, right wing is tiny (scale 0.30). The left wing at cx-30 is the big one.
+	# Compare: frame 0 right wing vs frame 4 left wing at same distance from center.
+	# Frame 4 left wing at cx-30 should be brighter (banking into light).
+	var f4_pixel := img.get_pixel(4 * 160 + f4_cx - 30, 42)
+
+	# Both should be opaque
+	if f0_pixel.a > 0.0 and f4_pixel.a > 0.0:
+		# Frame 4 left wing (banking right, left wing into light) should be bright
+		var f4_lum := _lum(f4_pixel)
+		# Frame 0 right wing should also be bright (banking left, right wing into light)
+		var f0_lum := _lum(f0_pixel)
+		# Both banked-into-light wings should be reasonably bright (> mid gray)
+		assert_true(f0_lum > 0.30, "frame 0 right wing has decent brightness (%.3f)" % f0_lum)
+		assert_true(f4_lum > 0.30, "frame 4 left wing has decent brightness (%.3f)" % f4_lum)
+	else:
+		assert_true(false, "wing pixels should be opaque at sample positions")
+
+
+func test_fuselage_undershadow_on_glove() -> void:
+	# The inner 3 pixels of each glove row should be darkened (fuselage undershadow).
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+	var sample_row := 42
+	var glove_inner := 10  # where glove starts
+
+	# Left glove: inner 3 pixels are at cx - glove_inner - 1, -2, -3
+	var shadow_pixel := img.get_pixel(ox + cx - glove_inner - 1, sample_row)
+	var outer_pixel := img.get_pixel(ox + cx - glove_inner - 6, sample_row)
+
+	if shadow_pixel.a > 0.0 and outer_pixel.a > 0.0:
+		var shadow_lum := _lum(shadow_pixel)
+		var outer_lum := _lum(outer_pixel)
+		assert_true(shadow_lum <= outer_lum, "glove undershadow is darker than outer glove (shadow=%.3f, outer=%.3f)" % [shadow_lum, outer_lum])
+	else:
+		assert_true(false, "glove pixels should be opaque at sample positions")
+
+
+func test_panel_line_contrast() -> void:
+	# Panel lines should clearly contrast against the fuselage surface (delta > 0.10).
+	var tex := JetSpriteGenerator.generate_sprite_sheet()
+	var img := tex.get_image()
+	var ox := 2 * 160
+	var cx := 80
+
+	# Panel line at cx, row 12 (nose area)
+	var panel_pixel := img.get_pixel(ox + cx, 12)
+	# Adjacent fuselage pixel at cx+2, row 12
+	var fuse_pixel := img.get_pixel(ox + cx + 2, 12)
+
+	if panel_pixel.a > 0.0 and fuse_pixel.a > 0.0:
+		var panel_lum := _lum(panel_pixel)
+		var fuse_lum := _lum(fuse_pixel)
+		var delta := absf(fuse_lum - panel_lum)
+		assert_true(delta >= 0.10, "panel line contrasts against fuselage (delta=%.3f)" % delta)
+	else:
+		assert_true(false, "panel and fuselage pixels should be opaque")

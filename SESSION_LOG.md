@@ -451,3 +451,111 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Improvement Insights**:
 - [criteria.md]: Add per-identity-marker test criteria for procedural sprites — each visual feature should be independently verifiable
 - [CLAUDE.md]: When drawing detail/panel lines last, explicitly skip regions owned by other features (canopy, insignia) — blind full-row lines cause subtle overwrite bugs
+
+---
+### [2026-09-06 16:00] — judge — #19
+**Gate type**: final (post-sprite-fix visual fidelity)
+**Verdict**: PASS
+**Score**: 7/10
+**Key gaps**: No multi-resolution Super Scaler sprites, no screen shake, no missile/bullet trails, no enemy banking animation, procedural art ceiling
+**Improvement Insights**:
+- [criteria.md]: Add sprite readability criterion with measurable thresholds (opaque pixel counts, luminance contrast minimums)
+- [criteria.md]: Add visual scale criterion requiring documented minimum world-unit size per sprite type
+- [developer.md]: Require running sprite generator tests before marking visual changes complete
+- [workflow]: Mandate function-level root cause diagnosis in visual bug specs (UI designer pattern from #19)
+
+---
+### [2026-09-07 10:00] — ui-designer — #20
+**Task**: Design 3D shading spec for player jet sprite and enemy sprites — transform flat silhouettes into depth-illusion arcade sprites
+**Result**: COMPLETED
+**Elements designed**:
+- Player F-14 fuselage shading (nose, forward, mid, rear, nacelles) — left/right split lit-from-top-left
+- Player wing shading — 4-zone horizontal span gradient (highlight root, base, midtone, shadow tip)
+- Player wing glove — fuselage undershadow band (3px dark at root)
+- Player canopy — white specular core + blue halo + shadow side
+- Player tail fins — 3-tone per-column assignment
+- Banking frame shading shifts — 5 frames with BANK_HIGHLIGHT_BIAS array
+- Enemy fighter (48x48) — cross-axis fuselage shading, 4-zone wing, white specular
+- Enemy interceptor (48x48) — same treatment, green palette extension
+- Enemy bomber (64x64) — wide-fuselage 3-zone shading, shifted spine highlight
+**Key design decisions**:
+- Light source fixed at top-left 45 degrees — established as global convention for all sprites
+- Used 4-tone ramps (HIGHLIGHT/TOP/MID/SHADOW) instead of 3 to allow smoother cylindrical fuselage reads
+- Fuselage shading uses LEFT/RIGHT column split (not TOP/BOTTOM horizontal bands) — this is the correct simulation of a cylinder seen from above with side lighting
+- Panel line value deepened from 0.416 to 0.278 — the existing panel lines were effectively invisible against the fuselage surface
+- Banking bias array approach keeps code compact while creating consistent lighting across all 5 frames
+- Canopy specular changed from blue-tinted highlight to near-white (0.920, 0.965, 1.000) — at game resolution blue specular disappears into the canopy body
+- Enemy fuselage now gets explicit left/right zone split with new shadow colors added to each enemy palette
+**References**:
+- F-14 real-world colors: Light Gull Gray topside (FS 36440), Low-visibility Dark Ghost Gray schemes
+- 3-tone pixel art method: pixelartmaker.ai/blog/the-3-tone-shading-method.html
+- Military shmup sprites: slynyrd.com/blog/2024/1/23/pixelblog-48-military-shmup
+- Hardcore Gaming 101 After Burner analysis: hardcoregaming101.net/after-burner/
+**Improvement Insights**:
+- [ui-designer.md]: Add requirement to explicitly quote exact GDScript line numbers that produce each diagnosed issue — prevents vague "this looks flat" feedback
+- [criteria.md]: Add criterion: "light direction is consistent across all sprites and all banking frames — left wing not brighter than right when light is top-left"
+- [workflow]: UI designer should receive current screenshot alongside code so visual bugs can be confirmed visually before spec writing, not inferred from code alone
+
+---
+### [2026-09-07 12:00] — senior-developer — #20
+**Task**: Add 3D shading to enemy jet sprites (fighter, interceptor, bomber)
+**Result**: COMPLETED
+**Files changed**: scripts/enemies/enemy_sprite_generator.gd, tests/test_enemy_sprite_generator.gd
+**Key changes**:
+- enemy_sprite_generator.gd: Added _draw_shaded_rect() helper for 4-zone left-to-right fuselage shading
+- enemy_sprite_generator.gd: Added _draw_shaded_wing_triangle() with 3-zone span-based wing shading and asymmetric L/R lighting
+- enemy_sprite_generator.gd: Nose cones now have left-half bright / right-half base split with top-left highlight pixel
+- enemy_sprite_generator.gd: Canopy specular core pixel (near-white) added to all 3 enemy types
+- enemy_sprite_generator.gd: Bomber spine highlight shifted from cols 31-32 to cols 28-29 per light direction
+- enemy_sprite_generator.gd: 13 new color constants for shading tones per UI design spec
+- tests/test_enemy_sprite_generator.gd: 6 new tests verifying shading behavior
+**Technical decisions**: (1) Used fractional zone thresholds (30/35/25/10) for fuselage shading to approximate cylindrical falloff without actual per-pixel lerp — simpler and matches 2-3 tone pixel art style. (2) Right wing inner zone demoted one step darker than left wing inner to maintain consistent top-left light direction across the whole sprite.
+**Testing**: 23/23 tests pass including 6 new shading verification tests
+**Improvement Insights**:
+- [criteria.md]: Add shading verification criterion: "left-side avg brightness > right-side avg brightness for all enemy fuselages" as automated check
+- [workflow]: Shading specs should include explicit pixel coordinate ranges for each zone boundary, not just percentages — reduces ambiguity during implementation
+
+---
+### [2026-09-07 14:30] — senior-developer — #20
+**Task**: Add 3D shading to player jet sprite
+**Result**: COMPLETED
+**Files changed**: scripts/player/jet_sprite_generator.gd, tests/test_jet_sprite_generator.gd
+**Key changes**:
+- jet_sprite_generator.gd:30-80 — Replaced flat 3-color palette with full shading palette (5 fuselage tones, 5 wing tones, 3 glove tones, 3 fin tones, canopy shadow + specular)
+- jet_sprite_generator.gd:100-170 — Fuselage rendering rewritten with left/right column shading (highlight left, shadow right) across all sections, banking bias shifts zones
+- jet_sprite_generator.gd:230-290 — Wing glove lit/dark split with 3px fuselage undershadow at root
+- jet_sprite_generator.gd:295-395 — Wing panels use 4-zone horizontal span gradient (tip shadow -> outer mid -> main top -> root highlight), right wing demoted one step, banking bias adjusts inner zone width
+- jet_sprite_generator.gd:400-450 — Canopy specular upgraded to 3px near-white core + halo, shadow side on right/bottom
+- jet_sprite_generator.gd:460-480 — Tail fins 3-tone per-column (TOP/MID/EDGE)
+- tests/test_jet_sprite_generator.gd — 6 new tests, 1 test sample point updated for new gradient model
+**Technical decisions**: (1) Used fractional zone boundaries (0.15/0.40/0.75/1.0) for wing shading to approximate radial light falloff without per-pixel lerp — matches pixel art aesthetic. (2) Banking bias applied as additive float to zone thresholds rather than separate color tables per frame — simpler, fewer constants, smooth interpolation across 5 frames. (3) Right wing inner zone gets COL_WING_TOP not HIGHLIGHT to maintain consistent top-left light direction. (4) Updated test_wing_glove_darker_than_panel sample point from cx-40 to cx-25 because cx-40 now falls in wing shadow zone, making the old comparison meaningless.
+**Testing**: 37/37 player jet tests pass, 23/23 enemy sprite tests pass (regression check)
+**Improvement Insights**:
+- [criteria.md]: Add automated shading criteria: "fuselage left avg luminance > right avg luminance" and "wing root luminance > wing tip luminance" for all sprite generators
+- [CLAUDE.md]: GDScript type inference note: const arrays return Variant on index access — use explicit `var x: float = ARRAY[i]` not `:=` to avoid parse errors
+
+---
+### [2026-09-07 10:00] — architect — #21
+**Task**: Design targeting sight and missile lock-on system spec
+**Result**: COMPLETED
+**Key decisions**:
+- WeaponManager owns all targeting state (sight position, locked enemies, timers) — Reticle is pure visual renderer with zero game logic
+- Sight tracks in viewport pixel coordinates, positioned via lerp toward input-offset from screen center (SIGHT_SPEED=8.0 for responsive feel)
+- Lock-on uses circular proximity (60px radius) around sight position instead of the old center-40% rectangle
+- Multi-lock with MAX_LOCKS=3, lock break after 0.5s delay using per-enemy timers
+- Vulcan bullets get aim_direction property to aim toward sight world position (camera ray projection to Z=-50)
+- Reticle node moved to full-screen direct child of HUD CanvasLayer for drawing lock markers anywhere on screen
+**Spec posted to**: GitHub issue #21 comment
+**Improvement Insights**:
+- agent-definition/architect.md: Could benefit from a checklist item reminding to verify camera.is_position_behind() handling for any spec involving screen-space projection of 3D positions
+- CLAUDE.md: The architecture.md Weapons module description should mention sight/targeting as a sub-concern, not just "lock-on targeting"
+
+---
+### 2026-09-07 — judge — #20
+**Gate type**: per-agent (developer)
+**Verdict**: PASS
+**Score**: 9/10
+**Key gaps**: Minor — enemy wing zone test samples transparent pixels (0.000) instead of actual outer wing pixels; test is weak but sprite rendering is correct.
+**Improvement Insights**:
+- criteria.md: Add criterion for test robustness — visual tests should verify sample coordinates land on rendered pixels before asserting brightness comparisons.
+- developer.md: When writing pixel-sampling tests, always assert opacity first at the exact sample coordinate, not just in a nearby region.
