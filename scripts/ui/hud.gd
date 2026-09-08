@@ -9,7 +9,7 @@ extends CanvasLayer
 @onready var missile_label: Label = %MissileLabel
 @onready var speed_bar: Label = %SpeedBar
 @onready var lives_label: Label = %LivesLabel
-@onready var reticle: Control = %Reticle
+@onready var reticle: Control = $Reticle
 
 var high_score: int = 0
 var speed_ratio: float = 0.5  ## 0.0 to 1.0, for future throttle integration

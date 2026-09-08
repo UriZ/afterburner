@@ -559,3 +559,46 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Improvement Insights**:
 - criteria.md: Add criterion for test robustness — visual tests should verify sample coordinates land on rendered pixels before asserting brightness comparisons.
 - developer.md: When writing pixel-sampling tests, always assert opacity first at the exact sample coordinate, not just in a nearby region.
+
+---
+### 2026-09-07 — judge — #21
+**Gate type**: per-agent (architect)
+**Verdict**: PASS
+**Score**: 9/10
+**Key gaps**: Confusing double is_position_behind check in sample code (cosmetic, non-blocking). Missing explicit _update_sight() call site in _process(). Minor tscn edit could be more specific.
+**Improvement Insights**:
+- criteria.md: Add architect criterion for "code samples are syntactically correct and free of dead/confusing code"
+- architect.md: When modifying tscn files, provide exact node blocks, not just prose instructions
+
+---
+### [2026-09-07 14:00] — senior-developer — #21
+**Task**: Implement targeting sight and missile lock-on system
+**Result**: COMPLETED
+**Files changed**: scripts/weapons/weapon_manager.gd, scripts/ui/reticle.gd, scripts/weapons/vulcan_bullet.gd, scenes/hud/hud.tscn, scripts/ui/hud.gd, tests/test_lock_on.gd
+**Key changes**:
+- weapon_manager.gd: Replaced single-target LOCKON_RECT with movable sight + multi-lock (3 targets, 60px radius, 0.5s break delay). Added get_sight_world_position() for vulcan aiming.
+- reticle.gd: Full rewrite as pure renderer. Draws movable crosshair + per-enemy bracket markers. No game logic.
+- vulcan_bullet.gd: Added aim_direction property, bullets fly toward sight world position instead of hardcoded -Z.
+- hud.tscn: Moved Reticle to direct child of HUD CanvasLayer with full-rect anchors.
+- hud.gd: Updated reticle reference path from %Reticle to $Reticle.
+- test_lock_on.gd: 9 tests (20 assertions), all passing.
+**Technical decisions**:
+1. Sight tracks in viewport pixel coords (not NDC) for direct use in _draw() and camera.unproject_position() comparisons
+2. Used explicit type annotations (Vector3, float) where get_parent() returns Node to avoid Godot type inference failures
+3. Untyped Array in stale cleanup test because TypedArray rejects freed object references at push_back
+4. Reticle placed before MarginContainer in tscn so HUD labels render on top of crosshair
+**Testing**: All 20 assertions in test_lock_on.gd pass. All existing test suites still pass (no regressions).
+**Improvement Insights**:
+- CLAUDE.md: Document that TypedArray[Node3D] cannot hold freed references — use untyped Array for collections that may contain stale refs, or clean before storing
+- criteria.md: Add developer criterion for "no Godot type inference errors when scripts are compiled standalone"
+- architect.md: Note that normalize() after setting a min component value reduces that component — spec should account for this
+
+---
+### 2026-09-08 — judge — #21
+**Gate type**: per-agent (developer)
+**Verdict**: PASS
+**Score**: 9/10
+**Key gaps**: none (minor: tests simulate logic rather than exercising actual WeaponManager instances; unused unique_name_in_owner on Reticle node)
+**Improvement Insights**:
+- criteria.md: Consider criterion for tests exercising actual implementation code vs logic duplication
+- developer.md: Note headless test limitations explicitly in implementation notes so QA knows coverage gaps

@@ -1,12 +1,13 @@
 extends Area3D
 
-## A single vulcan cannon bullet that flies into the screen (-Z direction),
+## A single vulcan cannon bullet that flies toward the aim direction,
 ## scaling down to simulate depth, and auto-frees after max range.
 
 const SPEED := 80.0
 const MAX_DISTANCE := 200.0
 const SCALE_RATE := 3.0  # how fast it shrinks as it flies away
 
+var aim_direction := Vector3(0, 0, -1)  # set by WeaponManager before adding to tree
 var _distance_traveled := 0.0
 var _initial_scale := Vector3.ONE
 
@@ -18,7 +19,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var move_amount := SPEED * delta
-	position.z -= move_amount
+	position += aim_direction * move_amount
 	_distance_traveled += move_amount
 
 	# Scale down to simulate flying into the distance
