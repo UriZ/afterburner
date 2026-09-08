@@ -4,8 +4,8 @@ extends Node3D
 ## Data-driven: wave definitions are arrays of dictionaries.
 
 const SPAWN_Z := -50.0
-const SPAWN_Y_MIN := 5.0  # enemies must fly above player (player MOVE_MAX.y = 4.8)
-const SPAWN_Y_MAX := 7.0
+const SPAWN_Y_MIN := 6.0  # enemies spawn in sky region (39-44% from screen top)
+const SPAWN_Y_MAX := 9.0
 const SPAWN_X_RANGE := 8.0
 
 @export var spawn_interval: float = 1.2

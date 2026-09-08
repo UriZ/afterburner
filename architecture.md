@@ -86,5 +86,6 @@ Godot Unit Testing framework for testing game logic (scoring, stage progression,
 - **Arcade feel first** — every decision prioritizes making it feel like the original cabinet
 - **Sprite-based visuals** — 2D sprites in 3D space, not 3D models
 - **Fixed camera** — camera never moves; player and enemies move in front of it
+- **Camera setup** — position (0, 5, 0), X rotation 3 deg, FOV 70. Horizon at ~46% from screen top
 - **Simple collision** — Area3D with simple shapes, no complex physics
 - **60 FPS minimum** — arcade games are smooth; never sacrifice framerate

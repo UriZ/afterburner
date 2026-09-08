@@ -653,3 +653,35 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Improvement Insights**:
 - **senior-developer.md**: File ownership list in task assignment eliminates merge conflicts and scope ambiguity. Keep this pattern.
 - **CLAUDE.md**: Shaders can't be validated with --check-only, only by running the game. Note this gap explicitly in testing guidance.
+
+---
+### [2026-09-09 10:30] — architect — #23
+**Task**: Design spec for camera angle fix — horizon at 50% screen
+**Result**: COMPLETED
+**Key decisions**:
+- Camera X rotation: 3 deg (down from 20 deg). Puts ground horizon at 45.7% from top, within the 45-55% acceptance range.
+- Camera position unchanged at (0, 5, 0) — changing only rotation minimizes cascading changes.
+- Player RESPAWN_POSITION Y: 2.0 (down from 3.8) to appear at ~75% from screen top with new camera angle.
+- Movement bounds expanded: Y range 0.5-3.5 (from 2.5-4.2), X range +/-5.5 (from +/-5.0) to use more of the now-visible screen area.
+- Enemy spawn Y range: 6.0-9.0 (from 5.0-7.0) to keep enemies clearly in the sky portion (39-44% from top at spawn distance).
+- Verified 8 files need NO changes (weapons, ground shader, missile, etc.) — they use dynamic camera queries or UV-based rendering.
+**Spec posted to**: GitHub issue #23 comment
+**Improvement Insights**:
+- **architect.md**: For camera/projection math tasks, always verify the Transform3D encoding order (column-major) against an existing known value before computing new ones.
+- **CLAUDE.md**: Document the ground horizon formula `(half_fov - tilt) / fov` in architecture.md for future reference — it's non-obvious and easy to confuse with geometric horizon.
+
+---
+### [2026-09-09 12:00] — senior-developer — #23
+**Task**: Implement camera angle fix — 20deg to 3deg X rotation with cascading position updates
+**Result**: COMPLETED
+**Files changed**: scenes/main.tscn, scripts/player/player_jet.gd, scripts/enemies/enemy_spawner.gd, architecture.md
+**Key changes**:
+- scenes/main.tscn:40 — Camera3D transform updated from 20deg to 3deg rotation: cos/sin swapped from 0.9397/0.342 to 0.99863/0.05234
+- scripts/player/player_jet.gd:7-8 — MOVE_MIN (-5.0, 2.5)->(-5.5, 0.5), MOVE_MAX (5.0, 4.2)->(5.5, 3.5)
+- scripts/player/player_jet.gd:12-14 — RESPAWN_POSITION Y 3.8->2.0, comment updated to reflect 3deg tilt
+- scripts/enemies/enemy_spawner.gd:7-8 — SPAWN_Y_MIN 5.0->6.0, SPAWN_Y_MAX 7.0->9.0
+- architecture.md:89 — Added camera setup documentation (position, rotation, FOV, horizon percentage)
+**Technical decisions**: (1) Verified Transform3D column-major encoding by cross-referencing existing 20deg values against cos(20)/sin(20) before computing 3deg replacements. (2) All values taken directly from architect spec — no independent derivation needed since the math was verified in the spec.
+**Testing**: Godot headless project load — no parse or load errors. Only pre-existing MCP bridge port error. All modified values match spec exactly.
+**Improvement Insights**:
+- [workflow]: Camera angle changes are purely numerical and low-risk when the architect spec includes exact Transform3D values — this pattern of precise spec -> direct implementation works well
