@@ -7,51 +7,74 @@ This file defines what the judge agent evaluates against. Three layers: project-
 ```
 STRICTNESS: paranoid
 GATE_MODE: blocking
-SCORE_THRESHOLD: 8
-MAX_RETRIES: 2
-JUDGE_TL: false
+SCORE_THRESHOLD: 9
+MAX_RETRIES: 5
+JUDGE_TL: true
 ```
+
+## Judge Mandatory Procedure
+
+**The judge MUST take a screenshot before evaluating any visual work.** Use the MCP bridge:
+```
+printf '{"cmd":"screenshot"}\n' | nc -w 3 127.0.0.1 9501
+```
+If the game is not running, the judge MUST launch it, navigate to gameplay, and screenshot. Visual work that has not been screenshot-verified is an automatic FAIL.
+
+**The judge MUST compare the screenshot against the original After Burner II.** If the result does not look like After Burner II to a reasonable person, it FAILS — regardless of whether the code "works" or tests pass.
+
+**Code that compiles and passes tests but looks bad is a FAIL.** The judge evaluates the VISUAL RESULT, not the code quality. Tests passing means nothing if the game looks wrong.
 
 ---
 
 ## Project-Level Quality Bar
 
-- Target quality: "Indistinguishable from the original SEGA After Burner II arcade experience"
+- Target quality: "A person seeing this for the first time would say 'that looks like After Burner'"
 - The game must run at 60 FPS on a modern Mac
-- Controls must feel responsive and tight — no input lag, smooth movement
-- All GDScript must be valid Godot 4.6 — project must open and run without errors in Godot 4.6.2
-- No placeholder art — every visual element must look finished and arcade-quality
+- Controls must feel responsive and tight
+- All GDScript must be valid Godot 4.6
+
+### HARD RULES — Automatic FAIL if violated
+
+1. **No flat 2D sprites for jets.** The player jet and enemy jets MUST be 3D meshes (MeshInstance3D with combined primitives) OR pre-rendered 3D sprites with correct perspective. Procedural 2D pixel art drawn with `set_pixel()` on an Image is NOT ACCEPTABLE for aircraft. It will never look 3D.
+
+2. **Rear chase-cam perspective.** The player jet is viewed from BEHIND and SLIGHTLY BELOW. You see the REAR of the jet: twin engine nozzles with afterburner flames, vertical tail fins, swept wings. NOT a top-down dorsal view. NOT a front view.
+
+3. **The ground must move.** When playing, you must feel intense forward speed. If the ground looks static or slowly drifting, FAIL.
+
+4. **Screen must be busy.** At any point during gameplay, there should be multiple enemies, projectiles, or explosions visible. An empty screen with just the jet and sky is FAIL.
+
+5. **Horizon at 40-55% from top.** Ground fills the bottom half. The jet sits in the bottom 25%.
 
 ### Visual Fidelity (Critical — all must pass)
 
 | # | Criterion | Description |
 |---|-----------|-------------|
-| 1 | Player jet reads as 3D F-14 | The sprite must create the illusion of a 3D jet — shading, highlights, shadows, depth. NOT a flat colored silhouette. Must have specular highlights on canopy, shadow under fuselage, lit/dark sides on banking. |
-| 2 | Player jet occupies 25-30% screen height | Measured: `(sprite_height_px × pixel_size) / (2 × Z_distance × tan(FOV/2))`. Must dominate bottom quarter. |
-| 3 | Enemy jets are recognizable aircraft at ALL distances | At spawn distance: small but clearly a jet shape. At mid-range: type-distinguishable. At close range: detailed with visible wings, body, cockpit. |
-| 4 | Wing surfaces are filled regions, not lines | Any implementation where wings are single-pixel diagonals or unfilled outlines automatically FAILS. |
-| 5 | Ground creates intense speed sensation | Reviewer must feel forward motion is fast/aggressive. Bands must be dramatically wider near camera, hairline at horizon. Original AB2 reviewers used words like "nauseating" and "dizzying". |
-| 6 | Explosions are dramatic screen-filling events | At detonation point, explosion must be at least 15% of screen height. Duration ≥ 0.8s. Must have orange fireball → smoke progression. |
-| 7 | Color palette is bold arcade saturated | No muted/realistic greys. Vivid reds, deep blues, hot oranges, bright whites. Colors must pop on screen. |
-| 8 | Sprites have shading and depth | Flat single-color fills FAIL. Every sprite must have at least highlight, base, and shadow tones to create 3D illusion. |
-| 9 | Screen composition matches original | Horizon at 45-55% from top. Sky fills upper half. Ground fills lower half. Player in bottom 25%. |
-| 10 | Super Scaler feel | Enemies must smoothly scale from small dots at horizon to large detailed sprites flying past. The scaling must feel continuous and dramatic. |
+| 1 | Player jet is 3D | Must be a 3D mesh or convincing pre-rendered 3D. Must show rear view: engines, tail fins, swept wings. Must look like an F-14 Tomcat. Procedural 2D shapes = FAIL. |
+| 2 | Player jet is large | Occupies 25-30% screen height. Dominates bottom quarter. |
+| 3 | Enemy jets are 3D | Must be 3D meshes that scale naturally as they approach. At close range, must be recognizable aircraft. |
+| 4 | Ground creates speed | Perspective-compressed bands/texture rushing toward camera. Must feel FAST. "Nauseating" speed. |
+| 5 | Explosions are dramatic | Screen-filling fireballs. At least 15% screen height. Orange → smoke progression. |
+| 6 | Bold arcade colors | Vivid saturated colors. No washed-out pastels. Deep blues, hot oranges, bright whites. |
+| 7 | World tilts on banking | When the jet banks left/right, the camera rolls, tilting the entire horizon. |
+| 8 | Composition matches AB2 | Horizon ~50% from top. Ground fills bottom. Jet in bottom 25%. Sky with clouds above. |
+| 9 | Super Scaler scaling | Enemies scale smoothly from dots at horizon to large sprites flying past. Continuous, dramatic. |
+| 10 | Afterburner flames | Twin engine flames visible on player jet. Hot white/yellow core, orange/red outer. |
 
 ### Gameplay Feel (Critical)
 
 | # | Criterion | Description |
 |---|-----------|-------------|
-| 1 | Arcade energy | Screen should feel BUSY — multiple enemies, projectiles, explosions happening simultaneously. Not calm or empty. |
-| 2 | Camera responds to player | World tilts when banking. Camera movement adds to immersion. |
-| 3 | Lock-on feedback | Clear visual and audio feedback when missile lock is acquired. |
-| 4 | Weapon satisfaction | Firing vulcan and missiles must feel impactful — visual tracers, sound, enemy reactions. |
+| 1 | Arcade energy | Screen BUSY — multiple enemies, projectiles, explosions simultaneously. Never calm or empty. |
+| 2 | Lock-on feedback | Clear visual + audio when missile lock acquired. Per-enemy lock markers. |
+| 3 | Weapon satisfaction | Vulcan tracers visible, missiles trail smoke, enemies react on hit. |
+| 4 | Responsive controls | Zero input lag. Jet moves immediately with input. |
 
 ### Audio (High)
 
 | # | Criterion | Description |
 |---|-----------|-------------|
-| 1 | Music plays during gameplay | Selected track plays and loops. Must be energetic/driving tempo. |
-| 2 | SFX match actions | Every weapon fire, explosion, lock-on has a sound. Sounds are punchy, not thin. |
+| 1 | Music plays | Selected track plays and loops. Energetic tempo. |
+| 2 | SFX match actions | Weapon fire, explosion, lock-on all have distinct sounds. |
 
 ---
 
@@ -61,88 +84,54 @@ JUDGE_TL: false
 
 | # | Criterion | Weight | Description |
 |---|-----------|--------|-------------|
-| 1 | Spec completeness | Critical | Design covers ALL requirements in the task — nothing missing |
-| 2 | No scope creep | Critical | Design covers ONLY what's requested — no unrequested features, no gold-plating |
-| 3 | Clear interfaces | High | All public interfaces are unambiguous — developer should not need to make design decisions |
-| 4 | Consistent with architecture | High | Design aligns with existing architecture.md and established patterns |
-| 5 | Risks identified | Medium | Edge cases, failure modes, and constraints are called out explicitly |
-| 6 | Implementation actionable | High | Spec is detailed enough that a developer can implement without asking questions |
-| 7 | Godot-native approach | High | Uses Godot built-in nodes and patterns, not fighting the engine |
+| 1 | Spec completeness | Critical | Covers ALL requirements — nothing missing |
+| 2 | No scope creep | Critical | Only what's requested — no gold-plating |
+| 3 | Clear interfaces | High | Unambiguous — developer needs no design decisions |
+| 4 | Godot-native approach | Critical | Uses Godot built-in nodes. 3D meshes for 3D objects, not sprite hacks. |
+| 5 | Risks identified | Medium | Edge cases and constraints called out |
 
 ### UI Designer
 
 | # | Criterion | Weight | Description |
 |---|-----------|--------|-------------|
-| 1 | References original game | Critical | Must cite specific original After Burner II screenshots/sprites as reference |
-| 2 | Diagnoses broken code | Critical | Must identify the specific functions/lines that produce bad output before writing spec |
-| 3 | Pixel-level specificity | High | Exact coordinates, exact colors, exact dimensions — not vague descriptions |
-| 4 | 3D illusion techniques | High | Spec must describe shading, highlights, shadows that create depth — not flat color fills |
-| 5 | Measurable targets | High | Screen percentages, pixel counts, color values — not "bigger" or "more detailed" |
+| 1 | References original game | Critical | Must cite original AB2 visuals as reference |
+| 2 | Diagnoses broken code | Critical | Must identify specific functions/lines producing bad output |
+| 3 | Pixel-level specificity | High | Exact dimensions, colors, coordinates |
+| 4 | Measurable targets | High | Screen percentages, pixel counts — not "bigger" |
 
 ### Developer
 
 | # | Criterion | Weight | Description |
 |---|-----------|--------|-------------|
-| 1 | Matches spec | Critical | Implementation matches the spec — no deviations without justification |
-| 2 | Runs in Godot | Critical | Project opens in Godot 4.6 and runs without errors |
-| 3 | Feature works | Critical | The implemented feature actually functions as specified |
-| 4 | Sprites have depth/shading | Critical | No flat single-color fills. Must have highlight, base, shadow tones. |
-| 5 | Tests present | High | Implementation has GUT tests for core logic |
-| 6 | Code quality | Medium | Clean, readable GDScript following Godot conventions |
-| 7 | No scope creep | High | Only what was specified was built — no extra features |
-| 8 | Less is more | High | Short concise code. No AI slop |
-| 9 | Arcade feel | Critical | The feature feels like the original After Burner when playing |
-| 10 | On-screen size math | High | Developer must calculate and verify screen coverage before declaring visual work done |
+| 1 | Matches spec | Critical | Implementation matches spec exactly |
+| 2 | Runs in Godot | Critical | Opens and runs without errors in 4.6.2 |
+| 3 | Feature works | Critical | Actually functions as specified |
+| 4 | LOOKS RIGHT | Critical | The visual result looks like After Burner II. Judge MUST screenshot and verify. Code that works but looks wrong = FAIL. |
+| 5 | Tests present | High | Tests for core logic |
+| 6 | No scope creep | High | Only what was specified |
+| 7 | Less is more | High | Concise code. No AI slop. |
 
 ### QA
 
 | # | Criterion | Weight | Description |
 |---|-----------|--------|-------------|
-| 1 | All acceptance criteria tested | Critical | Every criterion from the issue was explicitly verified |
-| 2 | Bug reports actionable | High | Each bug has clear repro steps, expected vs actual, and root cause hypothesis |
-| 3 | Edge cases covered | Medium | Testing went beyond happy path — boundary conditions, error states |
-| 4 | Evidence provided | High | Console output or test results included as evidence |
-| 5 | Visual comparison to original | Critical | Tester must compare screenshot against original AB2 reference and note differences |
-
-### Security
-
-| # | Criterion | Weight | Description |
-|---|-----------|--------|-------------|
-| 1 | No hardcoded secrets | Critical | No API keys, tokens, or passwords in code or git history |
-| 2 | Safe file operations | High | No path traversal or arbitrary file access |
-| 3 | Input validation | Medium | Player input is bounds-checked |
-
----
-
-## Per-Task Acceptance Criteria
-
-Defined on each GitHub issue at creation time. Format:
-
-```markdown
-## Acceptance Criteria
-- [ ] [Specific, verifiable criterion]
-- [ ] [Specific, verifiable criterion]
-```
-
-The judge evaluates each criterion as PASS/FAIL. All acceptance criteria must pass for the final gate to pass.
+| 1 | Screenshot comparison | Critical | Must take screenshot and compare against original AB2. List every visible difference. |
+| 2 | All acceptance criteria tested | Critical | Every criterion explicitly verified |
+| 3 | Bug reports actionable | High | Repro steps, expected vs actual, root cause |
+| 4 | Evidence provided | High | Screenshots and console output included |
 
 ---
 
 ## Verdict Rules
 
-- **PASS**: All critical criteria met. High/medium criteria are substantially met. Work proceeds.
-- **FAIL**: Any critical criterion not met, OR multiple high criteria have significant gaps. Work returns to agent with specific feedback.
-
-### Weight Definitions
-
-- **Critical** — Must pass. A FAIL on any critical criterion means overall FAIL regardless of everything else.
-- **High** — Important. A single high failure is a warning. Multiple high failures → FAIL.
-- **Medium** — Nice to have. Failures noted in feedback but don't block on their own.
+- **PASS**: Score ≥ 9/10. All critical criteria met. Looks like After Burner II.
+- **FAIL**: Any critical criterion not met. Or it doesn't look like After Burner II. Period.
 
 ### Fail feedback must be specific
 
 Every FAIL must include:
 - Which criteria failed and why
-- Specific evidence (file, line, output)
-- What needs to change to pass
-- No vague "needs improvement" — name the gap
+- Screenshot evidence
+- Exact files/lines/values that need to change
+- What the correct result should look like
+- No vague "needs improvement" — name the gap and the fix
