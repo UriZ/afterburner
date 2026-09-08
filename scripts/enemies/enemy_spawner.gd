@@ -8,7 +8,7 @@ const SPAWN_Y_MIN := 5.0  # enemies must fly above player (player MOVE_MAX.y = 4
 const SPAWN_Y_MAX := 7.0
 const SPAWN_X_RANGE := 8.0
 
-@export var spawn_interval: float = 2.0
+@export var spawn_interval: float = 1.2
 @export var enabled: bool = true
 
 var _spawn_timer: float = 0.0
@@ -38,7 +38,7 @@ var wave_definitions: Array[Dictionary] = [
 
 func _ready() -> void:
 	_enemy_scene = load("res://scenes/enemies/enemy_jet.tscn")
-	_spawn_timer = 5.0  # delay first wave so player has time to orient
+	_spawn_timer = 1.5  # brief delay before first wave
 	# Ensure the player jet is in the "player" group so enemies can find it.
 	# We do this here because we can't modify the player scene (separate agent).
 	_add_player_to_group.call_deferred()

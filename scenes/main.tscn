@@ -52,7 +52,7 @@ scroll_speed = 18.0
 
 [node name="EnemySpawner" type="Node3D" parent="."]
 script = ExtResource("5_enemy_spawner")
-spawn_interval = 3.0
+spawn_interval = 1.2
 enabled = true
 
 [node name="StageManager" type="Node" parent="."]

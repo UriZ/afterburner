@@ -34,39 +34,39 @@ const BANK_HIGHLIGHT_BIAS := [-0.10, -0.05, 0.0, 0.05, 0.10]
 
 # --- Palette (3D shading, light from top-left ~45deg) ---
 
-# Fuselage — light grey-tan, military F-14 topside
-const COL_FUSE_HIGHLIGHT := Color(0.820, 0.808, 0.776) # lit edge, top surface
-const COL_FUSE_TOP := Color(0.655, 0.643, 0.612)       # main top surface
-const COL_FUSE_MID := Color(0.431, 0.424, 0.400)       # side/transition zone
-const COL_FUSE_SHADOW := Color(0.239, 0.235, 0.216)    # underside/trailing shadow
-const COL_FUSE_DEEP := Color(0.141, 0.137, 0.125)      # nacelle undersides, deep gaps
+# Fuselage — warm grey-tan, high contrast for sky visibility
+const COL_FUSE_HIGHLIGHT := Color(0.960, 0.950, 0.920) # near-white lit edge, top surface
+const COL_FUSE_TOP := Color(0.780, 0.765, 0.730)       # brighter main top surface
+const COL_FUSE_MID := Color(0.380, 0.370, 0.340)       # side/transition zone
+const COL_FUSE_SHADOW := Color(0.120, 0.118, 0.105)    # deep underside shadow
+const COL_FUSE_DEEP := Color(0.060, 0.058, 0.050)      # near-black nacelle undersides
 
-# Wings — blue-grey, clearly distinct from fuselage
-const COL_WING_HIGHLIGHT := Color(0.647, 0.663, 0.706) # leading edge, lit surface
-const COL_WING_TOP := Color(0.490, 0.506, 0.549)       # main wing surface
-const COL_WING_MID := Color(0.333, 0.349, 0.388)       # mid-wing, away from light
-const COL_WING_SHADOW := Color(0.200, 0.212, 0.243)    # trailing edge, tip shadow
-const COL_WING_EDGE_BEVEL := Color(0.220, 0.235, 0.267) # wing thickness bevel
+# Wings — warm grey-green, NOT blue-grey (must contrast with blue sky)
+const COL_WING_HIGHLIGHT := Color(0.820, 0.835, 0.870) # bright lit leading edge
+const COL_WING_TOP := Color(0.540, 0.555, 0.490)       # warm grey-green main surface
+const COL_WING_MID := Color(0.310, 0.325, 0.280)       # warm grey, no blue
+const COL_WING_SHADOW := Color(0.080, 0.085, 0.090)    # very dark shadow edge
+const COL_WING_EDGE_BEVEL := Color(0.120, 0.128, 0.135) # dark bevel
 
-# Fixed wing gloves — lit/dark split
+# Fixed wing gloves — warm tones, lit/dark split
 const COL_GLOVE_LIT := Color(0.510, 0.525, 0.557)      # lit glove surface
 const COL_GLOVE_BASE := Color(0.400, 0.416, 0.447)     # base glove
 const COL_GLOVE_DARK := Color(0.278, 0.290, 0.318)     # shadow glove edge
 
-# Cockpit canopy
-const COL_CANOPY := Color(0.102, 0.373, 0.659)         # main glass
+# Cockpit canopy — deeper blue glass, brighter highlights
+const COL_CANOPY := Color(0.050, 0.300, 0.750)         # deeper blue glass
 const COL_CANOPY_SHADOW := Color(0.067, 0.220, 0.412)  # shadow side
-const COL_CANOPY_HIGHLIGHT := Color(0.420, 0.702, 0.910) # halo
-const COL_CANOPY_SPEC := Color(0.920, 0.965, 1.000)    # near-white specular core
+const COL_CANOPY_HIGHLIGHT := Color(0.600, 0.820, 0.980) # brighter halo
+const COL_CANOPY_SPEC := Color(1.000, 1.000, 1.000)    # pure white specular core
 const COL_CANOPY_FRAME := Color(0.165, 0.161, 0.149)   # frame
 
 # Engine nozzles
 const COL_NACELLE := Color(0.118, 0.118, 0.125)
 const COL_NOZZLE_RIM := Color(0.290, 0.290, 0.314)
-const COL_NOZZLE_GLOW := Color(0.800, 0.400, 0.078)
+const COL_NOZZLE_GLOW := Color(1.000, 0.600, 0.100)    # brighter orange glow
 
 # Afterburner
-const COL_FLAME_CORE := Color(1.000, 0.910, 0.400)
+const COL_FLAME_CORE := Color(1.000, 1.000, 0.500)     # brighter yellow-white
 const COL_FLAME_MID := Color(1.000, 0.549, 0.102)
 const COL_FLAME_OUTER := Color(0.800, 0.133, 0.000)
 

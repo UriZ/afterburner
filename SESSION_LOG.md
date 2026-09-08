@@ -602,3 +602,54 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Improvement Insights**:
 - criteria.md: Consider criterion for tests exercising actual implementation code vs logic duplication
 - developer.md: Note headless test limitations explicitly in implementation notes so QA knows coverage gaps
+
+---
+### [2026-09-09 12:00] — ui-designer — #22
+**Task**: Diagnose visual failures and write pixel-level spec for comprehensive visual overhaul
+**Result**: COMPLETED
+**Elements designed**: Player jet contrast palette, ground scroll formula, ground color system, sky gradient, reticle sizing, HUD font sizing, spawn rate
+**Key design decisions**:
+- Jet is already 47% of screen height mathematically (pixel_size=0.055, FRAME_H=96, z_dist=8, FOV=70). The "tiny jet" complaint is a CONTRAST problem not a SIZE problem. Wing mid-tones at Color(0.333, 0.349, 0.388) match sky horizon blue Color(0.20, 0.40, 0.78) closely — jet blends into sky. Fix is palette brightening and de-bluing of wings.
+- Ground scroll formula (line 34 of ground_scroll.gdshader) adds scroll_offset to BAND PHASE not UV.y position. Bands stay in fixed screen positions and cycle colors (strobe). True AB2 scroll requires UV.y to shift — replaced with `scrolled_y = fract(uv.y - scroll_offset * 0.05)` formula.
+- Exponent increased from pow(uv.y, 2.5) to pow(uv.y, 3.0) for more dramatic near/far compression.
+- Ground uses hardcoded OCEAN_ constants that ignore the color_a stage color uniform (only 30% blend applied). Rewrote to drive all band colors from color_a and color_b directly.
+- Reticle crosshair was 28px total span (2.6% of 1080p screen). Original AB2 reticle is ~12.5% of 320px screen. Scaled to 1080p = 96px target. New values: ARM_LENGTH=40, GAP=8.
+- Spawn interval 3.0s with 5s initial delay produces empty-screen experience. Reduced to 1.2s / 1.5s for arcade density.
+**Improvement Insights**:
+- **ui-designer.md**: Add mandatory math verification step before any size-related diagnosis. Size complaints may be palette/contrast issues not geometry issues.
+- **criteria.md**: Add criterion: "Wing/fuselage colors must have <0.1 chroma similarity to sky background colors (measured by hue angle distance)". Prevents blend-in invisibility.
+- **workflow**: When ui-designer spec is done, developer should run a screenshot comparison immediately after each sub-fix, not all at once at the end.
+
+---
+### [2026-09-09 00:00] — senior-developer — #22
+**Task**: Implement jet palette, reticle, and HUD font size fixes from UI designer spec
+**Result**: COMPLETED
+**Files changed**: scripts/player/jet_sprite_generator.gd, scripts/ui/reticle.gd, scenes/hud/hud.tscn
+**Key changes**:
+- jet_sprite_generator.gd:37-71 — Shifted wing palette from blue-grey to warm grey-green for sky contrast; pushed fuselage highlights to near-white and shadows to near-black; deepened canopy blue; brighter nozzle glow and flame core
+- reticle.gd:10-16 — Increased crosshair size (arm 10->40, gap 4->8, stroke 2->3) and lock box (20->60, stroke 2->3)
+- hud.tscn — Top row font_size 18->28, bottom row font_size 18->24
+**Technical decisions**: Used GitHub spec's exact per-constant mapping rather than task summary values where they differed, since the spec had more granular per-constant targets. Kept glove colors unchanged as spec did not modify them.
+**Testing**: GDScript syntax check passed for both .gd files via Godot --check-only. Verified .tscn font_size counts (3x28 top, 3x24 bottom).
+**Improvement Insights**:
+- **CLAUDE.md**: Color constant changes should include a verification step that no blue component exceeds green component in wing colors (enforceable rule).
+- **workflow**: For palette-only changes, a visual diff screenshot before/after would catch regressions faster than syntax checks alone.
+
+---
+### [2026-09-09 00:00] — senior-developer — #22
+**Task**: Implement shader and spawner fixes from UI designer spec
+**Result**: COMPLETED
+**Files changed**: assets/shaders/ground_scroll.gdshader, assets/shaders/sky_gradient.gdshader, scripts/enemies/enemy_spawner.gd, scenes/main.tscn
+**Key changes**:
+- ground_scroll.gdshader:20 — replaced broken color-phase scroll with true UV.y scrolling via fract(uv.y - scroll_offset * 0.05)
+- ground_scroll.gdshader:23 — changed perspective exponent from 2.5 to 3.0 for wider near bands
+- ground_scroll.gdshader:27-31 — replaced hardcoded OCEAN palette with 5 tones derived from color_a/color_b uniforms
+- sky_gradient.gdshader:8-16 — updated 7 color constants to higher saturation values per spec
+- enemy_spawner.gd:11 — spawn_interval default 2.0 -> 1.2
+- enemy_spawner.gd:41 — _spawn_timer initial 5.0 -> 1.5
+- main.tscn:55 — spawn_interval scene override 3.0 -> 1.2
+**Technical decisions**: (1) Removed ocean-specific effects (foam noise, wave shimmer, broken stage tint blend) since ground is now land-biome driven. Simpler shader = fewer visual artifacts. (2) Kept all uniform names identical so stage_manager.gd and ground_scroll.gd need zero changes. (3) Used fract() on scrolled_y which handles the ever-growing offset from ground_scroll.gd cleanly.
+**Testing**: Verified uniform API compatibility with stage_manager.gd and ground_scroll.gd via grep. Validated GDScript syntax with Godot --check-only. Confirmed .tscn structure valid.
+**Improvement Insights**:
+- **senior-developer.md**: File ownership list in task assignment eliminates merge conflicts and scope ambiguity. Keep this pattern.
+- **CLAUDE.md**: Shaders can't be validated with --check-only, only by running the game. Note this gap explicitly in testing guidance.

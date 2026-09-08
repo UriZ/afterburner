@@ -4,16 +4,16 @@ shader_type sky;
 uniform vec4 color_top : source_color = vec4(0.02, 0.04, 0.25, 1.0);
 uniform vec4 color_horizon : source_color = vec4(0.20, 0.40, 0.78, 1.0);
 
-// Sky gradient stops (top to bottom) — deep arcade blues, no white haze
-const vec3 SKY_TOP     = vec3(0.02, 0.04, 0.25);
-const vec3 SKY_UPPER   = vec3(0.05, 0.12, 0.50);
-const vec3 SKY_MID     = vec3(0.12, 0.28, 0.65);
-const vec3 SKY_HORIZON = vec3(0.20, 0.40, 0.78);
-const vec3 SKY_HAZE    = vec3(0.20, 0.40, 0.78);
+// Sky gradient stops (top to bottom) — higher saturation arcade blues
+const vec3 SKY_TOP     = vec3(0.01, 0.03, 0.30);
+const vec3 SKY_UPPER   = vec3(0.04, 0.14, 0.58);
+const vec3 SKY_MID     = vec3(0.10, 0.32, 0.78);
+const vec3 SKY_HORIZON = vec3(0.22, 0.52, 0.95);
+const vec3 SKY_HAZE    = vec3(0.22, 0.52, 0.95);
 
 // Cloud colors
-const vec3 CLOUD_BRIGHT = vec3(0.92, 0.94, 1.00);
-const vec3 CLOUD_MID    = vec3(0.78, 0.82, 0.92);
+const vec3 CLOUD_BRIGHT = vec3(0.96, 0.97, 1.00);
+const vec3 CLOUD_MID    = vec3(0.82, 0.86, 0.96);
 const vec3 CLOUD_SHADOW = vec3(0.60, 0.65, 0.78);
 
 // Value noise with smooth interpolation (no blocky grid artifacts)

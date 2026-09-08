@@ -7,13 +7,13 @@ const COLOR_NO_LOCK := Color(0.20, 1.00, 0.40)  # green
 const COLOR_LOCKED := Color(1.00, 0.20, 0.10)   # red
 
 # Sight crosshair dimensions
-const SIGHT_ARM_LENGTH := 10.0
-const SIGHT_GAP := 4.0
-const SIGHT_STROKE := 2.0
+const SIGHT_ARM_LENGTH := 40.0
+const SIGHT_GAP := 8.0
+const SIGHT_STROKE := 3.0
 
 # Lock marker dimensions
-const LOCK_BOX_SIZE := 20.0  # half-size of lock box
-const LOCK_STROKE := 2.0
+const LOCK_BOX_SIZE := 60.0  # half-size of lock box
+const LOCK_STROKE := 3.0
 
 var _weapon_manager: Node = null
 
