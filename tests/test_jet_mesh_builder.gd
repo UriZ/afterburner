@@ -16,6 +16,7 @@ func _init() -> void:
 	test_player_jet_hierarchy()
 	test_player_jet_materials()
 	test_player_jet_flames()
+	test_player_jet_part_count()
 	test_enemy_fighter_mesh()
 	test_enemy_interceptor_mesh()
 	test_enemy_bomber_mesh()
@@ -40,7 +41,8 @@ func test_player_jet_hierarchy():
 	assert_true(jet != null, "Player jet not null")
 	assert_true(jet.name == "JetMesh", "Root named JetMesh")
 
-	var expected := [
+	# Core named parts that must exist (referenced by other scripts)
+	var required := [
 		"Fuselage", "NoseCone",
 		"LeftWing", "RightWing",
 		"LeftTailFin", "RightTailFin",
@@ -50,13 +52,26 @@ func test_player_jet_hierarchy():
 		"LeftHStab", "RightHStab",
 		"LeftFlame", "RightFlame",
 	]
-	for part_name in expected:
+	for part_name in required:
 		var node := jet.get_node_or_null(part_name)
 		assert_true(node != null, "Has %s" % part_name)
 		assert_true(node is MeshInstance3D, "%s is MeshInstance3D" % part_name)
 
-	assert_true(jet.get_child_count() == expected.size(),
-		"Child count is %d (got %d)" % [expected.size(), jet.get_child_count()])
+	# All children should be MeshInstance3D
+	for i in jet.get_child_count():
+		var child := jet.get_child(i)
+		assert_true(child is MeshInstance3D,
+			"Child '%s' is MeshInstance3D" % child.name)
+
+	jet.free()
+
+
+func test_player_jet_part_count():
+	print("\ntest_player_jet_part_count:")
+	var jet := _JetBuilder.build_player_jet()
+	var count := jet.get_child_count()
+	assert_true(count >= 25, "Player jet has >= 25 parts (got %d)" % count)
+	assert_true(count <= 50, "Player jet has <= 50 parts (got %d)" % count)
 	jet.free()
 
 
@@ -67,7 +82,7 @@ func test_player_jet_materials():
 	var fuselage := jet.get_node("Fuselage") as MeshInstance3D
 	assert_true(fuselage.material_override != null, "Fuselage has material")
 	var mat := fuselage.material_override as StandardMaterial3D
-	assert_true(mat.metallic > 0.0, "Fuselage is metallic")
+	assert_true(mat.metallic > 0.0, "Fuselage is metallic (%.2f)" % mat.metallic)
 	assert_true(mat.shading_mode == BaseMaterial3D.SHADING_MODE_PER_PIXEL,
 		"Per-pixel shading")
 
@@ -108,6 +123,9 @@ func test_enemy_fighter_mesh():
 	assert_true(mesh.get_node_or_null("LeftWing") != null, "Has LeftWing")
 	assert_true(mesh.get_node_or_null("RightWing") != null, "Has RightWing")
 	assert_true(mesh.get_node_or_null("Canopy") != null, "Has Canopy")
+	assert_true(mesh.get_node_or_null("TailFin") != null, "Has TailFin")
+	assert_true(mesh.get_child_count() >= 15,
+		"Fighter has >= 15 parts (got %d)" % mesh.get_child_count())
 
 	var fuselage := mesh.get_node("Fuselage") as MeshInstance3D
 	var mat := fuselage.material_override as StandardMaterial3D
@@ -121,6 +139,10 @@ func test_enemy_interceptor_mesh():
 	var mesh := _EnemyBuilder.build_enemy_mesh(1)
 	assert_true(mesh != null, "Interceptor not null")
 	assert_true(mesh.get_node_or_null("TailFin") != null, "Has TailFin")
+	assert_true(mesh.get_node_or_null("LeftWing") != null, "Has LeftWing")
+	assert_true(mesh.get_node_or_null("RightWing") != null, "Has RightWing")
+	assert_true(mesh.get_child_count() >= 15,
+		"Interceptor has >= 15 parts (got %d)" % mesh.get_child_count())
 
 	var fuselage := mesh.get_node("Fuselage") as MeshInstance3D
 	var mat := fuselage.material_override as StandardMaterial3D
@@ -134,6 +156,9 @@ func test_enemy_bomber_mesh():
 	assert_true(mesh != null, "Bomber not null")
 	assert_true(mesh.get_node_or_null("LeftEngine") != null, "Has LeftEngine")
 	assert_true(mesh.get_node_or_null("RightEngine") != null, "Has RightEngine")
+	assert_true(mesh.get_node_or_null("Canopy") != null, "Has Canopy")
+	assert_true(mesh.get_child_count() >= 15,
+		"Bomber has >= 15 parts (got %d)" % mesh.get_child_count())
 
 	var fuselage := mesh.get_node("Fuselage") as MeshInstance3D
 	var mat := fuselage.material_override as StandardMaterial3D
