@@ -24,6 +24,14 @@ If the game is not running, the judge MUST launch it, navigate to gameplay, and 
 
 **Code that compiles and passes tests but looks bad is a FAIL.** The judge evaluates the VISUAL RESULT, not the code quality. Tests passing means nothing if the game looks wrong.
 
+**Interactive features require functional verification, not just code review.** The TCP bridge can send single key presses but CANNOT hold keys. For features like vulcan firing (hold to fire) or continuous movement, the judge must:
+1. Verify the code logic is correct by reading it
+2. Check that input bindings exist and are wired correctly
+3. Look for obvious bugs (wrong action names, missing connections, broken state machines)
+4. If the feature cannot be screenshot-verified, the judge must explicitly state this limitation and evaluate more critically on code correctness
+
+**Placeholder quality is not shippable quality.** If the visual output looks like programmer art / geometric primitives / debug shapes, it FAILS — even if the code is clean and well-structured. The bar is "would this pass in an indie game jam?" not "does the code work?"
+
 ---
 
 ## Project-Level Quality Bar
@@ -35,7 +43,7 @@ If the game is not running, the judge MUST launch it, navigate to gameplay, and 
 
 ### HARD RULES — Automatic FAIL if violated
 
-1. **No flat 2D sprites for jets.** The player jet and enemy jets MUST be 3D meshes (MeshInstance3D with combined primitives) OR pre-rendered 3D sprites with correct perspective. Procedural 2D pixel art drawn with `set_pixel()` on an Image is NOT ACCEPTABLE for aircraft. It will never look 3D.
+1. **Jets must look like actual aircraft, not geometric primitives.** A cylinder with boxes for wings is NOT an aircraft — it's a placeholder. The jet mesh must have: tapered fuselage with smooth contours, delta/swept wing shapes (not rectangles), visible intake geometry, detailed tail section, cockpit canopy that sits flush. If you can describe the jet as "a cylinder with boxes stuck on it", it FAILS. Compare mentally to the original After Burner II sprites — those had clear aircraft silhouettes with panel lines, shading, and distinct fighter jet shapes. Our 3D meshes must achieve at least that level of recognizability.
 
 2. **Rear chase-cam perspective.** The player jet is viewed from BEHIND and SLIGHTLY BELOW. You see the REAR of the jet: twin engine nozzles with afterburner flames, vertical tail fins, swept wings. NOT a top-down dorsal view. NOT a front view.
 
@@ -49,9 +57,9 @@ If the game is not running, the judge MUST launch it, navigate to gameplay, and 
 
 | # | Criterion | Description |
 |---|-----------|-------------|
-| 1 | Player jet is 3D | Must be a 3D mesh or convincing pre-rendered 3D. Must show rear view: engines, tail fins, swept wings. Must look like an F-14 Tomcat. Procedural 2D shapes = FAIL. |
+| 1 | Player jet is 3D | Must be a detailed 3D mesh that reads as a fighter jet, not a cylinder with boxes. Smooth fuselage taper, swept wing planform (not rectangles), visible twin vertical stabilizers, engine nacelles with intake scoops. A real person looking at it should say "that's a jet" without being told. Primitive geometric shapes = FAIL. |
 | 2 | Player jet is large | Occupies 25-30% screen height. Dominates bottom quarter. |
-| 3 | Enemy jets are 3D | Must be 3D meshes that scale naturally as they approach. At close range, must be recognizable aircraft. |
+| 3 | Enemy jets are 3D | Must be 3D meshes that scale naturally as they approach. At close range, must be recognizable aircraft — not cylinders with flat box wings. Same standard as player jet: if it looks like geometric primitives, FAIL. |
 | 4 | Ground creates speed | Perspective-compressed bands/texture rushing toward camera. Must feel FAST. "Nauseating" speed. |
 | 5 | Explosions are dramatic | Screen-filling fireballs. At least 15% screen height. Orange → smoke progression. |
 | 6 | Bold arcade colors | Vivid saturated colors. No washed-out pastels. Deep blues, hot oranges, bright whites. |
@@ -68,6 +76,7 @@ If the game is not running, the judge MUST launch it, navigate to gameplay, and 
 | 2 | Lock-on feedback | Clear visual + audio when missile lock acquired. Per-enemy lock markers. |
 | 3 | Weapon satisfaction | Vulcan tracers visible, missiles trail smoke, enemies react on hit. |
 | 4 | Responsive controls | Zero input lag. Jet moves immediately with input. |
+| 5 | Aiming works correctly | Crosshair moves independently or with jet. Vulcan bullets go where the crosshair points. Missiles track locked targets. If aiming is broken (bullets go wrong direction, crosshair stuck, locks don't work), FAIL. |
 
 ### Audio (High)
 
