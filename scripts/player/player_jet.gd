@@ -65,11 +65,11 @@ func _process(delta: float) -> void:
 		_update_banking(input.x)
 
 	# Pulse afterburner flames
-	var flame_scale := sin(Time.get_ticks_msec() * 0.01) * 0.25 + 1.05
+	var pulse := 0.8 + 0.4 * sin(Time.get_ticks_msec() * 0.01)
 	if _left_flame:
-		_left_flame.scale.y = flame_scale
+		_left_flame.scale = Vector3(pulse, pulse, pulse)
 	if _right_flame:
-		_right_flame.scale.y = flame_scale
+		_right_flame.scale = Vector3(pulse, pulse, pulse)
 
 
 func _get_input_vector() -> Vector2:

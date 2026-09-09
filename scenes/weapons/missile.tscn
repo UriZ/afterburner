@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://missile_001"]
+[gd_scene load_steps=9 format=3 uid="uid://missile_001"]
 
 [ext_resource type="Script" path="res://scripts/weapons/missile.gd" id="1_missile_script"]
 
@@ -16,19 +16,25 @@ bottom_radius = 0.06
 height = 0.5
 material = SubResource("StandardMaterial3D_body")
 
+[sub_resource type="Gradient" id="Gradient_smoke_color"]
+offsets = PackedFloat32Array(0.0, 0.3, 1.0)
+colors = PackedColorArray(1.0, 1.0, 1.0, 0.9, 0.75, 0.75, 0.75, 0.6, 0.4, 0.4, 0.4, 0.0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_smoke"]
+gradient = SubResource("Gradient_smoke_color")
+
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_smoke"]
 direction = Vector3(0, 0, 1)
-spread = 15.0
-initial_velocity_min = 1.0
-initial_velocity_max = 2.0
-gravity = Vector3(0, 0.5, 0)
-scale_min = 0.5
-scale_max = 1.5
-color = Color(0.7, 0.7, 0.7, 0.6)
-color_ramp = null
+spread = 12.0
+initial_velocity_min = 1.5
+initial_velocity_max = 3.0
+gravity = Vector3(0, 0.3, 0)
+scale_min = 0.3
+scale_max = 1.2
+color_ramp = SubResource("GradientTexture1D_smoke")
 
 [sub_resource type="QuadMesh" id="QuadMesh_smoke"]
-size = Vector2(0.1, 0.1)
+size = Vector2(0.12, 0.12)
 
 [node name="Missile" type="Area3D"]
 collision_layer = 2
@@ -44,7 +50,7 @@ shape = SubResource("CapsuleShape3D_missile")
 
 [node name="SmokeTrail" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.3)
-amount = 20
-lifetime = 0.8
+amount = 30
+lifetime = 1.0
 draw_pass_1 = SubResource("QuadMesh_smoke")
 process_material = SubResource("ParticleProcessMaterial_smoke")

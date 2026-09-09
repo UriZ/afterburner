@@ -735,3 +735,35 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Improvement Insights**:
 - [criteria.md]: Add explicit requirement that mesh builders must use SHADING_MODE_PER_PIXEL
 - [workflow]: The --script test runner doesn't resolve class_name globals; tests must use preload() for builder classes
+
+---
+### [2026-09-09 12:00] -- senior-developer -- #25
+**Task**: Improve player jet 3D mesh with F-14 detail and proper lighting
+**Result**: COMPLETED
+**Files changed**: scripts/player/jet_mesh_builder.gd, scripts/player/player_jet.gd, scenes/main.tscn
+**Key changes**:
+- scenes/main.tscn:22-25 -- Added ambient_light_source=COLOR, disabled sky reflections to fix green tint
+- scripts/player/jet_mesh_builder.gd:9 -- Scale up root 20%; wider wings with sweep; nacelles at X=0.5; tail fins canted 12deg; rear fuselage taper added; switched to PER_PIXEL shading
+- scripts/player/player_jet.gd:68-72 -- Uniform XYZ flame pulse (0.8-1.2 range)
+**Technical decisions**: (1) Used ambient_light_source=COLOR + reflected_light_source=DISABLED rather than tweaking sky material, because the sky shader is shared with the background and should not be constrained by material requirements. (2) Kept flame material as UNSHADED since emissive flames should not receive directional lighting.
+**Testing**: Scripts parse clean (--check-only). Project imports with no errors. Scene file uses correct Godot 4.6 enum values.
+**Improvement Insights**:
+- [CLAUDE.md]: Document the ambient_light_source/reflected_light_source pattern for avoiding sky-tinted materials
+- [criteria.md]: Add criterion that mesh materials must use PER_PIXEL shading (not UNSHADED) except for emissive effects
+
+---
+### [2026-09-09 10:00] — senior-developer — #26
+**Task**: Improve targeting/aiming — vulcan tracers, missile trails, lock-on flash, hit feedback
+**Result**: COMPLETED
+**Files changed**: scripts/weapons/vulcan_bullet.gd, scripts/ui/reticle.gd, scenes/weapons/missile.tscn, tests/test_targeting_feedback.gd
+**Key changes**:
+- scripts/weapons/vulcan_bullet.gd:17-42 — Added _create_tracer(): CylinderMesh (r=0.02, h=0.5) with bright emissive unshaded material, aligned along Z behind bullet
+- scripts/weapons/vulcan_bullet.gd:55-80 — Added _flash_enemy(): on hit, sets all enemy meshes to white unshaded, restores after 0.08s via tween on enemy node
+- scripts/ui/reticle.gd:8,31-52 — Added lock flash system: _prev_locked tracking, _lock_flash_timers dict, 0.1s white flash on new lock acquisition
+- scripts/ui/reticle.gd:90-96 — _draw_lock_box now takes is_flashing param, draws white+thicker stroke during flash
+- scenes/weapons/missile.tscn — Added Gradient color ramp (white→grey→transparent), increased particles 20→30, lifetime 0.8→1.0
+**Technical decisions**: (1) Hit flash uses tween on the enemy node, not the bullet (bullet queue_free's immediately). (2) Lock flash detection compares current vs previous frame's locked set rather than hooking into weapon_manager signals — avoids coupling. (3) Used _collect_meshes recursive helper for hit flash to handle any enemy mesh hierarchy.
+**Testing**: 18 new tests pass. 20 existing lock-on tests pass. Project imports clean.
+**Improvement Insights**:
+- [vulcan_bullet.gd]: The _collect_meshes static function could be extracted to a shared utility if other systems need mesh traversal
+- [workflow]: When parallel devs own different files, document the ownership list in the issue body not just the task assignment
