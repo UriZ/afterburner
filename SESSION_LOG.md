@@ -685,3 +685,53 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Testing**: Godot headless project load — no parse or load errors. Only pre-existing MCP bridge port error. All modified values match spec exactly.
 **Improvement Insights**:
 - [workflow]: Camera angle changes are purely numerical and low-risk when the architect spec includes exact Transform3D values — this pattern of precise spec -> direct implementation works well
+
+---
+### [2026-09-09 14:30] — architect — #24
+**Task**: Design spec for replacing 2D sprite jets with 3D mesh jet hierarchies
+**Result**: COMPLETED
+**Key decisions**:
+- Runtime mesh construction via builder classes (JetMeshBuilder, EnemyMeshBuilder) rather than hand-editing .tscn files with 15+ sub_resources — less error-prone
+- CylinderMesh with top_radius=0.0 instead of ConeMesh (not guaranteed in Godot 4.6)
+- Squashed SphereMesh for canopy (no hemisphere mode available)
+- Keep existing GPUParticles3D afterburner alongside new mesh flames — particles add volumetric glow
+- DirectionalLight3D at (-30, -30, 0) rotation for upper-left sun lighting
+- Player jet: 13 MeshInstance3D parts under one Node3D; banking rotates the parent node
+- Enemy jets: 5-8 parts each, 3 distinct types with colored materials
+**Spec posted to**: GitHub issue #24 comment
+**Improvement Insights**:
+- [CLAUDE.md]: Consider adding a note that .tscn hand-editing is discouraged for complex node hierarchies — prefer runtime construction or editor workflows
+- [criteria.md]: The "no flat 2D sprites" hard rule should explicitly mention that runtime-constructed MeshInstance3D hierarchies are the approved approach
+
+---
+### [2026-09-09 01:20] — senior-developer — #24
+**Task**: Replace flat 2D sprite jets with 3D mesh jets (rear chase-cam view)
+**Result**: COMPLETED
+**Files changed**:
+- scripts/player/jet_mesh_builder.gd (NEW)
+- scripts/enemies/enemy_mesh_builder.gd (NEW)
+- tests/test_jet_mesh_builder.gd (NEW)
+- scripts/player/player_jet.gd (MODIFIED)
+- scenes/player/player_jet.tscn (MODIFIED)
+- scripts/enemies/enemy_jet.gd (MODIFIED)
+- scenes/enemies/enemy_jet.tscn (MODIFIED)
+- scenes/main.tscn (MODIFIED)
+- scripts/player/jet_sprite_generator.gd (DELETED)
+- scripts/enemies/enemy_sprite_generator.gd (DELETED)
+- tests/test_jet_sprite_generator.gd (DELETED)
+- tests/test_enemy_sprite_generator.gd (DELETED)
+**Key changes**:
+- jet_mesh_builder.gd: Static builder creates 15-part F-14 mesh hierarchy from CylinderMesh/BoxMesh/SphereMesh primitives with StandardMaterial3D
+- enemy_mesh_builder.gd: Static builder creates 3 enemy types (red fighter, green interceptor, grey bomber) as mesh hierarchies
+- player_jet.gd: Removed all sprite frame switching; banking now rotates 3D mesh node directly; afterburner flames pulse via sin() scale
+- main.tscn: Added DirectionalLight3D for 3D lighting from upper-left
+- Deleted all 2D sprite generator code and tests
+**Technical decisions**:
+1. CylinderMesh with top_radius=0 for cone shapes (no ConeMesh in Godot 4.6)
+2. Runtime mesh construction in _ready() to avoid error-prone tscn hand-editing
+3. SHADING_MODE_PER_PIXEL on all materials for proper 3D lit appearance
+4. Kept GPUParticles3D alongside mesh flames for volumetric glow effect
+**Testing**: Godot --check-only clean. 61/61 test assertions pass. No regressions.
+**Improvement Insights**:
+- [criteria.md]: Add explicit requirement that mesh builders must use SHADING_MODE_PER_PIXEL
+- [workflow]: The --script test runner doesn't resolve class_name globals; tests must use preload() for builder classes

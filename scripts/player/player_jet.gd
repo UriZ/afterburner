@@ -24,8 +24,10 @@ var _death_timer := 0.0
 var _invincibility_timer := 0.0
 var _flash_timer := 0.0
 var _camera: Camera3D
+var _jet_mesh: Node3D
+var _left_flame: MeshInstance3D
+var _right_flame: MeshInstance3D
 
-@onready var _sprite: Sprite3D = $JetSprite
 @onready var _hit_area: Area3D = $HitArea
 
 static var _explosion_scene: PackedScene = null
@@ -34,7 +36,12 @@ static var _explosion_scene: PackedScene = null
 func _ready() -> void:
 	add_to_group("player")
 	position = RESPAWN_POSITION
-	_sprite.texture = JetSpriteGenerator.generate_sprite_sheet()
+	# Build 3D mesh jet at runtime
+	var Builder := preload("res://scripts/player/jet_mesh_builder.gd")
+	_jet_mesh = Builder.build_player_jet()
+	add_child(_jet_mesh)
+	_left_flame = _jet_mesh.get_node("LeftFlame")
+	_right_flame = _jet_mesh.get_node("RightFlame")
 	_hit_area.area_entered.connect(_on_hit_area_entered)
 	# Grant invincibility at game start so the player isn't killed immediately
 	_is_invincible = true
@@ -56,6 +63,13 @@ func _process(delta: float) -> void:
 		_update_velocity(input, delta)
 		_apply_movement(delta)
 		_update_banking(input.x)
+
+	# Pulse afterburner flames
+	var flame_scale := sin(Time.get_ticks_msec() * 0.01) * 0.25 + 1.05
+	if _left_flame:
+		_left_flame.scale.y = flame_scale
+	if _right_flame:
+		_right_flame.scale.y = flame_scale
 
 
 func _get_input_vector() -> Vector2:
@@ -86,18 +100,11 @@ func _apply_movement(delta: float) -> void:
 
 
 func _update_banking(horizontal_input: float) -> void:
-	var frame: int
-	if horizontal_input < -BANK_SOFT_THRESHOLD:
-		frame = 0  # hard left
-	elif horizontal_input < -BANK_DEAD_ZONE:
-		frame = 1  # soft left
-	elif horizontal_input > BANK_SOFT_THRESHOLD:
-		frame = 4  # hard right
-	elif horizontal_input > BANK_DEAD_ZONE:
-		frame = 3  # soft right
-	else:
-		frame = 2  # center
-	_sprite.frame = frame
+	# Bank the 3D mesh based on horizontal input
+	var target_bank := -horizontal_input * 35.0
+	_jet_mesh.rotation_degrees.z = move_toward(
+		_jet_mesh.rotation_degrees.z, target_bank, 180.0 * get_process_delta_time()
+	)
 
 	if _camera:
 		var target_roll := -horizontal_input * 10.0
@@ -158,7 +165,7 @@ func _respawn() -> void:
 	_input_enabled = true
 	position = RESPAWN_POSITION
 	rotation_degrees = Vector3.ZERO
-	_sprite.frame = 2  # center banking frame
+	_jet_mesh.rotation_degrees = Vector3.ZERO
 	_velocity = Vector2.ZERO
 	if _camera:
 		_camera.rotation_degrees.z = 0.0
@@ -178,11 +185,11 @@ func _process_invincibility(delta: float) -> void:
 	# Flash the sprite to indicate invincibility
 	if _flash_timer <= 0.0:
 		_flash_timer = FLASH_INTERVAL
-		_sprite.visible = not _sprite.visible
+		_jet_mesh.visible = not _jet_mesh.visible
 
 	if _invincibility_timer <= 0.0:
 		_is_invincible = false
-		_sprite.visible = true
+		_jet_mesh.visible = true
 		# Re-enable collision: mask layers 3 (enemies) + 4 (enemy bullets) = 12
 		_hit_area.collision_mask = 12
 

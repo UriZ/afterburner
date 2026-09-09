@@ -5,13 +5,11 @@ extends Area3D
 
 signal destroyed(score_value: int)
 
-const _SpriteGen := preload("res://scripts/enemies/enemy_sprite_generator.gd")
 
 enum EnemyType { FIGHTER, INTERCEPTOR, BOMBER }
 
 # Type definitions: speed, health, fire_interval, score_value, visual (int index)
-# Visual values: 0=FIGHTER, 1=INTERCEPTOR, 2=BOMBER — mapped to EnemySpriteGenerator
-# in _ready() since class_name references can't be used in static/const initializers.
+# Visual values: 0=FIGHTER, 1=INTERCEPTOR, 2=BOMBER — mapped to EnemyMeshBuilder.
 const TYPE_DATA := {
 	EnemyType.FIGHTER: {
 		"speed": 15.0,
@@ -50,7 +48,7 @@ var _fire_timer: float = 0.0
 var _direction := Vector3.ZERO  # normalized flight direction
 var _x_drift: float = 0.0       # slight lateral movement
 
-@onready var _sprite: Sprite3D = $EnemySprite
+var _enemy_mesh: Node3D
 
 static var _explosion_scene: PackedScene = null
 
@@ -60,11 +58,11 @@ func _ready() -> void:
 	_apply_type_data()
 	# Wire score: when destroyed, add score to GameState
 	destroyed.connect(GameState.add_score)
-	# Map int visual index to EnemySpriteGenerator enum at runtime
+	# Build 3D mesh for this enemy type
 	var visual_id: int = TYPE_DATA[enemy_type]["visual"]
-	_sprite.texture = _SpriteGen.generate_texture(
-		visual_id as _SpriteGen.EnemyVisual
-	)
+	var Builder := preload("res://scripts/enemies/enemy_mesh_builder.gd")
+	_enemy_mesh = Builder.build_enemy_mesh(visual_id)
+	add_child(_enemy_mesh)
 	# Delay first shot so enemies don't fire immediately on spawn
 	_fire_timer = randf_range(fire_interval * 0.8, fire_interval * 1.5)
 	# Flight direction: mostly toward camera (+Z), with slight drift
