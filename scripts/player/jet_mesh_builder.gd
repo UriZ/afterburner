@@ -94,12 +94,12 @@ static func build_player_jet() -> Node3D:
 	_add_part(root, "RightNozzle", nozzle_mesh, mat_nozzle,
 		Vector3(0.5, -0.1, 1.55), Vector3(90, 0, 0))
 
-	# Canopy
+	# Canopy — low-profile bubble
 	var canopy_mesh := SphereMesh.new()
-	canopy_mesh.radius = 0.22
-	canopy_mesh.height = 0.22
+	canopy_mesh.radius = 0.18
+	canopy_mesh.height = 0.14
 	_add_part(root, "Canopy", canopy_mesh, mat_canopy,
-		Vector3(0, 0.25, -0.6), Vector3.ZERO)
+		Vector3(0, 0.2, -0.6), Vector3.ZERO)
 
 	# Horizontal stabilizers
 	var hstab_mesh := BoxMesh.new()
