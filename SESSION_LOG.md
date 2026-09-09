@@ -767,3 +767,61 @@ The TL captures agent TLDRs verbatim and adds retrospective notes.
 **Improvement Insights**:
 - [vulcan_bullet.gd]: The _collect_meshes static function could be extracted to a shared utility if other systems need mesh traversal
 - [workflow]: When parallel devs own different files, document the ownership list in the issue body not just the task assignment
+
+---
+### 2026-09-09 — judge — #25
+**Gate type**: per-agent (developer)
+**Verdict**: PASS
+**Score**: 9/10
+**Key gaps**: none (minor: developer notes had wrong enum values but actual code is correct; enemy jet green color is out of scope)
+**Improvement Insights**:
+- criteria.md: Add criterion that implementation notes must accurately describe what was done (enum value mismatch in dev notes vs code)
+- developer agent: Verify numeric enum values match constant names when documenting changes
+
+---
+### 2026-09-09 — judge — #26
+**Gate type**: per-agent (developer)
+**Verdict**: PASS
+**Score**: 9/10
+**Key gaps**: none
+**Improvement Insights**:
+- criteria.md: TCP bridge sends single key events which cannot trigger is_action_pressed (hold) actions -- document this limitation for visual verification
+- developer agent: Separate multi-issue commits into individual commits for cleaner traceability
+
+---
+### [2026-09-09 14:00] — senior-developer — #27
+**Task**: Redesign jet meshes — replace cylinder primitives with actual aircraft shapes
+**Result**: COMPLETED
+**Files changed**: scripts/player/jet_mesh_builder.gd, scripts/enemies/enemy_mesh_builder.gd, tests/test_jet_mesh_builder.gd
+**Key changes**:
+- scripts/player/jet_mesh_builder.gd — Rebuilt F-14 from 15 parts to 40 parts: 6-section tapered fuselage, 4-part swept wings per side, 3-part tail fins, 3-part nacelles, 2-part nozzles, flush canopy with frame, dorsal spine
+- scripts/enemies/enemy_mesh_builder.gd — Rebuilt all 3 enemy types: Fighter 5->18 parts (MiG-21 delta), Interceptor 6->19 parts (MiG-25 twin-tail), Bomber 8->22 parts (Tu-22 underwing engines)
+- tests/test_jet_mesh_builder.gd — Updated tests: removed exact child count check (was 15, now 40), added range-based part count test (25-50 for player, >=15 for enemies), added metallic>0 fix, added part count test
+**Technical decisions**: (1) Used multiple cylinder sections with decreasing radii for smooth fuselage taper rather than a single cylinder, (2) Wings built as 3-4 overlapping boxes at different sweep angles rather than one flat box, (3) Each component type gets slightly different material shade for visual depth, (4) Preserved all externally-referenced node names (LeftFlame, RightFlame, etc.)
+**Testing**: 109/109 tests pass. Verified part counts, material properties, node hierarchy, flame positioning.
+**Improvement Insights**:
+- tests: The original test had metallic > 0.0 check but original code used metallic=0.0 — tests should be written against actual spec not assumed values
+- workflow: Mesh builder tests should include a visual description comment so visual-qa knows what to look for
+
+---
+### [2026-09-09 21:15] — senior-developer — #28
+**Task**: Fix aiming system — diagnose and repair targeting, firing, and lock-on
+**Result**: COMPLETED
+**Files changed**: scripts/weapons/weapon_manager.gd, scripts/weapons/vulcan_bullet.gd, scripts/weapons/missile.gd, scripts/ui/reticle.gd, tests/test_lock_on.gd, tests/test_targeting_feedback.gd, tests/test_aiming_system.gd (NEW)
+**Key changes**:
+- weapon_manager.gd:57-59 — Fixed sight Y-axis inversion: swapped get_axis args so UP input moves sight UP on screen
+- weapon_manager.gd:21 — SIGHT_OFFSET_SCALE 0.25->0.45 for arcade-visible crosshair movement
+- weapon_manager.gd:17 — SIGHT_RADIUS 60->90px for generous lock-on
+- weapon_manager.gd:20 — SIGHT_SPEED 8->10 for snappier tracking
+- weapon_manager.gd:10 — VULCAN_FIRE_INTERVAL 0.1->0.06 for rapid-fire arcade feel
+- weapon_manager.gd:122 — Sight projection distance 50->80 units for proper bullet convergence
+- vulcan_bullet.gd:7-9 — Speed 80->90, SCALE_RATE 3.0->1.5 so tracers stay visible
+- missile.gd:6-7 — SPEED 40->45, TURN_SPEED 4->6 for aggressive homing
+- missile.gd:22-26 — Initial velocity now blends 60% toward target for satisfying arc
+- reticle.gd:12-15 — Larger crosshair arms, added center dot
+**Technical decisions**: (1) Y-axis fix uses get_axis("move_up","move_down") which returns -1 for UP — correct for screen space where Y grows downward. (2) SIGHT_OFFSET_SCALE at 0.45 gives ~216px horizontal movement range from center on 960px viewport — matches After Burner II's significant reticle travel. (3) Missile initial velocity 60/40 blend toward target gives satisfying arc without making it look like it teleports.
+**Testing**: 54 tests pass across 3 targeting test suites (16 new + 38 updated). All other test suites pass (no regressions).
+**Improvement Insights**:
+- **criteria.md**: Add criterion for input-to-screen coordinate mapping verification — the Y-axis inversion bug is a common class of error in games
+- **CLAUDE.md**: Note that Godot screen coordinates have Y increasing downward, which is opposite to 3D world Y — this tripped up the original implementation
+- **workflow**: Tests that hardcode constant values break when tuning parameters. Consider testing behavior/ranges instead of exact values where possible

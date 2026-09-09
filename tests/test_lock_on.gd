@@ -49,11 +49,11 @@ func test_sight_initializes_to_center() -> void:
 	# We can't call _ready() without a viewport, but we can verify the default
 	# and that the constant values are correct.
 	var wm := preload("res://scripts/weapons/weapon_manager.gd")
-	assert_eq(wm.SIGHT_RADIUS, 60.0, "SIGHT_RADIUS is 60 pixels")
+	assert_eq(wm.SIGHT_RADIUS, 90.0, "SIGHT_RADIUS is 90 pixels")
 	assert_eq(wm.MAX_LOCKS, 3, "MAX_LOCKS is 3")
 	assert_eq(wm.LOCK_BREAK_DELAY, 0.5, "LOCK_BREAK_DELAY is 0.5 seconds")
-	assert_eq(wm.SIGHT_SPEED, 8.0, "SIGHT_SPEED is 8.0")
-	assert_eq(wm.SIGHT_OFFSET_SCALE, 0.25, "SIGHT_OFFSET_SCALE is 0.25")
+	assert_eq(wm.SIGHT_SPEED, 10.0, "SIGHT_SPEED is 10.0")
+	assert_eq(wm.SIGHT_OFFSET_SCALE, 0.45, "SIGHT_OFFSET_SCALE is 0.45")
 
 
 func test_sight_clamps_to_screen_bounds() -> void:
@@ -77,12 +77,12 @@ func test_lock_acquired_when_enemy_near_sight() -> void:
 	var sight_pos := Vector2(400.0, 300.0)
 	var enemy_screen_pos := Vector2(430.0, 310.0)  # ~32px away
 	var dist := enemy_screen_pos.distance_to(sight_pos)
-	assert_true(dist <= 60.0, "Enemy within SIGHT_RADIUS (dist=%.1f)" % dist)
+	assert_true(dist <= 90.0, "Enemy within SIGHT_RADIUS (dist=%.1f)" % dist)
 
 	# Enemy far away — should not lock
 	var far_pos := Vector2(500.0, 500.0)
 	var far_dist := far_pos.distance_to(sight_pos)
-	assert_true(far_dist > 60.0, "Far enemy outside SIGHT_RADIUS (dist=%.1f)" % far_dist)
+	assert_true(far_dist > 90.0, "Far enemy outside SIGHT_RADIUS (dist=%.1f)" % far_dist)
 
 
 func test_lock_breaks_after_delay() -> void:

@@ -4,11 +4,11 @@ extends Area3D
 ## scaling down to simulate depth, and auto-frees after max range.
 ## Creates a bright tracer line behind the bullet for visual feedback.
 
-const SPEED := 80.0
+const SPEED := 90.0  # faster bullets for snappier arcade feel
 const MAX_DISTANCE := 200.0
-const SCALE_RATE := 3.0  # how fast it shrinks as it flies away
-const TRACER_LENGTH := 0.5
-const HIT_FLASH_DURATION := 0.08  # seconds
+const SCALE_RATE := 1.5  # gentler shrink so tracers stay visible longer
+const TRACER_LENGTH := 0.6
+const HIT_FLASH_DURATION := 0.1  # seconds — slightly longer flash for visibility
 
 var aim_direction := Vector3(0, 0, -1)  # set by WeaponManager before adding to tree
 var _distance_traveled := 0.0

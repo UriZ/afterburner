@@ -3,8 +3,8 @@ extends Area3D
 ## A homing missile that tracks toward a target position.
 ## If no target is set, it flies straight into the screen.
 
-const SPEED := 40.0
-const TURN_SPEED := 4.0  # how fast it turns toward the target (radians-ish lerp weight)
+const SPEED := 45.0
+const TURN_SPEED := 6.0  # aggressive homing — arcade missiles don't miss often
 const MAX_LIFETIME := 5.0
 const SCALE_RATE := 2.0
 
@@ -18,7 +18,13 @@ var _start_position := Vector3.ZERO
 func _ready() -> void:
 	_initial_scale = scale
 	_start_position = global_position
-	_velocity = Vector3(0, 0, -1).normalized()
+	# Aim initial velocity toward target if one exists, otherwise straight ahead
+	if is_instance_valid(target):
+		var to_target := (target.global_position - global_position).normalized()
+		# Blend: 60% toward target, 40% forward — gives a satisfying arc
+		_velocity = (Vector3(0, 0, -1) * 0.4 + to_target * 0.6).normalized()
+	else:
+		_velocity = Vector3(0, 0, -1)
 	area_entered.connect(_on_area_entered)
 
 

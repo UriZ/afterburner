@@ -8,10 +8,11 @@ const COLOR_LOCKED := Color(1.00, 0.20, 0.10)   # red
 const COLOR_LOCK_FLASH := Color.WHITE
 const LOCK_FLASH_DURATION := 0.1  # seconds — white flash on new lock
 
-# Sight crosshair dimensions
-const SIGHT_ARM_LENGTH := 40.0
-const SIGHT_GAP := 8.0
+# Sight crosshair dimensions — large enough to see during gameplay
+const SIGHT_ARM_LENGTH := 48.0
+const SIGHT_GAP := 10.0
 const SIGHT_STROKE := 3.0
+const SIGHT_CENTER_DOT_RADIUS := 3.0
 
 # Lock marker dimensions
 const LOCK_BOX_SIZE := 60.0  # half-size of lock box
@@ -81,6 +82,8 @@ func _draw_sight(pos: Vector2, color: Color) -> void:
 			  pos + Vector2(0, -SIGHT_GAP), color, SIGHT_STROKE)
 	draw_line(pos + Vector2(0, SIGHT_GAP),
 			  pos + Vector2(0, SIGHT_GAP + SIGHT_ARM_LENGTH), color, SIGHT_STROKE)
+	# Center dot for precise aiming feedback
+	draw_circle(pos, SIGHT_CENTER_DOT_RADIUS, color)
 
 
 func _draw_lock_markers() -> void:

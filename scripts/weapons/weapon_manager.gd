@@ -7,18 +7,18 @@ const VulcanBulletScene := preload("res://scenes/weapons/vulcan_bullet.tscn")
 const MissileScene := preload("res://scenes/weapons/missile.tscn")
 
 ## Vulcan settings
-const VULCAN_FIRE_INTERVAL := 0.1  # 10 shots/sec
-const BULLET_SPREAD := 0.15  # slight random offset for arcade feel
+const VULCAN_FIRE_INTERVAL := 0.06  # ~17 shots/sec — rapid arcade feel
+const BULLET_SPREAD := 0.12  # slight random offset for arcade feel
 
 ## Missile settings
 const MISSILE_FIRE_COOLDOWN := 0.4  # minimum time between missile shots
 
 ## Sight settings
-const SIGHT_RADIUS := 60.0  # pixels — lock-on detection circle around sight
+const SIGHT_RADIUS := 90.0  # pixels — generous lock-on circle (arcade feel)
 const MAX_LOCKS := 3
 const LOCK_BREAK_DELAY := 0.5  # seconds before lock breaks after enemy leaves sight
-const SIGHT_SPEED := 8.0  # lerp responsiveness
-const SIGHT_OFFSET_SCALE := 0.25  # fraction of screen the sight leads ahead
+const SIGHT_SPEED := 10.0  # lerp responsiveness — snappy tracking
+const SIGHT_OFFSET_SCALE := 0.45  # fraction of screen the sight leads ahead (arcade-sized movement)
 
 ## Targeting state — read by Reticle for drawing
 var sight_screen_pos := Vector2.ZERO
@@ -52,9 +52,11 @@ func _process(delta: float) -> void:
 
 
 func _update_sight(delta: float) -> void:
+	# Screen-space input: X is normal, Y is INVERTED (screen Y grows downward,
+	# but "move_up" should move the sight UP on screen = negative Y).
 	var input := Vector2(
 		Input.get_axis("move_left", "move_right"),
-		Input.get_axis("move_down", "move_up")
+		Input.get_axis("move_up", "move_down")  # flipped: up->negative screen Y
 	)
 	var viewport_size := get_viewport().get_visible_rect().size
 	var center := viewport_size * 0.5
@@ -111,12 +113,14 @@ func _update_lockon(delta: float) -> void:
 
 func get_sight_world_position() -> Vector3:
 	## Returns a world-space point along the camera ray through the sight.
+	## Distance of 80 units ensures bullets converge at enemy engagement range
+	## (enemies spawn at Z=-50, camera at Z=0).
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return Vector3(0, 0, -50)
 	var from := camera.project_ray_origin(sight_screen_pos)
 	var dir := camera.project_ray_normal(sight_screen_pos)
-	return from + dir * 50.0
+	return from + dir * 80.0
 
 
 func _fire_vulcan() -> void:

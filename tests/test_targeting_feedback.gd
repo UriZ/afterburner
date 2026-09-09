@@ -47,8 +47,8 @@ func test_vulcan_bullet_creates_tracer() -> void:
 	print("\ntest_vulcan_bullet_creates_tracer:")
 	var bullet_script := preload("res://scripts/weapons/vulcan_bullet.gd")
 	# Verify constants exist
-	assert_approx(bullet_script.TRACER_LENGTH, 0.5, "TRACER_LENGTH is 0.5")
-	assert_approx(bullet_script.HIT_FLASH_DURATION, 0.08, "HIT_FLASH_DURATION is 0.08s")
+	assert_approx(bullet_script.TRACER_LENGTH, 0.6, "TRACER_LENGTH is 0.6")
+	assert_approx(bullet_script.HIT_FLASH_DURATION, 0.1, "HIT_FLASH_DURATION is 0.1s")
 
 
 func test_vulcan_bullet_tracer_material() -> void:
