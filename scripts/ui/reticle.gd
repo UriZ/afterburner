@@ -34,7 +34,7 @@ func _process(delta: float) -> void:
 		_weapon_manager = _find_weapon_manager()
 		return
 
-	var current := _weapon_manager.locked_enemy if is_instance_valid(_weapon_manager.locked_enemy) else null
+	var current: Node3D = _weapon_manager.locked_enemy if is_instance_valid(_weapon_manager.locked_enemy) else null
 
 	# Detect new lock — trigger flash
 	if current != null and current != _prev_locked:
