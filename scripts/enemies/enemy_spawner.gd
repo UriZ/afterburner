@@ -8,7 +8,7 @@ const SPAWN_Y_MIN := 6.0  # enemies spawn in sky region (39-44% from screen top)
 const SPAWN_Y_MAX := 9.0
 const SPAWN_X_RANGE := 8.0
 
-@export var spawn_interval: float = 1.2
+@export var spawn_interval: float = 0.8
 @export var enabled: bool = true
 
 var _spawn_timer: float = 0.0
@@ -21,24 +21,24 @@ var _enemy_scene: PackedScene = null
 # type: EnemyType enum value
 # count: number of enemies
 var wave_definitions: Array[Dictionary] = [
-	{"type": 0, "count": 2, "formation": "v"},        # 2 fighters in V
-	{"type": 0, "count": 2, "formation": "line"},      # 2 fighters in line
-	{"type": 1, "count": 2, "formation": "v"},         # 2 interceptors in V
-	{"type": 0, "count": 3, "formation": "v"},         # 3 fighters in V
-	{"type": 2, "count": 1, "formation": "line"},      # 1 bomber
-	{"type": 0, "count": 3, "formation": "scattered"}, # 3 fighters scattered
+	{"type": 0, "count": 3, "formation": "v"},        # 3 fighters in V
+	{"type": 0, "count": 4, "formation": "line"},      # 4 fighters in line
 	{"type": 1, "count": 3, "formation": "v"},         # 3 interceptors in V
-	{"type": 2, "count": 2, "formation": "line"},      # 2 bombers in line
-	{"type": 0, "count": 4, "formation": "scattered"}, # 4 fighters scattered
-	{"type": 1, "count": 4, "formation": "v"},         # 4 interceptors in V
-	{"type": 2, "count": 2, "formation": "scattered"}, # 2 bombers scattered
+	{"type": 0, "count": 4, "formation": "v"},         # 4 fighters in V
+	{"type": 2, "count": 2, "formation": "line"},      # 2 bombers
 	{"type": 0, "count": 5, "formation": "scattered"}, # 5 fighters scattered
+	{"type": 1, "count": 4, "formation": "v"},         # 4 interceptors in V
+	{"type": 2, "count": 3, "formation": "line"},      # 3 bombers in line
+	{"type": 0, "count": 6, "formation": "scattered"}, # 6 fighters scattered
+	{"type": 1, "count": 5, "formation": "v"},         # 5 interceptors in V
+	{"type": 2, "count": 3, "formation": "scattered"}, # 3 bombers scattered
+	{"type": 0, "count": 6, "formation": "scattered"}, # 6 fighters scattered
 ]
 
 
 func _ready() -> void:
 	_enemy_scene = load("res://scenes/enemies/enemy_jet.tscn")
-	_spawn_timer = 1.5  # brief delay before first wave
+	_spawn_timer = 0.8  # brief delay before first wave
 	# Ensure the player jet is in the "player" group so enemies can find it.
 	# We do this here because we can't modify the player scene (separate agent).
 	_add_player_to_group.call_deferred()

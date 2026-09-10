@@ -16,36 +16,26 @@ void fragment() {
 	vec2 uv = UV;
 
 	// True scrolling: shift UV.y by scroll_offset so bands move toward the viewer.
-	// 18 units/sec * 0.05 = 0.90 UV units/sec => ~1.1s full cycle.
 	float scrolled_y = fract(uv.y - scroll_offset * 0.05);
 
 	// Perspective compression: exponent 3.0 gives wide near bands, hairline at horizon.
 	float perspective_y = pow(scrolled_y, 3.0);
-	float band_value = fract(perspective_y * 20.0);
 
-	// Stage-driven land colors derived from color_a / color_b uniforms
-	vec3 land_dark   = color_b.rgb * 0.7;
-	vec3 land_base   = color_b.rgb;
-	vec3 land_mid    = mix(color_b.rgb, color_a.rgb, 0.5);
-	vec3 land_light  = color_a.rgb;
-	vec3 land_bright = min(color_a.rgb * 1.4, vec3(1.0));
+	// Row index from perspective-compressed Y
+	float row = floor(perspective_y * tile_scale);
 
-	vec3 band_color;
-	if (band_value < 0.20) {
-		band_color = land_dark;
-	} else if (band_value < 0.40) {
-		band_color = land_base;
-	} else if (band_value < 0.60) {
-		band_color = land_mid;
-	} else if (band_value < 0.80) {
-		band_color = land_light;
-	} else {
-		band_color = land_bright;
-	}
+	// Column index from X, scaled to tile_scale for square-ish cells
+	float col = floor(uv.x * tile_scale);
+
+	// Checkerboard: alternate cells based on row + column parity
+	float checker = mod(row + col, 2.0);
+
+	// Two-color checkerboard with strong contrast
+	vec3 cell_color = mix(color_b.rgb, color_a.rgb, checker);
 
 	// Horizon fade: top 20% of ground (UV.y close to 1.0 = far/horizon) fades to sky haze
 	float horizon_fade = smoothstep(0.80, 1.0, uv.y);
-	band_color = mix(band_color, SKY_HAZE, horizon_fade);
+	cell_color = mix(cell_color, SKY_HAZE, horizon_fade);
 
-	ALBEDO = band_color;
+	ALBEDO = cell_color;
 }

@@ -12,23 +12,23 @@ enum EnemyType { FIGHTER, INTERCEPTOR, BOMBER }
 # Visual values: 0=FIGHTER, 1=INTERCEPTOR, 2=BOMBER — mapped to EnemyMeshBuilder.
 const TYPE_DATA := {
 	EnemyType.FIGHTER: {
-		"speed": 15.0,
+		"speed": 18.0,
 		"health": 1,
-		"fire_interval": 5.0,
+		"fire_interval": 4.0,
 		"score": 100,
 		"visual": 0,
 	},
 	EnemyType.INTERCEPTOR: {
-		"speed": 25.0,
+		"speed": 28.0,
 		"health": 1,
-		"fire_interval": 3.5,
+		"fire_interval": 2.8,
 		"score": 200,
 		"visual": 1,
 	},
 	EnemyType.BOMBER: {
-		"speed": 10.0,
+		"speed": 12.0,
 		"health": 2,
-		"fire_interval": 2.5,
+		"fire_interval": 2.0,
 		"score": 500,
 		"visual": 2,
 	},

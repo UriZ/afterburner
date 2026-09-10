@@ -62,7 +62,7 @@ func test_fighter_stats() -> void:
 	# _apply_type_data is called in _ready, but we haven't added to tree yet.
 	# Call it manually after configure.
 	enemy._apply_type_data()
-	assert_eq(enemy.speed, 15.0, "Fighter speed is 15")
+	assert_eq(enemy.speed, 18.0, "Fighter speed is 18")
 	assert_eq(enemy.health, 1, "Fighter health is 1")
 	assert_eq(enemy.score_value, 100, "Fighter score is 100")
 	enemy.free()
@@ -72,7 +72,7 @@ func test_interceptor_stats() -> void:
 	print("\ntest_interceptor_stats:")
 	var enemy := _create_enemy(1)
 	enemy._apply_type_data()
-	assert_eq(enemy.speed, 25.0, "Interceptor speed is 25")
+	assert_eq(enemy.speed, 28.0, "Interceptor speed is 28")
 	assert_eq(enemy.health, 1, "Interceptor health is 1")
 	assert_eq(enemy.score_value, 200, "Interceptor score is 200")
 	enemy.free()
@@ -82,7 +82,7 @@ func test_bomber_stats() -> void:
 	print("\ntest_bomber_stats:")
 	var enemy := _create_enemy(2)
 	enemy._apply_type_data()
-	assert_eq(enemy.speed, 10.0, "Bomber speed is 10")
+	assert_eq(enemy.speed, 12.0, "Bomber speed is 12")
 	assert_eq(enemy.health, 2, "Bomber health is 2")
 	assert_eq(enemy.score_value, 500, "Bomber score is 500")
 	enemy.free()
