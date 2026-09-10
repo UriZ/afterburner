@@ -21,14 +21,14 @@ const TYPE_DATA := {
 	EnemyType.INTERCEPTOR: {
 		"speed": 28.0,
 		"health": 1,
-		"fire_interval": 2.8,
+		"fire_interval": 4.0,
 		"score": 200,
 		"visual": 1,
 	},
 	EnemyType.BOMBER: {
 		"speed": 12.0,
 		"health": 2,
-		"fire_interval": 2.0,
+		"fire_interval": 3.5,
 		"score": 500,
 		"visual": 2,
 	},

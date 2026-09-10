@@ -13,7 +13,7 @@ const BANK_SOFT_THRESHOLD := 0.4
 # Jet at (0, 2.0, -8.0) places it at ~75% from screen top (bottom 25%).
 const RESPAWN_POSITION := Vector3(0.0, 2.0, -8.0)
 const DEATH_DURATION := 2.0
-const INVINCIBILITY_DURATION := 2.0
+const INVINCIBILITY_DURATION := 4.0
 const FLASH_INTERVAL := 0.1
 
 var _velocity := Vector2.ZERO
@@ -45,7 +45,7 @@ func _ready() -> void:
 	_hit_area.area_entered.connect(_on_hit_area_entered)
 	# Grant invincibility at game start so the player isn't killed immediately
 	_is_invincible = true
-	_invincibility_timer = 3.0
+	_invincibility_timer = 6.0
 	_hit_area.collision_mask = 0
 	_camera = get_viewport().get_camera_3d()
 
