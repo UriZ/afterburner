@@ -38,7 +38,7 @@ var wave_definitions: Array[Dictionary] = [
 
 func _ready() -> void:
 	_enemy_scene = load("res://scenes/enemies/enemy_jet.tscn")
-	_spawn_timer = 0.8  # brief delay before first wave
+	_spawn_timer = 0.5  # brief delay before first wave
 	# Ensure the player jet is in the "player" group so enemies can find it.
 	# We do this here because we can't modify the player scene (separate agent).
 	_add_player_to_group.call_deferred()
