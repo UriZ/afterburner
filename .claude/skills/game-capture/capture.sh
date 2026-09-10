@@ -24,13 +24,25 @@ INTERVAL_SEC=$(echo "scale=3; $INTERVAL_MS / 1000" | bc)
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
-# Start game if requested
+# Start game if requested — kills and restarts Godot for a clean state
 if [ "$START_GAME" = true ]; then
-  echo "Starting game (pressing Enter twice)..."
+  echo "Restarting Godot for clean game state..."
+  pkill -f Godot 2>/dev/null
+  sleep 2
+  /Applications/Godot.app/Contents/MacOS/Godot --path "$(cd "$(dirname "$0")/../../.." && pwd)" &
+  GODOT_PID=$!
+  # Wait for TCP bridge to come up
+  for attempt in $(seq 1 20); do
+    if echo '{"cmd":"screenshot"}' | nc -w 2 localhost $PORT > /dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+  echo "Godot running. Starting game (pressing Enter twice)..."
   echo '{"cmd":"key","key":"Enter"}' | nc -w 2 localhost $PORT > /dev/null 2>&1
   sleep 1
   echo '{"cmd":"key","key":"Enter"}' | nc -w 2 localhost $PORT > /dev/null 2>&1
-  sleep 3
+  sleep 1
   echo "Game started."
 fi
 

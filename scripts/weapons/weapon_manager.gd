@@ -22,7 +22,7 @@ const SIGHT_OFFSET_SCALE := 0.45  # fraction of screen the sight leads ahead (ar
 
 ## Targeting state — read by Reticle for drawing
 var sight_screen_pos := Vector2.ZERO
-var locked_enemies: Array[Node3D] = []
+var locked_enemies: Array = []  # untyped — freed enemies can't be erased from typed arrays
 var _lock_timers: Dictionary = {}  # enemy -> float (time since enemy left sight zone)
 
 var _vulcan_cooldown := 0.0

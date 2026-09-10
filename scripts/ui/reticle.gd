@@ -22,7 +22,7 @@ var _weapon_manager: Node = null
 ## Tracks flash timer per enemy. Positive value = currently flashing.
 var _lock_flash_timers: Dictionary = {}  # enemy Node3D -> float
 ## Tracks which enemies were locked last frame, to detect new locks.
-var _prev_locked: Array[Node3D] = []
+var _prev_locked: Array = []  # untyped — freed enemies can't be in typed arrays
 
 
 func _ready() -> void:

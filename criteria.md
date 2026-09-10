@@ -43,6 +43,8 @@ If the game is not running, the judge MUST launch it, navigate to gameplay, and 
 
 ### HARD RULES — Automatic FAIL if violated
 
+0. **Game must be playable for evaluation.** The player must survive at least 15 seconds without input on Stage 01. If the judge captures frames and they all show GAME OVER, the evaluation is an automatic FAIL with recommendation to fix survivability first. No visual feature can pass if it can't be seen.
+
 1. **Jets must look like actual aircraft, not geometric primitives.** A cylinder with boxes for wings is NOT an aircraft — it's a placeholder. The jet mesh must have: tapered fuselage with smooth contours, delta/swept wing shapes (not rectangles), visible intake geometry, detailed tail section, cockpit canopy that sits flush. If you can describe the jet as "a cylinder with boxes stuck on it", it FAILS. Compare mentally to the original After Burner II sprites — those had clear aircraft silhouettes with panel lines, shading, and distinct fighter jet shapes. Our 3D meshes must achieve at least that level of recognizability.
 
 2. **Rear chase-cam perspective.** The player jet is viewed from BEHIND and SLIGHTLY BELOW. You see the REAR of the jet: twin engine nozzles with afterburner flames, vertical tail fins, swept wings. NOT a top-down dorsal view. NOT a front view.
