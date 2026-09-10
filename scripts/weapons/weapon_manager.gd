@@ -94,7 +94,8 @@ func _update_lockon(delta: float) -> void:
 				_lock_timers.erase(enemy)
 
 	# Update break timers for locked enemies not in zone this frame
-	var to_remove: Array[Node3D] = []
+	# Use untyped array because freed objects can't be appended to Array[Node3D]
+	var to_remove: Array = []
 	for enemy in locked_enemies:
 		if not is_instance_valid(enemy):
 			to_remove.append(enemy)
