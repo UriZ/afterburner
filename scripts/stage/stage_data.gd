@@ -4,10 +4,10 @@ extends RefCounted
 ## Each stage defines ground/sky colors, enemy difficulty, and whether it's a bonus stage.
 
 const STAGES := [
-	# Stage 1: Ocean - bright blue vs dark navy
-	{ "ground_a": Color(0.25, 0.55, 0.9), "ground_b": Color(0.02, 0.08, 0.35), "sky_top": Color(0.05, 0.05, 0.3), "sky_horizon": Color(0.5, 0.7, 0.95), "spawn_interval": 2.5, "enemies_per_wave": 2, "is_bonus": false },
-	# Stage 2: Ocean - deeper blue
-	{ "ground_a": Color(0.2, 0.5, 0.85), "ground_b": Color(0.01, 0.06, 0.3), "sky_top": Color(0.04, 0.04, 0.28), "sky_horizon": Color(0.45, 0.65, 0.9), "spawn_interval": 2.0, "enemies_per_wave": 2, "is_bonus": false },
+	# Stage 1: Ocean - bright cyan vs near-black navy (high contrast checkerboard)
+	{ "ground_a": Color(0.4, 0.75, 0.95), "ground_b": Color(0.0, 0.05, 0.2), "sky_top": Color(0.05, 0.05, 0.3), "sky_horizon": Color(0.5, 0.7, 0.95), "spawn_interval": 2.5, "enemies_per_wave": 2, "is_bonus": false },
+	# Stage 2: Ocean - bright cyan vs near-black navy (high contrast checkerboard)
+	{ "ground_a": Color(0.35, 0.7, 0.9), "ground_b": Color(0.0, 0.04, 0.18), "sky_top": Color(0.04, 0.04, 0.28), "sky_horizon": Color(0.45, 0.65, 0.9), "spawn_interval": 2.0, "enemies_per_wave": 2, "is_bonus": false },
 	# Stage 3: Desert - bright tan vs dark brown
 	{ "ground_a": Color(0.9, 0.75, 0.45), "ground_b": Color(0.35, 0.2, 0.05), "sky_top": Color(0.15, 0.1, 0.3), "sky_horizon": Color(0.8, 0.6, 0.4), "spawn_interval": 1.6, "enemies_per_wave": 3, "is_bonus": false },
 	# Stage 4: Desert - reddish sand vs dark brown
