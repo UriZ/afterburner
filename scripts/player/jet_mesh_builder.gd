@@ -12,11 +12,11 @@ static func build_player_jet() -> Node3D:
 	root.scale = Vector3(1.2, 1.2, 1.2)
 
 	# -- Materials --
-	var mat_fuse := _make_mat(Color(0.92, 0.91, 0.88), 0.15, 0.7)
-	var mat_fuse_dark := _make_mat(Color(0.82, 0.81, 0.78), 0.15, 0.75)
-	var mat_wing := _make_mat(Color(0.85, 0.84, 0.80), 0.1, 0.8)
-	var mat_wing_edge := _make_mat(Color(0.78, 0.77, 0.74), 0.1, 0.85)
-	var mat_tail := _make_mat(Color(0.88, 0.87, 0.84), 0.12, 0.65)
+	var mat_fuse := _make_mat(Color(0.88, 0.90, 0.96), 0.2, 0.6)
+	var mat_fuse_dark := _make_mat(Color(0.76, 0.79, 0.87), 0.2, 0.65)
+	var mat_wing := _make_mat(Color(0.82, 0.85, 0.93), 0.15, 0.75)
+	var mat_wing_edge := _make_mat(Color(0.72, 0.76, 0.86), 0.15, 0.8)
+	var mat_tail := _make_mat(Color(0.84, 0.87, 0.94), 0.18, 0.6)
 	var mat_nacelle := _make_mat(Color(0.52, 0.51, 0.50), 0.2, 0.5)
 	var mat_nacelle_lip := _make_mat(Color(0.60, 0.59, 0.57), 0.25, 0.45)
 	var mat_nozzle := _make_mat(Color(0.10, 0.10, 0.10), 0.3, 0.3)
@@ -27,13 +27,24 @@ static func build_player_jet() -> Node3D:
 	mat_canopy.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var mat_hstab := _make_mat(Color(0.83, 0.82, 0.79), 0.1, 0.8)
 
+	# Hot white/yellow core flame
 	var mat_flame := StandardMaterial3D.new()
-	mat_flame.albedo_color = Color(1.0, 0.6, 0.1, 0.85)
+	mat_flame.albedo_color = Color(1.0, 0.95, 0.6, 0.95)
 	mat_flame.emission_enabled = true
-	mat_flame.emission = Color(1.0, 0.5, 0.0)
-	mat_flame.emission_energy_multiplier = 3.0
+	mat_flame.emission = Color(1.0, 0.9, 0.4)
+	mat_flame.emission_energy_multiplier = 4.0
 	mat_flame.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat_flame.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	# Outer orange/red glow layer — larger, translucent
+	var mat_flame_glow := StandardMaterial3D.new()
+	mat_flame_glow.albedo_color = Color(1.0, 0.35, 0.05, 0.45)
+	mat_flame_glow.emission_enabled = true
+	mat_flame_glow.emission = Color(1.0, 0.25, 0.0)
+	mat_flame_glow.emission_energy_multiplier = 2.5
+	mat_flame_glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat_flame_glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat_flame_glow.cull_mode = BaseMaterial3D.CULL_DISABLED
 
 	# ============================================================
 	# FUSELAGE — 6 cylinder sections tapering nose to tail
@@ -277,15 +288,27 @@ static func build_player_jet() -> Node3D:
 	# AFTERBURNER FLAMES — kept at same position convention
 	# ============================================================
 
+	# Core flame — bright white/yellow, 2.5x original size
 	var flame_mesh := CylinderMesh.new()
-	flame_mesh.top_radius = 0.12
+	flame_mesh.top_radius = 0.14
 	flame_mesh.bottom_radius = 0.02
-	flame_mesh.height = 0.5
-	flame_mesh.radial_segments = 6
+	flame_mesh.height = 1.25
+	flame_mesh.radial_segments = 8
 	_add_part(root, "LeftFlame", flame_mesh, mat_flame,
-		Vector3(-0.48, -0.10, 1.85), Vector3(90, 0, 0))
+		Vector3(-0.48, -0.10, 2.2), Vector3(90, 0, 0))
 	_add_part(root, "RightFlame", flame_mesh, mat_flame,
-		Vector3(0.48, -0.10, 1.85), Vector3(90, 0, 0))
+		Vector3(0.48, -0.10, 2.2), Vector3(90, 0, 0))
+
+	# Glow layer — wider, longer, orange/red, translucent
+	var flame_glow_mesh := CylinderMesh.new()
+	flame_glow_mesh.top_radius = 0.24
+	flame_glow_mesh.bottom_radius = 0.03
+	flame_glow_mesh.height = 1.7
+	flame_glow_mesh.radial_segments = 8
+	_add_part(root, "LeftFlameGlow", flame_glow_mesh, mat_flame_glow,
+		Vector3(-0.48, -0.10, 2.35), Vector3(90, 0, 0))
+	_add_part(root, "RightFlameGlow", flame_glow_mesh, mat_flame_glow,
+		Vector3(0.48, -0.10, 2.35), Vector3(90, 0, 0))
 
 	return root
 
