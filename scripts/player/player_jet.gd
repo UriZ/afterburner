@@ -4,14 +4,14 @@ extends Node3D
 @export var acceleration: float = 25.0
 @export var deceleration: float = 20.0
 
-const MOVE_MIN := Vector2(-5.5, 0.5)
-const MOVE_MAX := Vector2(5.5, 3.5)
+const MOVE_MIN := Vector2(-3.5, 0.5)
+const MOVE_MAX := Vector2(3.5, 3.5)
 const BANK_DEAD_ZONE := 0.1
 const BANK_SOFT_THRESHOLD := 0.4
 
 # Camera at (0,5,0) with 3deg downward tilt, FOV 70.
-# Jet at (0, 2.0, -8.0) places it at ~75% from screen top (bottom 25%).
-const RESPAWN_POSITION := Vector3(0.0, 2.0, -8.0)
+# Jet at (0, 2.0, -7.0) — moved closer to camera so scaled jet fills ~25-30% screen height.
+const RESPAWN_POSITION := Vector3(0.0, 2.0, -7.0)
 const DEATH_DURATION := 2.0
 const INVINCIBILITY_DURATION := 4.0
 const FLASH_INTERVAL := 0.1

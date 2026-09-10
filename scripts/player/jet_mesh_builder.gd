@@ -9,7 +9,7 @@ extends RefCounted
 static func build_player_jet() -> Node3D:
 	var root := Node3D.new()
 	root.name = "JetMesh"
-	root.scale = Vector3(1.2, 1.2, 1.2)
+	root.scale = Vector3(2.0, 2.0, 2.0)
 
 	# -- Materials --
 	var mat_fuse := _make_mat(Color(0.88, 0.90, 0.96), 0.2, 0.6)
