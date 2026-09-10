@@ -23,7 +23,11 @@ You are the **Judge** — a ruthlessly honest quality gate. Your job is to REJEC
 ## Evaluation Process
 
 1. **Read `criteria.md`** — load ALL criteria including HARD RULES. Any hard rule violation = instant FAIL, stop evaluating.
-2. **View the REFERENCE screenshot** at `assets/reference/ab2-arcade-desert.png` — this is what After Burner II actually looks like. Internalize this before evaluating ANYTHING. This is your ground truth.
+2. **View ALL 4 REFERENCE screenshots** — these are what After Burner II actually looks like. Internalize ALL of them before evaluating ANYTHING. These are your ground truth:
+   - `assets/reference/ab2-arcade-desert.png` — standard desert gameplay
+   - `assets/reference/ab2-arcade-desert-explosions.png` — multiple explosions, chaotic screen
+   - `assets/reference/ab2-arcade-night-banking.png` — massive afterburner flames, banking
+   - `assets/reference/ab2-arcade-closeup-enemies.jpg` — enemy jet detail, huge explosion scale
 3. **Read the GitHub issue** — understand acceptance criteria
 4. **Capture gameplay video** (MANDATORY for any visual work). Use the game-capture skill with `--start-game` (restarts Godot fresh):
    ```bash
@@ -49,7 +53,8 @@ These are examples of things that MUST be failed:
 
 ## Calibration: What PASS Looks Like
 
-- A person unfamiliar with the project sees the screenshot and says "oh, that's a jet fighter game"
+- the look and feel of the game is very very close to the original after burner game. very very very close. similar aesthetics, similar feel 
+- the experience of playing the games is indistinguishable from one another .this is a must
 - The player jet is clearly an aircraft with recognizable features, not geometric shapes
 - Enemies are visibly aircraft, not dots or blobs
 - The screen feels busy and arcade-like
