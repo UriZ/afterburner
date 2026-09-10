@@ -1,28 +1,27 @@
 extends Control
 
-## Targeting sight and lock-on marker renderer.
-## Reads all state from WeaponManager — contains no game logic.
+## Targeting sight renderer.
+## Reads state from WeaponManager — contains no game logic.
 
 const COLOR_NO_LOCK := Color(0.20, 1.00, 0.40)  # green
-const COLOR_LOCKED := Color(1.00, 0.20, 0.10)   # red
+const COLOR_LOCKED := Color(1.00, 0.20, 0.10)    # red
 const COLOR_LOCK_FLASH := Color.WHITE
 const LOCK_FLASH_DURATION := 0.1  # seconds — white flash on new lock
 
-# Sight crosshair dimensions — large enough to see during gameplay
+# Crosshair dimensions
 const SIGHT_ARM_LENGTH := 48.0
 const SIGHT_GAP := 10.0
 const SIGHT_STROKE := 3.0
 const SIGHT_CENTER_DOT_RADIUS := 3.0
 
-# Lock marker dimensions
-const LOCK_BOX_SIZE := 60.0  # half-size of lock box
-const LOCK_STROKE := 3.0
+# Lock brackets drawn around the crosshair when locked
+const BRACKET_SIZE := 32.0   # half-size of the bracket box
+const BRACKET_ARM := 12.0    # length of each bracket corner arm
+const BRACKET_STROKE := 2.5
 
 var _weapon_manager: Node = null
-## Tracks flash timer per enemy. Positive value = currently flashing.
-var _lock_flash_timers: Dictionary = {}  # enemy Node3D -> float
-## Tracks which enemies were locked last frame, to detect new locks.
-var _prev_locked: Array = []  # untyped — freed enemies can't be in typed arrays
+var _prev_locked: Node3D = null
+var _flash_timer := 0.0
 
 
 func _ready() -> void:
@@ -33,47 +32,43 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if _weapon_manager == null:
 		_weapon_manager = _find_weapon_manager()
-	_update_lock_flashes(delta)
-	queue_redraw()
-
-
-func _update_lock_flashes(delta: float) -> void:
-	if _weapon_manager == null:
 		return
 
-	# Detect newly locked enemies
-	for enemy in _weapon_manager.locked_enemies:
-		if is_instance_valid(enemy) and enemy not in _prev_locked:
-			_lock_flash_timers[enemy] = LOCK_FLASH_DURATION
+	var current := _weapon_manager.locked_enemy if is_instance_valid(_weapon_manager.locked_enemy) else null
 
-	# Tick down flash timers
-	var expired: Array = []
-	for enemy in _lock_flash_timers:
-		_lock_flash_timers[enemy] -= delta
-		if _lock_flash_timers[enemy] <= 0.0:
-			expired.append(enemy)
-	for enemy in expired:
-		_lock_flash_timers.erase(enemy)
+	# Detect new lock — trigger flash
+	if current != null and current != _prev_locked:
+		_flash_timer = LOCK_FLASH_DURATION
 
-	# Snapshot current locked set for next frame comparison
-	_prev_locked.clear()
-	for enemy in _weapon_manager.locked_enemies:
-		if is_instance_valid(enemy):
-			_prev_locked.append(enemy)
+	_prev_locked = current
+	_flash_timer = maxf(_flash_timer - delta, 0.0)
+	queue_redraw()
 
 
 func _draw() -> void:
 	if _weapon_manager == null:
 		return
 
-	var has_locks: bool = _weapon_manager.locked_enemies.size() > 0
-	var sight_color: Color = COLOR_LOCKED if has_locks else COLOR_NO_LOCK
-	_draw_sight(_weapon_manager.sight_screen_pos, sight_color)
-	_draw_lock_markers()
+	var locked: Node3D = _weapon_manager.locked_enemy if is_instance_valid(_weapon_manager.locked_enemy) else null
+	var pos: Vector2 = _weapon_manager.sight_screen_pos
+	var is_locked: bool = locked != null
+	var is_flashing: bool = _flash_timer > 0.0
+
+	var color: Color
+	if is_flashing:
+		color = COLOR_LOCK_FLASH
+	elif is_locked:
+		color = COLOR_LOCKED
+	else:
+		color = COLOR_NO_LOCK
+
+	_draw_crosshair(pos, color)
+
+	if is_locked:
+		_draw_lock_brackets(pos, color)
 
 
-func _draw_sight(pos: Vector2, color: Color) -> void:
-	# Four arms of a crosshair with a gap in the center
+func _draw_crosshair(pos: Vector2, color: Color) -> void:
 	draw_line(pos + Vector2(-SIGHT_GAP - SIGHT_ARM_LENGTH, 0),
 			  pos + Vector2(-SIGHT_GAP, 0), color, SIGHT_STROKE)
 	draw_line(pos + Vector2(SIGHT_GAP, 0),
@@ -82,42 +77,25 @@ func _draw_sight(pos: Vector2, color: Color) -> void:
 			  pos + Vector2(0, -SIGHT_GAP), color, SIGHT_STROKE)
 	draw_line(pos + Vector2(0, SIGHT_GAP),
 			  pos + Vector2(0, SIGHT_GAP + SIGHT_ARM_LENGTH), color, SIGHT_STROKE)
-	# Center dot for precise aiming feedback
 	draw_circle(pos, SIGHT_CENTER_DOT_RADIUS, color)
 
 
-func _draw_lock_markers() -> void:
-	var camera := get_viewport().get_camera_3d()
-	if camera == null:
-		return
-	for enemy in _weapon_manager.locked_enemies:
-		if not is_instance_valid(enemy):
-			continue
-		if camera.is_position_behind(enemy.global_position):
-			continue
-		var screen_pos := camera.unproject_position(enemy.global_position)
-		var is_flashing: bool = _lock_flash_timers.has(enemy)
-		_draw_lock_box(screen_pos, is_flashing)
-
-
-func _draw_lock_box(pos: Vector2, is_flashing: bool = false) -> void:
-	## Bracket-style lock marker. White flash on new lock, then red.
-	var color := COLOR_LOCK_FLASH if is_flashing else COLOR_LOCKED
-	var stroke := LOCK_STROKE + (1.0 if is_flashing else 0.0)
-	var s := LOCK_BOX_SIZE
-	var arm := s * 0.4
+func _draw_lock_brackets(pos: Vector2, color: Color) -> void:
+	var s := BRACKET_SIZE
+	var a := BRACKET_ARM
+	var w := BRACKET_STROKE
 	# Top-left
-	draw_line(pos + Vector2(-s, -s), pos + Vector2(-s + arm, -s), color, stroke)
-	draw_line(pos + Vector2(-s, -s), pos + Vector2(-s, -s + arm), color, stroke)
+	draw_line(pos + Vector2(-s, -s), pos + Vector2(-s + a, -s), color, w)
+	draw_line(pos + Vector2(-s, -s), pos + Vector2(-s, -s + a), color, w)
 	# Top-right
-	draw_line(pos + Vector2(s, -s), pos + Vector2(s - arm, -s), color, stroke)
-	draw_line(pos + Vector2(s, -s), pos + Vector2(s, -s + arm), color, stroke)
+	draw_line(pos + Vector2(s, -s), pos + Vector2(s - a, -s), color, w)
+	draw_line(pos + Vector2(s, -s), pos + Vector2(s, -s + a), color, w)
 	# Bottom-left
-	draw_line(pos + Vector2(-s, s), pos + Vector2(-s + arm, s), color, stroke)
-	draw_line(pos + Vector2(-s, s), pos + Vector2(-s, s - arm), color, stroke)
+	draw_line(pos + Vector2(-s, s), pos + Vector2(-s + a, s), color, w)
+	draw_line(pos + Vector2(-s, s), pos + Vector2(-s, s - a), color, w)
 	# Bottom-right
-	draw_line(pos + Vector2(s, s), pos + Vector2(s - arm, s), color, stroke)
-	draw_line(pos + Vector2(s, s), pos + Vector2(s, s - arm), color, stroke)
+	draw_line(pos + Vector2(s, s), pos + Vector2(s - a, s), color, w)
+	draw_line(pos + Vector2(s, s), pos + Vector2(s, s - a), color, w)
 
 
 func _find_weapon_manager() -> Node:

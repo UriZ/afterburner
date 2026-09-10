@@ -15,8 +15,7 @@ func _init() -> void:
 	test_lock_acquired_when_enemy_near_sight()
 	test_lock_breaks_after_delay()
 	test_lock_does_not_break_immediately()
-	test_max_locks_enforced()
-	test_nearest_locked_enemy_selection()
+	test_single_lock_closest_enemy()
 	test_stale_enemy_cleanup()
 	test_vulcan_bullet_aim_direction()
 
@@ -50,7 +49,6 @@ func test_sight_initializes_to_center() -> void:
 	# and that the constant values are correct.
 	var wm := preload("res://scripts/weapons/weapon_manager.gd")
 	assert_eq(wm.SIGHT_RADIUS, 90.0, "SIGHT_RADIUS is 90 pixels")
-	assert_eq(wm.MAX_LOCKS, 3, "MAX_LOCKS is 3")
 	assert_eq(wm.LOCK_BREAK_DELAY, 0.5, "LOCK_BREAK_DELAY is 0.5 seconds")
 	assert_eq(wm.SIGHT_SPEED, 10.0, "SIGHT_SPEED is 10.0")
 	assert_eq(wm.SIGHT_OFFSET_SCALE, 0.45, "SIGHT_OFFSET_SCALE is 0.45")
@@ -109,50 +107,20 @@ func test_lock_does_not_break_immediately() -> void:
 	assert_true(timer < 0.5, "Lock holds at 0.3s (timer=%.3f)" % timer)
 
 
-func test_max_locks_enforced() -> void:
-	print("\ntest_max_locks_enforced:")
-	# Simulate adding enemies to locked list with MAX_LOCKS cap
-	var locked: Array[Node3D] = []
-	var max_locks := 3
-	# Create 5 dummy nodes
-	var nodes: Array[Node3D] = []
-	for i in 5:
-		var n := Node3D.new()
-		nodes.append(n)
+func test_single_lock_closest_enemy() -> void:
+	print("\ntest_single_lock_closest_enemy:")
+	# New single-lock design: only the closest enemy in the sight zone is locked.
+	# Simulate the selection logic from _update_lockon.
+	var sight_pos := Vector2(400.0, 300.0)
+	var near_screen := Vector2(420.0, 305.0)  # ~21px away
+	var far_screen := Vector2(450.0, 340.0)   # ~64px away — still in zone
 
-	for node in nodes:
-		if locked.size() < max_locks:
-			locked.append(node)
+	var near_dist := near_screen.distance_to(sight_pos)
+	var far_dist := far_screen.distance_to(sight_pos)
 
-	assert_eq(locked.size(), 3, "Locked enemies capped at MAX_LOCKS=3")
-	assert_true(nodes[3] not in locked, "4th enemy not locked")
-	assert_true(nodes[4] not in locked, "5th enemy not locked")
-
-	for n in nodes:
-		n.free()
-
-
-func test_nearest_locked_enemy_selection() -> void:
-	print("\ntest_nearest_locked_enemy_selection:")
-	# Simulate _get_nearest_locked_enemy logic
-	var player_pos := Vector3(0, 3.8, -8)
-	var near_enemy := Node3D.new()
-	near_enemy.position = Vector3(1, 3, -20)  # closer
-	var far_enemy := Node3D.new()
-	far_enemy.position = Vector3(2, 4, -60)  # farther
-
-	var locked: Array[Node3D] = [near_enemy, far_enemy]
-	var best: Node3D = null
-	var best_dist := INF
-	for enemy in locked:
-		var d := player_pos.distance_to(enemy.position)
-		if d < best_dist:
-			best_dist = d
-			best = enemy
-
-	assert_true(best == near_enemy, "Nearest enemy selected (dist=%.1f)" % best_dist)
-	near_enemy.free()
-	far_enemy.free()
+	assert_true(near_dist <= 90.0, "Near enemy in sight zone (dist=%.1f)" % near_dist)
+	assert_true(far_dist <= 90.0, "Far enemy also in sight zone (dist=%.1f)" % far_dist)
+	assert_true(near_dist < far_dist, "Near enemy is closer — it wins the lock")
 
 
 func test_stale_enemy_cleanup() -> void:

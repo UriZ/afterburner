@@ -15,15 +15,14 @@ const MISSILE_FIRE_COOLDOWN := 0.4  # minimum time between missile shots
 
 ## Sight settings
 const SIGHT_RADIUS := 90.0  # pixels — generous lock-on circle (arcade feel)
-const MAX_LOCKS := 3
 const LOCK_BREAK_DELAY := 0.5  # seconds before lock breaks after enemy leaves sight
 const SIGHT_SPEED := 10.0  # lerp responsiveness — snappy tracking
 const SIGHT_OFFSET_SCALE := 0.45  # fraction of screen the sight leads ahead (arcade-sized movement)
 
 ## Targeting state — read by Reticle for drawing
 var sight_screen_pos := Vector2.ZERO
-var locked_enemies: Array = []  # untyped — freed enemies can't be erased from typed arrays
-var _lock_timers: Dictionary = {}  # enemy -> float (time since enemy left sight zone)
+var locked_enemy: Node3D = null  # single locked target
+var _lock_break_timer := 0.0  # time since locked enemy left sight zone
 
 var _vulcan_cooldown := 0.0
 var _missile_cooldown := 0.0
@@ -73,8 +72,10 @@ func _update_lockon(delta: float) -> void:
 	if camera == null:
 		return
 
+	# Find the closest enemy inside the sight radius
 	var enemies := get_tree().get_nodes_in_group("enemies")
-	var in_zone_this_frame: Array[Node3D] = []
+	var best_enemy: Node3D = null
+	var best_dist := INF
 
 	for enemy in enemies:
 		if not is_instance_valid(enemy) or not enemy is Node3D:
@@ -83,33 +84,26 @@ func _update_lockon(delta: float) -> void:
 			continue
 		var screen_pos := camera.unproject_position(enemy.global_position)
 		var dist_to_sight := screen_pos.distance_to(sight_screen_pos)
+		if dist_to_sight <= SIGHT_RADIUS and dist_to_sight < best_dist:
+			best_dist = dist_to_sight
+			best_enemy = enemy
 
-		if dist_to_sight <= SIGHT_RADIUS:
-			in_zone_this_frame.append(enemy)
-			if enemy not in locked_enemies and locked_enemies.size() < MAX_LOCKS:
-				locked_enemies.append(enemy)
-				_lock_timers.erase(enemy)
-				AudioManager.play_lockon_beep()
-			elif enemy in locked_enemies:
-				_lock_timers.erase(enemy)
-
-	# Update break timers for locked enemies not in zone this frame
-	# Use untyped array because freed objects can't be appended to Array[Node3D]
-	var to_remove: Array = []
-	for enemy in locked_enemies:
-		if not is_instance_valid(enemy):
-			to_remove.append(enemy)
-			continue
-		if enemy not in in_zone_this_frame:
-			if enemy not in _lock_timers:
-				_lock_timers[enemy] = 0.0
-			_lock_timers[enemy] += delta
-			if _lock_timers[enemy] >= LOCK_BREAK_DELAY:
-				to_remove.append(enemy)
-
-	for enemy in to_remove:
-		locked_enemies.erase(enemy)
-		_lock_timers.erase(enemy)
+	if best_enemy != null:
+		# Acquired a new lock — beep only on change
+		if best_enemy != locked_enemy:
+			AudioManager.play_lockon_beep()
+		locked_enemy = best_enemy
+		_lock_break_timer = 0.0
+	elif locked_enemy != null:
+		# No enemy in zone — tick break timer
+		if not is_instance_valid(locked_enemy):
+			locked_enemy = null
+			_lock_break_timer = 0.0
+		else:
+			_lock_break_timer += delta
+			if _lock_break_timer >= LOCK_BREAK_DELAY:
+				locked_enemy = null
+				_lock_break_timer = 0.0
 
 
 func get_sight_world_position() -> Vector3:
@@ -159,22 +153,8 @@ func _fire_missile() -> void:
 
 	var missile: Area3D = MissileScene.instantiate()
 	missile.position = get_parent().global_position
-	missile.target = _get_nearest_locked_enemy()
+	missile.target = locked_enemy if is_instance_valid(locked_enemy) else null
 	_projectile_container.add_child(missile)
-
-
-func _get_nearest_locked_enemy() -> Node3D:
-	var player_pos: Vector3 = get_parent().global_position
-	var best: Node3D = null
-	var best_dist := INF
-	for enemy in locked_enemies:
-		if not is_instance_valid(enemy):
-			continue
-		var d: float = player_pos.distance_to(enemy.global_position)
-		if d < best_dist:
-			best_dist = d
-			best = enemy
-	return best
 
 
 func _find_scene_root() -> Node:
