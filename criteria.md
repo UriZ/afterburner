@@ -12,73 +12,120 @@ MAX_RETRIES: 5
 JUDGE_TL: true
 ```
 
+## Reference Material
+
+**Reference screenshot**: `assets/reference/ab2-arcade-desert.png` — an actual After Burner II arcade screenshot.
+
+The judge and QA MUST view this reference image (Read tool) before every visual evaluation. Compare our game frame-by-frame against this reference. If the gap is large, FAIL.
+
+Source: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/images/7687-after-burner-ii)
+
 ## Judge Mandatory Procedure
 
-**The judge MUST take a screenshot before evaluating any visual work.** Use the MCP bridge:
-```
-printf '{"cmd":"screenshot"}\n' | nc -w 3 127.0.0.1 9501
-```
-If the game is not running, the judge MUST launch it, navigate to gameplay, and screenshot. Visual work that has not been screenshot-verified is an automatic FAIL.
+1. **Read this file** (criteria.md)
+2. **View the reference screenshot** at `assets/reference/ab2-arcade-desert.png`
+3. **Capture gameplay** using the game-capture or game-video skill with `--start-game`
+4. **View ALL captured frames** with the Read tool
+5. **Compare EVERY element** against the reference — jet appearance, colors, ground, enemies, screen busyness, HUD
+6. **Be brutally honest** about the gap between our game and the reference
 
-**The judge MUST compare the screenshot against the original After Burner II.** If the result does not look like After Burner II to a reasonable person, it FAILS — regardless of whether the code "works" or tests pass.
+**Code that compiles and passes tests but looks bad is a FAIL.** The judge evaluates the VISUAL RESULT, not the code quality.
 
-**Code that compiles and passes tests but looks bad is a FAIL.** The judge evaluates the VISUAL RESULT, not the code quality. Tests passing means nothing if the game looks wrong.
-
-**Interactive features require functional verification, not just code review.** The TCP bridge can send single key presses but CANNOT hold keys. For features like vulcan firing (hold to fire) or continuous movement, the judge must:
-1. Verify the code logic is correct by reading it
-2. Check that input bindings exist and are wired correctly
-3. Look for obvious bugs (wrong action names, missing connections, broken state machines)
-4. If the feature cannot be screenshot-verified, the judge must explicitly state this limitation and evaluate more critically on code correctness
-
-**Placeholder quality is not shippable quality.** If the visual output looks like programmer art / geometric primitives / debug shapes, it FAILS — even if the code is clean and well-structured. The bar is "would this pass in an indie game jam?" not "does the code work?"
+**Placeholder quality is not shippable quality.** Geometric primitives (cylinders, boxes) that don't read as aircraft = FAIL.
 
 ---
 
-## Project-Level Quality Bar
+## What After Burner II Actually Looks Like (from the reference screenshot)
 
-- Target quality: "A person seeing this for the first time would say 'that looks like After Burner'"
-- The game must run at 60 FPS on a modern Mac
-- Controls must feel responsive and tight
-- All GDScript must be valid Godot 4.6
+The judge MUST internalize these visual standards. This is what we're trying to match:
 
-### HARD RULES — Automatic FAIL if violated
+### Player F-14 Tomcat
+- **Viewed from behind and slightly above** — you see the full dorsal surface
+- **Bright white/light grey** fuselage with visible panel line shading and color variation
+- **Swept wings** clearly visible extending to both sides — NOT rectangles, they have aerodynamic planform
+- **Twin vertical tail fins** prominent at the rear
+- **Cockpit canopy** visible as a dark bubble on top of the fuselage
+- **Afterburner flames are MASSIVE** — bright yellow/white core, orange outer, nearly as long as the jet body itself. They are the most eye-catching element. If the flames aren't dramatic and large, FAIL.
+- The jet fills **25-30% of screen height** and dominates the bottom quarter
+- The jet has **visual detail and shading** — it is NOT a flat-colored 3D shape. It has highlights, shadows, panel lines, color variation across the surface
 
-0. **Game must be playable for evaluation.** The player must survive at least 15 seconds without input on Stage 01. If the judge captures frames and they all show GAME OVER, the evaluation is an automatic FAIL with recommendation to fix survivability first. No visual feature can pass if it can't be seen.
+### Enemy Jets
+- At distance: **tiny bright-colored dots/silhouettes** (2-4 pixels) that are clearly high-contrast against the sky
+- As they approach: **scale up smoothly** to medium-large sprites with clear aircraft shapes
+- Colors are **VIVID and saturated** — bright red fighters POP against any background
+- At close range: recognizable aircraft with wings, fuselage, tail — NOT cylinders with boxes
+- Multiple enemies visible simultaneously — the sky should feel crowded
 
-1. **Jets must look like actual aircraft, not geometric primitives.** A cylinder with boxes for wings is NOT an aircraft — it's a placeholder. The jet mesh must have: tapered fuselage with smooth contours, delta/swept wing shapes (not rectangles), visible intake geometry, detailed tail section, cockpit canopy that sits flush. If you can describe the jet as "a cylinder with boxes stuck on it", it FAILS. Compare mentally to the original After Burner II sprites — those had clear aircraft silhouettes with panel lines, shading, and distinct fighter jet shapes. Our 3D meshes must achieve at least that level of recognizability.
+### Ground
+- **Dense, textured terrain** with strong perspective compression
+- NOT just two-color bands — the original has richly detailed ground with visible terrain features
+- **Perspective convergence** — wide bands near camera, compressed at horizon
+- The ground creates an overwhelming sense of SPEED — it rushes past
 
-2. **Rear chase-cam perspective.** The player jet is viewed from BEHIND and SLIGHTLY BELOW. You see the REAR of the jet: twin engine nozzles with afterburner flames, vertical tail fins, swept wings. NOT a top-down dorsal view. NOT a front view.
+### Explosions
+- **HUGE puffy white/yellow clouds** — each explosion fills 15-25% of screen
+- Multiple explosions visible simultaneously
+- Bright white center, yellow middle, orange/red edges
+- They are a major visual feature — satisfying, dramatic, screen-filling
 
-3. **The ground must move.** When playing, you must feel intense forward speed. If the ground looks static or slowly drifting, FAIL.
+### Screen Composition
+- **The screen is NEVER empty.** Every frame has enemies, explosions, missiles, or projectiles
+- **Horizon at ~50% from top** — sky and ground roughly equal
+- **Colors are saturated and bold** — deep blues, hot oranges, bright reds, vivid greens
+- The overall feel is CHAOTIC, FAST, EXCITING
 
-4. **Screen must be busy.** At any point during gameplay, there should be multiple enemies, projectiles, or explosions visible. An empty screen with just the jet and sky is FAIL.
+### HUD
+- **Arcade typography** — bold, blocky, high-contrast
+- Score in bright yellow/gold numbers
+- Red and yellow label colors
+- Speed bar at bottom with colored segments
+- Missile count with visual indicators (not just a number)
+- Lives shown as small jet silhouettes
+
+---
+
+## HARD RULES — Automatic FAIL if violated
+
+0. **Game must be playable for evaluation.** The player must survive at least 15 seconds without input on Stage 01. All GAME OVER frames = automatic FAIL.
+
+1. **Jets must look like aircraft with visual detail.** A flat-shaded cylinder with box wings is NOT acceptable even if it's "recognizable." The jet must have visible surface detail: color variation across the body, highlight/shadow areas, panel-line-like color breaks. Compare to the reference screenshot — the original sprites had shading and detail despite being 320x224 pixels. Our 3D meshes at modern resolution should look AT LEAST as detailed.
+
+2. **Afterburner flames must be dramatic.** In the reference, flames are nearly as long as the jet body and are the brightest element on screen. Tiny orange nubs = FAIL. The flames should be eye-catching from across the room.
+
+3. **The ground must create speed.** If the ground looks static or slowly drifting, FAIL. The original made players feel "nauseated" from speed.
+
+4. **Screen must be busy.** At any point during gameplay, the screen should feel chaotic with enemies, projectiles, or explosions. Empty sky with just one jet = FAIL.
 
 5. **Horizon at 40-55% from top.** Ground fills the bottom half. The jet sits in the bottom 25%.
+
+6. **Colors must be vivid and saturated.** Muted greys, washed-out pastels, or low-contrast color schemes = FAIL. Compare to the reference: hot oranges, deep blues, bright reds.
+
+---
 
 ### Visual Fidelity (Critical — all must pass)
 
 | # | Criterion | Description |
 |---|-----------|-------------|
-| 1 | Player jet is 3D | Must be a detailed 3D mesh that reads as a fighter jet, not a cylinder with boxes. Smooth fuselage taper, swept wing planform (not rectangles), visible twin vertical stabilizers, engine nacelles with intake scoops. A real person looking at it should say "that's a jet" without being told. Primitive geometric shapes = FAIL. |
+| 1 | Player jet has visual detail | Must have color variation, shading, highlights — NOT a single flat color. Multiple material colors on the fuselage (light top, darker sides). Canopy must be a distinct color. Wing undersides slightly different from tops. |
 | 2 | Player jet is large | Occupies 25-30% screen height. Dominates bottom quarter. |
-| 3 | Enemy jets are 3D | Must be 3D meshes that scale naturally as they approach. At close range, must be recognizable aircraft — not cylinders with flat box wings. Same standard as player jet: if it looks like geometric primitives, FAIL. |
-| 4 | Ground creates speed | Perspective-compressed bands/texture rushing toward camera. Must feel FAST. "Nauseating" speed. |
-| 5 | Explosions are dramatic | Screen-filling fireballs. At least 15% screen height. Orange → smoke progression. |
-| 6 | Bold arcade colors | Vivid saturated colors. No washed-out pastels. Deep blues, hot oranges, bright whites. |
-| 7 | World tilts on banking | When the jet banks left/right, the camera rolls, tilting the entire horizon. |
-| 8 | Composition matches AB2 | Horizon ~50% from top. Ground fills bottom. Jet in bottom 25%. Sky with clouds above. |
-| 9 | Super Scaler scaling | Enemies scale smoothly from dots at horizon to large sprites flying past. Continuous, dramatic. |
-| 10 | Afterburner flames | Twin engine flames visible on player jet. Hot white/yellow core, orange/red outer. |
+| 3 | Afterburner flames are dramatic | Flames extend at least 50% of jet body length. White/yellow core, orange outer. Bright enough to be the most eye-catching element. |
+| 4 | Enemy jets are vivid | Saturated colors that POP against any background. Red fighters should be BRIGHT red (not dark red). At close range, clearly aircraft shapes. |
+| 5 | Ground creates speed | Strong perspective compression. Dense pattern. Fast scrolling. "Nauseating" speed sensation. |
+| 6 | Explosions are dramatic | Each explosion fills 15-25% screen height. Puffy white/yellow clouds. Multiple visible simultaneously. |
+| 7 | Bold arcade colors | Compare to reference. Vivid saturated colors throughout. No grey, muted, or washed-out areas. |
+| 8 | Composition matches AB2 | Horizon ~50% from top. Ground fills bottom. Jet in bottom 25%. Sky above. |
+| 9 | Super Scaler scaling | Enemies scale from dots at horizon to large aircraft. Smooth, dramatic. |
+| 10 | Screen is chaotic | Never calm. Multiple visual elements competing for attention. Arcade energy. |
 
 ### Gameplay Feel (Critical)
 
 | # | Criterion | Description |
 |---|-----------|-------------|
 | 1 | Arcade energy | Screen BUSY — multiple enemies, projectiles, explosions simultaneously. Never calm or empty. |
-| 2 | Lock-on feedback | Clear visual + audio when missile lock acquired. Per-enemy lock markers. |
+| 2 | Lock-on feedback | Clear visual + audio when missile lock acquired. Single target lock with crosshair color change. |
 | 3 | Weapon satisfaction | Vulcan tracers visible, missiles trail smoke, enemies react on hit. |
 | 4 | Responsive controls | Zero input lag. Jet moves immediately with input. |
-| 5 | Aiming works correctly | Crosshair moves independently or with jet. Vulcan bullets go where the crosshair points. Missiles track locked targets. If aiming is broken (bullets go wrong direction, crosshair stuck, locks don't work), FAIL. |
+| 5 | Aiming works correctly | Single crosshair, locks one enemy, missiles track locked target. |
 
 ### Audio (High)
 
@@ -91,25 +138,6 @@ If the game is not running, the judge MUST launch it, navigate to gameplay, and 
 
 ## Per-Role Criteria
 
-### Architect
-
-| # | Criterion | Weight | Description |
-|---|-----------|--------|-------------|
-| 1 | Spec completeness | Critical | Covers ALL requirements — nothing missing |
-| 2 | No scope creep | Critical | Only what's requested — no gold-plating |
-| 3 | Clear interfaces | High | Unambiguous — developer needs no design decisions |
-| 4 | Godot-native approach | Critical | Uses Godot built-in nodes. 3D meshes for 3D objects, not sprite hacks. |
-| 5 | Risks identified | Medium | Edge cases and constraints called out |
-
-### UI Designer
-
-| # | Criterion | Weight | Description |
-|---|-----------|--------|-------------|
-| 1 | References original game | Critical | Must cite original AB2 visuals as reference |
-| 2 | Diagnoses broken code | Critical | Must identify specific functions/lines producing bad output |
-| 3 | Pixel-level specificity | High | Exact dimensions, colors, coordinates |
-| 4 | Measurable targets | High | Screen percentages, pixel counts — not "bigger" |
-
 ### Developer
 
 | # | Criterion | Weight | Description |
@@ -117,32 +145,42 @@ If the game is not running, the judge MUST launch it, navigate to gameplay, and 
 | 1 | Matches spec | Critical | Implementation matches spec exactly |
 | 2 | Runs in Godot | Critical | Opens and runs without errors in 4.6.2 |
 | 3 | Feature works | Critical | Actually functions as specified |
-| 4 | LOOKS RIGHT | Critical | The visual result looks like After Burner II. Judge MUST screenshot and verify. Code that works but looks wrong = FAIL. |
+| 4 | LOOKS RIGHT | Critical | View the reference at `assets/reference/ab2-arcade-desert.png`. Does your output look like that? If not, FAIL. Code that works but looks wrong = FAIL. |
 | 5 | Tests present | High | Tests for core logic |
 | 6 | No scope creep | High | Only what was specified |
-| 7 | Less is more | High | Concise code. No AI slop. |
 
 ### QA
 
 | # | Criterion | Weight | Description |
 |---|-----------|--------|-------------|
-| 1 | Screenshot comparison | Critical | Must take screenshot and compare against original AB2. List every visible difference. |
+| 1 | Reference comparison | Critical | Must view `assets/reference/ab2-arcade-desert.png` AND capture gameplay video. List EVERY visible difference between our game and the reference. |
 | 2 | All acceptance criteria tested | Critical | Every criterion explicitly verified |
 | 3 | Bug reports actionable | High | Repro steps, expected vs actual, root cause |
-| 4 | Evidence provided | High | Screenshots and console output included |
+| 4 | Video evidence | Critical | Must capture video with game-video skill. Static frames are insufficient. |
+
+### Architect
+
+| # | Criterion | Weight | Description |
+|---|-----------|--------|-------------|
+| 1 | Spec completeness | Critical | Covers ALL requirements — nothing missing |
+| 2 | No scope creep | Critical | Only what's requested — no gold-plating |
+| 3 | Clear interfaces | High | Unambiguous — developer needs no design decisions |
+| 4 | Godot-native approach | Critical | Uses Godot built-in nodes |
+| 5 | Risks identified | Medium | Edge cases and constraints called out |
 
 ---
 
 ## Verdict Rules
 
-- **PASS**: Score ≥ 9/10. All critical criteria met. Looks like After Burner II.
-- **FAIL**: Any critical criterion not met. Or it doesn't look like After Burner II. Period.
+- **PASS**: Score >= 9/10. ALL critical criteria met. Looks like After Burner II when compared to the reference screenshot.
+- **FAIL**: Any critical criterion not met. Or it doesn't look like the reference. Period.
+- **When in doubt, FAIL.** The cost of passing bad work is higher than sending it back.
 
 ### Fail feedback must be specific
 
 Every FAIL must include:
 - Which criteria failed and why
-- Screenshot evidence
+- Screenshot evidence compared to the reference
 - Exact files/lines/values that need to change
-- What the correct result should look like
+- What the correct result should look like (citing the reference)
 - No vague "needs improvement" — name the gap and the fix
