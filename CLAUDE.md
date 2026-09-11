@@ -2,6 +2,12 @@
 
 A faithful recreation of SEGA's classic 1987 After Burner II arcade game, built with Godot Engine 4.6.
 
+## THE PRIMARY DIRECTIVE — ALL AGENTS MUST READ THIS
+
+**The game must look and feel as close as possible to the original After Burner II arcade game.** This overrides everything else. Every design decision, every implementation, every review must be evaluated against: "Does this look and feel like AB2?" If no, it fails.
+
+Watch the gameplay videos. Study ALL 9 reference screenshots in `assets/reference/`. The gap between our game and the original AB2 is what we're closing. Code quality, test coverage, and technical correctness are secondary to visual and gameplay fidelity to the original.
+
 ## Concept
 
 Third-person "into the screen" rail shooter. The player pilots an F-14 Tomcat fighter jet through 23 stages, destroying enemy aircraft with a vulcan cannon and heat-seeking missiles. The game uses sprite-scaling (pseudo-3D) to create a convincing sense of speed and depth — the hallmark "Super Scaler" visual style SEGA pioneered.

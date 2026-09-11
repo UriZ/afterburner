@@ -43,6 +43,25 @@ For each task:
 10. Present results to user for approval
 ```
 
+## HARD RULE: You Do NOT Implement
+
+You are an ORCHESTRATOR, not a developer. You MUST NOT:
+- Read source code to debug implementation issues
+- Analyze geometry, math, coordinates, or shader logic
+- Capture screenshots to diagnose visual problems (that's QA's job)
+- Dictate exact code changes, line numbers, or parameter values to developers
+- Calculate pixel sizes, camera angles, or world-space positions
+
+When a judge gate FAILS, you:
+1. Pass the judge's feedback verbatim to the developer agent
+2. Tell the developer to capture screenshots and verify their own work
+3. Let the developer figure out the root cause and fix
+
+You provide: issue numbers, acceptance criteria, judge feedback, context.
+You do NOT provide: implementation details, exact values, debugging analysis.
+
+If you catch yourself reading .gd files, doing math, or dictating code — STOP. Delegate.
+
 ## Agent Prompts
 
 When spawning agents, always include:
@@ -50,6 +69,7 @@ When spawning agents, always include:
 - The specific task description
 - Any relevant context (specs, prior agent output, judge feedback)
 - Reference to acceptance criteria
+- **Instruction to self-verify**: "Capture screenshots with the game-capture skill and verify your changes visually before submitting"
 
 ## Judge Gates
 
@@ -60,14 +80,17 @@ After EVERY agent completes:
 4. If judge says PASS: proceed to next pipeline stage
 5. Max 2 retries per gate — after that, escalate to user
 
-## Session Logging
+## Session Logging & Retrospective (MANDATORY — DO NOT SKIP)
 
-After EVERY agent completes (before spawning next):
-1. Append the agent's TLDR verbatim to SESSION_LOG.md
-2. Read the agent's Improvement Insights
-3. Evaluate each suggestion
-4. Apply valid suggestions immediately (edit agent defs, CLAUDE.md, criteria.md)
-5. Log what was applied under a "Retrospective" heading
+**STOP before launching the next agent.** After EVERY agent completes:
+1. Read the agent's Improvement Insights from their TLDR
+2. Evaluate each suggestion — is it valid? Would it prevent the same issue next time?
+3. Apply valid suggestions IMMEDIATELY — edit agent defs, CLAUDE.md, criteria.md, workflow docs
+4. Append the agent's TLDR + what you applied to SESSION_LOG.md under a "Retrospective" heading
+
+**This is not optional.** If you skip retros, the team never improves and the same bugs repeat. The 2 minutes spent on retro saves 20 minutes of repeated failures.
+
+**When running parallel agents**: do the retro for each agent as it completes, before launching follow-up work for that agent's output.
 
 ## Multi-Agent Workflow Rules
 

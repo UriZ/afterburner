@@ -77,8 +77,8 @@ func test_vulcan_bullet_hit_flash() -> void:
 func test_reticle_lock_flash_timer() -> void:
 	print("\ntest_reticle_lock_flash_timer:")
 	var reticle_script := preload("res://scripts/ui/reticle.gd")
-	assert_approx(reticle_script.LOCK_FLASH_DURATION, 0.1, "LOCK_FLASH_DURATION is 0.1s")
-	assert_eq(reticle_script.COLOR_LOCK_FLASH, Color.WHITE, "Flash color is white")
+	assert_eq(reticle_script.BLINK_COUNT, 3, "BLINK_COUNT is 3")
+	assert_approx(reticle_script.BLINK_INTERVAL, 0.06, "BLINK_INTERVAL is 0.06s")
 
 
 func test_reticle_lock_flash_detects_new_locks() -> void:
@@ -139,7 +139,7 @@ func test_reticle_lock_flash_expires() -> void:
 func test_reticle_lock_box_size() -> void:
 	print("\ntest_reticle_lock_box_size:")
 	var reticle_script := preload("res://scripts/ui/reticle.gd")
-	assert_approx(reticle_script.LOCK_BOX_SIZE, 60.0, "LOCK_BOX_SIZE is 60px")
+	assert_approx(reticle_script.BRACKET_ARM, 10.0, "BRACKET_ARM is 10px")
 
 
 # --- Missile smoke trail tests ---
@@ -153,8 +153,8 @@ func test_missile_scene_has_smoke_trail() -> void:
 	if smoke != null:
 		assert_true(smoke is GPUParticles3D, "SmokeTrail is GPUParticles3D")
 		var particles := smoke as GPUParticles3D
-		assert_eq(particles.amount, 30, "SmokeTrail has 30 particles")
-		assert_approx(particles.lifetime, 1.0, "SmokeTrail lifetime is 1.0s")
+		assert_eq(particles.amount, 80, "SmokeTrail has 80 particles")
+		assert_approx(particles.lifetime, 1.8, "SmokeTrail lifetime is 1.8s")
 		# Verify process material has a color ramp
 		var mat := particles.process_material as ParticleProcessMaterial
 		assert_true(mat != null, "SmokeTrail has ParticleProcessMaterial")

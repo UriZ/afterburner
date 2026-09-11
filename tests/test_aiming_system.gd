@@ -1,7 +1,7 @@
 extends SceneTree
 
-## Unit tests for aiming system fixes (issue #28).
-## Tests sight Y-axis correction, bullet/missile parameters, sight offset scale.
+## Unit tests for the targeting system redesign (issue #63).
+## Sight follows jet (no independent cursor), brackets at enemy position, all white.
 ## Run with: godot --headless --script res://tests/test_aiming_system.gd
 
 var _pass_count := 0
@@ -9,17 +9,19 @@ var _fail_count := 0
 
 
 func _init() -> void:
-	print("=== Aiming System Tests (Issue #28) ===")
+	print("=== Targeting System Tests (Issue #63) ===")
 
-	test_sight_y_axis_direction()
-	test_sight_offset_scale_arcade_range()
-	test_sight_radius_generous()
+	test_sight_arm_length_tiny()
+	test_sight_gap_small()
+	test_sight_stroke_thin()
+	test_no_sight_center_dot()
+	test_sight_follows_jet_not_cursor()
+	test_sight_radius_lock_on()
+	test_bracket_arm_length()
 	test_vulcan_fire_rate()
 	test_bullet_speed_and_scale_rate()
 	test_missile_turn_speed()
-	test_missile_initial_velocity_toward_target()
-	test_sight_world_position_distance()
-	test_reticle_center_dot()
+	test_all_white_colors()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -38,53 +40,55 @@ func assert_approx(a: float, b: float, message: String, tolerance: float = 0.01)
 	assert_true(absf(a - b) < tolerance, "%s (got %.4f, expected %.4f)" % [message, a, b])
 
 
-func test_sight_y_axis_direction() -> void:
-	print("\ntest_sight_y_axis_direction:")
-	# The critical fix: when player presses UP, sight must move UP on screen
-	# (negative Y in screen coords). We verify the input mapping logic:
-	# get_axis("move_up", "move_down") returns -1 for UP, +1 for DOWN.
-	# Multiplied by viewport size, this gives negative offset (up on screen) for UP input.
-	# This is the correct behavior after the fix.
-	var viewport_size := Vector2(960.0, 672.0)
-	var center := viewport_size * 0.5
-	var offset_scale := 0.45
-
-	# Simulate UP input: get_axis("move_up", "move_down") = -1 when UP pressed
-	var input_up := Vector2(0.0, -1.0)
-	var target_up := center + input_up * viewport_size * offset_scale
-	assert_true(target_up.y < center.y, "UP input moves sight above center (y=%.1f < %.1f)" % [target_up.y, center.y])
-
-	# Simulate DOWN input: get_axis("move_up", "move_down") = +1 when DOWN pressed
-	var input_down := Vector2(0.0, 1.0)
-	var target_down := center + input_down * viewport_size * offset_scale
-	assert_true(target_down.y > center.y, "DOWN input moves sight below center (y=%.1f > %.1f)" % [target_down.y, center.y])
-
-	# Simulate RIGHT input
-	var input_right := Vector2(1.0, 0.0)
-	var target_right := center + input_right * viewport_size * offset_scale
-	assert_true(target_right.x > center.x, "RIGHT input moves sight right of center")
+func test_sight_arm_length_tiny() -> void:
+	print("\ntest_sight_arm_length_tiny:")
+	var reticle := preload("res://scripts/ui/reticle.gd")
+	assert_true(reticle.SIGHT_ARM_LENGTH == 8.0, "Sight arm length is 8px (got %.1f)" % reticle.SIGHT_ARM_LENGTH)
 
 
-func test_sight_offset_scale_arcade_range() -> void:
-	print("\ntest_sight_offset_scale_arcade_range:")
+func test_sight_gap_small() -> void:
+	print("\ntest_sight_gap_small:")
+	var reticle := preload("res://scripts/ui/reticle.gd")
+	assert_true(reticle.SIGHT_GAP == 4.0, "Sight gap is 4px (got %.1f)" % reticle.SIGHT_GAP)
+
+
+func test_sight_stroke_thin() -> void:
+	print("\ntest_sight_stroke_thin:")
+	var reticle := preload("res://scripts/ui/reticle.gd")
+	assert_true(reticle.SIGHT_STROKE == 2.0, "Sight stroke is 2px (got %.1f)" % reticle.SIGHT_STROKE)
+
+
+func test_no_sight_center_dot() -> void:
+	print("\ntest_no_sight_center_dot:")
+	var reticle := preload("res://scripts/ui/reticle.gd")
+	# Spec: no center dot. Reticle should NOT have SIGHT_CENTER_DOT_RADIUS constant.
+	assert_true(not "SIGHT_CENTER_DOT_RADIUS" in reticle, "No center dot constant on reticle")
+
+
+func test_sight_follows_jet_not_cursor() -> void:
+	print("\ntest_sight_follows_jet_not_cursor:")
 	var wm := preload("res://scripts/weapons/weapon_manager.gd")
-	# Must be >= 0.4 for visible arcade-like movement
-	assert_true(wm.SIGHT_OFFSET_SCALE >= 0.4, "SIGHT_OFFSET_SCALE >= 0.4 for arcade range (got %.2f)" % wm.SIGHT_OFFSET_SCALE)
-	# But not so large the sight goes off screen (with margin clamping it should be fine)
-	assert_true(wm.SIGHT_OFFSET_SCALE <= 0.6, "SIGHT_OFFSET_SCALE <= 0.6 to stay usable (got %.2f)" % wm.SIGHT_OFFSET_SCALE)
+	# Spec: sight follows jet. No SIGHT_OFFSET_SCALE for independent cursor movement.
+	assert_true(not "SIGHT_OFFSET_SCALE" in wm, "No SIGHT_OFFSET_SCALE (independent cursor removed)")
+	# Sight offset is fixed 40px above jet
+	assert_true(wm.SIGHT_OFFSET_Y == -40.0, "Sight offset is -40px above jet (got %.1f)" % wm.SIGHT_OFFSET_Y)
 
 
-func test_sight_radius_generous() -> void:
-	print("\ntest_sight_radius_generous:")
+func test_sight_radius_lock_on() -> void:
+	print("\ntest_sight_radius_lock_on:")
 	var wm := preload("res://scripts/weapons/weapon_manager.gd")
-	# Lock-on radius should be generous for arcade feel
-	assert_true(wm.SIGHT_RADIUS >= 80.0, "SIGHT_RADIUS >= 80px for generous lock-on (got %.1f)" % wm.SIGHT_RADIUS)
+	assert_true(wm.SIGHT_RADIUS >= 80.0, "Lock radius >= 80px (got %.1f)" % wm.SIGHT_RADIUS)
+
+
+func test_bracket_arm_length() -> void:
+	print("\ntest_bracket_arm_length:")
+	var reticle := preload("res://scripts/ui/reticle.gd")
+	assert_true(reticle.BRACKET_ARM == 10.0, "Bracket corner arm is 10px (got %.1f)" % reticle.BRACKET_ARM)
 
 
 func test_vulcan_fire_rate() -> void:
 	print("\ntest_vulcan_fire_rate:")
 	var wm := preload("res://scripts/weapons/weapon_manager.gd")
-	# Fire rate should be rapid — at least 15 shots/sec
 	var shots_per_sec := 1.0 / wm.VULCAN_FIRE_INTERVAL
 	assert_true(shots_per_sec >= 15.0, "Vulcan fires >= 15 shots/sec (got %.1f)" % shots_per_sec)
 
@@ -93,8 +97,6 @@ func test_bullet_speed_and_scale_rate() -> void:
 	print("\ntest_bullet_speed_and_scale_rate:")
 	var bullet := preload("res://scripts/weapons/vulcan_bullet.gd")
 	assert_true(bullet.SPEED >= 80.0, "Bullet speed >= 80 (got %.1f)" % bullet.SPEED)
-	# Scale rate should be low enough that bullets are visible at engagement range
-	# At SCALE_RATE=1.5, bullet reaches 50% scale at 67 units (1/3 of max distance)
 	var half_scale_dist := 0.5 / bullet.SCALE_RATE * bullet.MAX_DISTANCE
 	assert_true(half_scale_dist >= 50.0, "Bullet visible at 50 units (half-scale at %.1f)" % half_scale_dist)
 
@@ -102,38 +104,14 @@ func test_bullet_speed_and_scale_rate() -> void:
 func test_missile_turn_speed() -> void:
 	print("\ntest_missile_turn_speed:")
 	var missile := preload("res://scripts/weapons/missile.gd")
-	# Turn speed should be aggressive enough for arcade homing
 	assert_true(missile.TURN_SPEED >= 5.0, "Missile TURN_SPEED >= 5.0 (got %.1f)" % missile.TURN_SPEED)
 	assert_true(missile.SPEED >= 40.0, "Missile SPEED >= 40 (got %.1f)" % missile.SPEED)
 
 
-func test_missile_initial_velocity_toward_target() -> void:
-	print("\ntest_missile_initial_velocity_toward_target:")
-	# Simulate the missile _ready() logic for initial velocity blending
-	var missile_pos := Vector3(0, 2, -8)
-	var target_pos := Vector3(3, 7, -40)
-	var to_target := (target_pos - missile_pos).normalized()
-	var blended := (Vector3(0, 0, -1) * 0.4 + to_target * 0.6).normalized()
-
-	# The blended direction should point generally toward the target, not straight -Z
-	assert_true(blended.x > 0.01, "Initial velocity has X component toward target (got %.3f)" % blended.x)
-	assert_true(blended.z < -0.5, "Initial velocity still points into screen (z=%.3f)" % blended.z)
-
-
-func test_sight_world_position_distance() -> void:
-	print("\ntest_sight_world_position_distance:")
-	# The projection distance should be long enough to reach enemy engagement zone
-	# Enemies spawn at Z=-50, so 80 units of projection from camera at Z=0
-	# ensures convergence point is well past enemies.
-	# We can't call get_sight_world_position without a camera, but we can verify
-	# the constant is appropriate by checking the source code pattern.
-	# The function uses "from + dir * 80.0" — verify 80 > 50 (spawn Z).
-	var projection_dist := 80.0  # from weapon_manager.gd get_sight_world_position
-	assert_true(projection_dist >= 60.0, "Sight projection distance >= 60 units (got %.1f)" % projection_dist)
-
-
-func test_reticle_center_dot() -> void:
-	print("\ntest_reticle_center_dot:")
+func test_all_white_colors() -> void:
+	print("\ntest_all_white_colors:")
 	var reticle := preload("res://scripts/ui/reticle.gd")
-	assert_true(reticle.SIGHT_CENTER_DOT_RADIUS > 0.0, "Reticle has center dot (radius=%.1f)" % reticle.SIGHT_CENTER_DOT_RADIUS)
-	assert_true(reticle.SIGHT_ARM_LENGTH >= 40.0, "Crosshair arms are visible (length=%.1f)" % reticle.SIGHT_ARM_LENGTH)
+	assert_true(reticle.COLOR_WHITE == Color.WHITE, "COLOR_WHITE is pure white")
+	# Spec: no green/red — only white. Verify no COLOR_NO_LOCK or COLOR_LOCKED exist.
+	assert_true(not "COLOR_NO_LOCK" in reticle, "No COLOR_NO_LOCK (all white)")
+	assert_true(not "COLOR_LOCKED" in reticle, "No COLOR_LOCKED (all white)")

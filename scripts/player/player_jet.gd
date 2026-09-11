@@ -1,17 +1,21 @@
 extends Node3D
 
-@export var move_speed: float = 12.0
-@export var acceleration: float = 25.0
-@export var deceleration: float = 20.0
+@export var move_speed: float = 32.0
+@export var acceleration: float = 80.0
+@export var deceleration: float = 60.0
 
-const MOVE_MIN := Vector2(-3.5, 0.5)
-const MOVE_MAX := Vector2(3.5, 3.5)
+# Camera at (0,5,0) with 5deg downward tilt, FOV 70 (vertical), aspect 16:9.
+# Jet at Z=-8.0. Godot FOV is vertical: half-angle=35deg, tan(35deg)=0.700.
+# At depth 8: vertical half=5.6, horizontal half=5.6*(16/9)=9.96.
+# Screen center Y ≈ 5 - tan(5deg)*8 = 4.3.
+# Full vertical range: 4.3 ± 5.6 = (-1.3, 9.9). Extended bounds for better reach.
+# Full horizontal range: ±9.96. 85% → ±8.5.
+const MOVE_MIN := Vector2(-8.5, 0.2)
+const MOVE_MAX := Vector2(8.5, 8.5)
 const BANK_DEAD_ZONE := 0.1
 const BANK_SOFT_THRESHOLD := 0.4
 
-# Camera at (0,5,0) with 3deg downward tilt, FOV 70.
-# Jet at (0, 2.0, -7.0) — moved closer to camera so scaled jet fills ~25-30% screen height.
-const RESPAWN_POSITION := Vector3(0.0, 2.0, -7.0)
+const RESPAWN_POSITION := Vector3(0.0, 2.5, -8.0)
 const DEATH_DURATION := 2.0
 const INVINCIBILITY_DURATION := 4.0
 const FLASH_INTERVAL := 0.1
@@ -25,8 +29,9 @@ var _invincibility_timer := 0.0
 var _flash_timer := 0.0
 var _camera: Camera3D
 var _jet_mesh: Node3D
-var _left_flame: MeshInstance3D
-var _right_flame: MeshInstance3D
+var _central_flame: MeshInstance3D
+var _central_flame_mid: MeshInstance3D
+var _central_flame_glow: MeshInstance3D
 
 @onready var _hit_area: Area3D = $HitArea
 
@@ -40,8 +45,9 @@ func _ready() -> void:
 	var Builder := preload("res://scripts/player/jet_mesh_builder.gd")
 	_jet_mesh = Builder.build_player_jet()
 	add_child(_jet_mesh)
-	_left_flame = _jet_mesh.get_node("LeftFlame")
-	_right_flame = _jet_mesh.get_node("RightFlame")
+	_central_flame = _jet_mesh.get_node("CentralFlameCore")
+	_central_flame_mid = _jet_mesh.get_node("CentralFlameMid")
+	_central_flame_glow = _jet_mesh.get_node("CentralFlameGlow")
 	_hit_area.area_entered.connect(_on_hit_area_entered)
 	# Grant invincibility at game start so the player isn't killed immediately
 	_is_invincible = true
@@ -66,10 +72,12 @@ func _process(delta: float) -> void:
 
 	# Pulse afterburner flames
 	var pulse := 0.8 + 0.4 * sin(Time.get_ticks_msec() * 0.01)
-	if _left_flame:
-		_left_flame.scale = Vector3(pulse, pulse, pulse)
-	if _right_flame:
-		_right_flame.scale = Vector3(pulse, pulse, pulse)
+	if _central_flame:
+		_central_flame.scale = Vector3(pulse, pulse, pulse)
+	if _central_flame_mid:
+		_central_flame_mid.scale = Vector3(pulse, pulse, pulse)
+	if _central_flame_glow:
+		_central_flame_glow.scale = Vector3(pulse, pulse, pulse)
 
 
 func _get_input_vector() -> Vector2:
@@ -98,18 +106,27 @@ func _apply_movement(delta: float) -> void:
 	position.x = clampf(position.x, MOVE_MIN.x, MOVE_MAX.x)
 	position.y = clampf(position.y, MOVE_MIN.y, MOVE_MAX.y)
 
+	# Subtle camera parallax: shift opposite to player for depth illusion
+	if _camera:
+		var norm_x := position.x / MOVE_MAX.x
+		var norm_y := (position.y - 4.3) / (MOVE_MAX.y - 4.3)
+		var target_cx := -norm_x * 0.4
+		var target_cy := 5.0 - norm_y * 0.3
+		_camera.position.x = move_toward(_camera.position.x, target_cx, 2.0 * delta)
+		_camera.position.y = move_toward(_camera.position.y, target_cy, 2.0 * delta)
+
 
 func _update_banking(horizontal_input: float) -> void:
 	# Bank the 3D mesh based on horizontal input
-	var target_bank := -horizontal_input * 35.0
+	var target_bank := -horizontal_input * 55.0
 	_jet_mesh.rotation_degrees.z = move_toward(
-		_jet_mesh.rotation_degrees.z, target_bank, 180.0 * get_process_delta_time()
+		_jet_mesh.rotation_degrees.z, target_bank, 320.0 * get_process_delta_time()
 	)
 
 	if _camera:
-		var target_roll := -horizontal_input * 10.0
+		var target_roll := -horizontal_input * 8.0
 		_camera.rotation_degrees.z = move_toward(
-			_camera.rotation_degrees.z, target_roll, 60.0 * get_process_delta_time()
+			_camera.rotation_degrees.z, target_roll, 100.0 * get_process_delta_time()
 		)
 
 
@@ -169,6 +186,7 @@ func _respawn() -> void:
 	_velocity = Vector2.ZERO
 	if _camera:
 		_camera.rotation_degrees.z = 0.0
+		_camera.position = Vector3(0.0, 5.0, 0.0)
 
 	# Start invincibility
 	_is_invincible = true

@@ -1,36 +1,78 @@
-[gd_scene load_steps=19 format=3 uid="uid://explosion_001"]
+[gd_scene load_steps=25 format=3 uid="uid://explosion_001"]
 
 [ext_resource type="Script" path="res://scripts/effects/explosion.gd" id="1_explosion_script"]
 
-; === FIRE PARTICLES ===
+; === FLASH (initial bright white sphere that quickly expands and fades) ===
+
+[sub_resource type="Gradient" id="flash_gradient"]
+offsets = PackedFloat32Array(0.0, 0.15, 0.5, 1.0)
+colors = PackedColorArray(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.9, 0.9, 1.0, 0.95, 0.7, 0.3, 1.0, 0.9, 0.5, 0.0)
+
+[sub_resource type="GradientTexture1D" id="flash_color_ramp"]
+gradient = SubResource("flash_gradient")
+width = 64
+
+[sub_resource type="Curve" id="flash_scale_curve"]
+_data = [Vector2(0, 0.1), 0.0, 8.0, 0, 0, Vector2(0.25, 1.0), 0.0, -2.0, 0, 0, Vector2(1.0, 0.2), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="flash_scale_curve_tex"]
+curve = SubResource("flash_scale_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="flash_material"]
+emission_shape = 0
+direction = Vector3(0, 0, 0)
+spread = 180.0
+initial_velocity_min = 1.0
+initial_velocity_max = 3.0
+gravity = Vector3(0, 0, 0)
+damping_min = 5.0
+damping_max = 8.0
+scale_min = 6.0
+scale_max = 10.0
+scale_curve = SubResource("flash_scale_curve_tex")
+color_ramp = SubResource("flash_color_ramp")
+
+[sub_resource type="StandardMaterial3D" id="flash_draw_mat"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1, 1, 1, 1)
+billboard_mode = 3
+
+[sub_resource type="QuadMesh" id="flash_mesh"]
+size = Vector2(1.5, 1.5)
+material = SubResource("flash_draw_mat")
+
+; === FIRE PARTICLES (large puffy white/yellow cloud — many overlapping puffs) ===
 
 [sub_resource type="Gradient" id="fire_gradient"]
-offsets = PackedFloat32Array(0.0, 0.15, 0.5, 1.0)
-colors = PackedColorArray(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.4, 1.0, 1.0, 0.55, 0.05, 0.9, 0.6, 0.15, 0.02, 0.0)
+offsets = PackedFloat32Array(0.0, 0.1, 0.35, 0.65, 1.0)
+colors = PackedColorArray(1.0, 1.0, 1.0, 1.0, 1.0, 0.98, 0.85, 1.0, 1.0, 0.85, 0.2, 0.95, 1.0, 0.45, 0.02, 0.7, 0.5, 0.1, 0.0, 0.0)
 
 [sub_resource type="GradientTexture1D" id="fire_color_ramp"]
 gradient = SubResource("fire_gradient")
 width = 64
 
 [sub_resource type="Curve" id="fire_scale_curve"]
-_data = [Vector2(0, 0.3), 0.0, 0.0, 0, 0, Vector2(0.2, 1.0), 0.0, 0.0, 0, 0, Vector2(1.0, 0.0), 0.0, 0.0, 0, 0]
-point_count = 3
+_data = [Vector2(0, 0.2), 0.0, 4.0, 0, 0, Vector2(0.3, 1.0), 0.0, 0.0, 0, 0, Vector2(0.7, 0.85), 0.0, -1.0, 0, 0, Vector2(1.0, 0.0), 0.0, 0.0, 0, 0]
+point_count = 4
 
 [sub_resource type="CurveTexture" id="fire_scale_curve_tex"]
 curve = SubResource("fire_scale_curve")
 
 [sub_resource type="ParticleProcessMaterial" id="fire_material"]
 emission_shape = 1
-emission_sphere_radius = 0.3
-direction = Vector3(0, 0, 0)
+emission_sphere_radius = 0.5
+direction = Vector3(0, 0.3, 0)
 spread = 180.0
-initial_velocity_min = 4.0
-initial_velocity_max = 8.0
-gravity = Vector3(0, 1.0, 0)
-damping_min = 2.0
-damping_max = 4.0
-scale_min = 2.5
-scale_max = 5.0
+initial_velocity_min = 2.0
+initial_velocity_max = 5.0
+gravity = Vector3(0, 0.5, 0)
+damping_min = 3.0
+damping_max = 6.0
+scale_min = 3.0
+scale_max = 6.0
 scale_curve = SubResource("fire_scale_curve_tex")
 color_ramp = SubResource("fire_color_ramp")
 
@@ -42,14 +84,14 @@ albedo_color = Color(1, 1, 1, 1)
 billboard_mode = 3
 
 [sub_resource type="QuadMesh" id="fire_mesh"]
-size = Vector2(1.0, 1.0)
+size = Vector2(1.2, 1.2)
 material = SubResource("fire_draw_mat")
 
-; === SMOKE PARTICLES ===
+; === SMOKE PARTICLES (dark billowing trail) ===
 
 [sub_resource type="Gradient" id="smoke_gradient"]
-offsets = PackedFloat32Array(0.0, 0.3, 0.7, 1.0)
-colors = PackedColorArray(0.45, 0.4, 0.35, 0.8, 0.35, 0.32, 0.28, 0.6, 0.25, 0.22, 0.2, 0.3, 0.2, 0.18, 0.16, 0.0)
+offsets = PackedFloat32Array(0.0, 0.25, 0.6, 1.0)
+colors = PackedColorArray(0.6, 0.55, 0.5, 0.85, 0.45, 0.4, 0.35, 0.65, 0.28, 0.25, 0.22, 0.35, 0.18, 0.16, 0.14, 0.0)
 
 [sub_resource type="GradientTexture1D" id="smoke_color_ramp"]
 gradient = SubResource("smoke_gradient")
@@ -57,16 +99,16 @@ width = 64
 
 [sub_resource type="ParticleProcessMaterial" id="smoke_material"]
 emission_shape = 1
-emission_sphere_radius = 0.5
+emission_sphere_radius = 1.0
 direction = Vector3(0, 1, 0)
-spread = 45.0
-initial_velocity_min = 1.5
-initial_velocity_max = 3.0
-gravity = Vector3(0, 2.0, 0)
-damping_min = 1.0
-damping_max = 2.0
-scale_min = 3.0
-scale_max = 6.0
+spread = 60.0
+initial_velocity_min = 2.0
+initial_velocity_max = 5.0
+gravity = Vector3(0, 2.5, 0)
+damping_min = 0.5
+damping_max = 1.5
+scale_min = 5.0
+scale_max = 10.0
 color_ramp = SubResource("smoke_color_ramp")
 
 [sub_resource type="StandardMaterial3D" id="smoke_draw_mat"]
@@ -77,14 +119,14 @@ albedo_color = Color(1, 1, 1, 1)
 billboard_mode = 3
 
 [sub_resource type="QuadMesh" id="smoke_mesh"]
-size = Vector2(1.2, 1.2)
+size = Vector2(1.5, 1.5)
 material = SubResource("smoke_draw_mat")
 
-; === SPARK PARTICLES ===
+; === DEBRIS SPARKS (orange hot fragments) ===
 
 [sub_resource type="Gradient" id="spark_gradient"]
-offsets = PackedFloat32Array(0.0, 0.4, 1.0)
-colors = PackedColorArray(1.0, 1.0, 0.7, 1.0, 1.0, 0.6, 0.1, 0.8, 0.8, 0.2, 0.0, 0.0)
+offsets = PackedFloat32Array(0.0, 0.3, 0.7, 1.0)
+colors = PackedColorArray(1.0, 1.0, 0.8, 1.0, 1.0, 0.7, 0.1, 1.0, 0.9, 0.3, 0.0, 0.6, 0.3, 0.1, 0.0, 0.0)
 
 [sub_resource type="GradientTexture1D" id="spark_color_ramp"]
 gradient = SubResource("spark_gradient")
@@ -92,16 +134,16 @@ width = 64
 
 [sub_resource type="ParticleProcessMaterial" id="spark_material"]
 emission_shape = 1
-emission_sphere_radius = 0.2
+emission_sphere_radius = 0.5
 direction = Vector3(0, 0, 0)
 spread = 180.0
-initial_velocity_min = 8.0
-initial_velocity_max = 15.0
-gravity = Vector3(0, -5.0, 0)
+initial_velocity_min = 6.0
+initial_velocity_max = 14.0
+gravity = Vector3(0, -4.0, 0)
 damping_min = 1.0
 damping_max = 3.0
-scale_min = 0.08
-scale_max = 0.15
+scale_min = 0.8
+scale_max = 1.8
 color_ramp = SubResource("spark_color_ramp")
 
 [sub_resource type="StandardMaterial3D" id="spark_draw_mat"]
@@ -111,40 +153,47 @@ vertex_color_use_as_albedo = true
 albedo_color = Color(1, 1, 1, 1)
 billboard_mode = 3
 
-[sub_resource type="SphereMesh" id="spark_mesh"]
-radius = 0.5
-height = 1.0
-radial_segments = 4
-rings = 2
+[sub_resource type="QuadMesh" id="spark_mesh"]
+size = Vector2(0.4, 0.4)
 material = SubResource("spark_draw_mat")
 
 [node name="Explosion" type="Node3D"]
 script = ExtResource("1_explosion_script")
 
+[node name="FlashParticles" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 12
+lifetime = 0.5
+one_shot = true
+explosiveness = 1.0
+randomness = 0.1
+process_material = SubResource("flash_material")
+draw_pass_1 = SubResource("flash_mesh")
+
 [node name="FireParticles" type="GPUParticles3D" parent="."]
 emitting = false
-amount = 40
-lifetime = 0.4
+amount = 80
+lifetime = 1.4
 one_shot = true
-explosiveness = 0.95
+explosiveness = 0.8
 randomness = 0.3
 process_material = SubResource("fire_material")
 draw_pass_1 = SubResource("fire_mesh")
 
 [node name="SmokeParticles" type="GPUParticles3D" parent="."]
 emitting = false
-amount = 20
-lifetime = 1.0
+amount = 40
+lifetime = 2.0
 one_shot = true
-explosiveness = 0.6
+explosiveness = 0.5
 randomness = 0.4
 process_material = SubResource("smoke_material")
 draw_pass_1 = SubResource("smoke_mesh")
 
 [node name="SparkParticles" type="GPUParticles3D" parent="."]
 emitting = false
-amount = 30
-lifetime = 0.6
+amount = 25
+lifetime = 1.0
 one_shot = true
 explosiveness = 0.9
 randomness = 0.5

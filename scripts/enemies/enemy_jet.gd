@@ -62,6 +62,9 @@ func _ready() -> void:
 	var visual_id: int = TYPE_DATA[enemy_type]["visual"]
 	var Builder := preload("res://scripts/enemies/enemy_mesh_builder.gd")
 	_enemy_mesh = Builder.build_enemy_mesh(visual_id)
+	# Rotate 180° on Y: mesh nose is at -Z, but enemies approach camera (+Z),
+	# so we flip the mesh to show the nose facing the player.
+	_enemy_mesh.rotation_degrees.y = 180.0
 	add_child(_enemy_mesh)
 	# Delay first shot so enemies don't fire immediately on spawn
 	_fire_timer = randf_range(fire_interval * 0.8, fire_interval * 1.5)

@@ -14,18 +14,24 @@ const BULLET_SPREAD := 0.12  # slight random offset for arcade feel
 const MISSILE_FIRE_COOLDOWN := 0.4  # minimum time between missile shots
 
 ## Sight settings
-const SIGHT_RADIUS := 90.0  # pixels — generous lock-on circle (arcade feel)
+const SIGHT_RADIUS := 250.0  # pixels — lock-on radius around sight
 const LOCK_BREAK_DELAY := 0.5  # seconds before lock breaks after enemy leaves sight
-const SIGHT_SPEED := 10.0  # lerp responsiveness — snappy tracking
-const SIGHT_OFFSET_SCALE := 0.45  # fraction of screen the sight leads ahead (arcade-sized movement)
+## Dynamic sight: leads the jet, driven by player input
+const SIGHT_AHEAD_Y := 120.0  # px above jet screen pos by default
+const SIGHT_LEAD_X := 100.0   # px of horizontal lead per unit of input (-1..1)
+const SIGHT_LEAD_Y := 70.0    # px of vertical lead per unit of input
+const SIGHT_LERP_SPEED := 8.0 # smoothing
 
 ## Targeting state — read by Reticle for drawing
 var sight_screen_pos := Vector2.ZERO
 var locked_enemy: Node3D = null  # single locked target
+var locked_enemy_screen_pos := Vector2.ZERO  # enemy's projected screen position
+var locked_enemy_bracket_size := 48.0  # bracket size scaled by distance
 var _lock_break_timer := 0.0  # time since locked enemy left sight zone
 
 var _vulcan_cooldown := 0.0
 var _missile_cooldown := 0.0
+var _last_fired_left := false  # alternates wing-pylon launch side
 
 ## Container node for spawned projectiles.
 var _projectile_container: Node = null
@@ -33,7 +39,8 @@ var _projectile_container: Node = null
 
 func _ready() -> void:
 	_projectile_container = _find_scene_root()
-	sight_screen_pos = get_viewport().get_visible_rect().size * 0.5
+	var center := get_viewport().get_visible_rect().size * 0.5
+	sight_screen_pos = center + Vector2(0.0, -SIGHT_AHEAD_Y)
 
 
 func _process(delta: float) -> void:
@@ -51,20 +58,33 @@ func _process(delta: float) -> void:
 
 
 func _update_sight(delta: float) -> void:
-	# Screen-space input: X is normal, Y is INVERTED (screen Y grows downward,
-	# but "move_up" should move the sight UP on screen = negative Y).
-	var input := Vector2(
-		Input.get_axis("move_left", "move_right"),
-		Input.get_axis("move_up", "move_down")  # flipped: up->negative screen Y
-	)
-	var viewport_size := get_viewport().get_visible_rect().size
-	var center := viewport_size * 0.5
-	var target_pos := center + input * viewport_size * SIGHT_OFFSET_SCALE
-	sight_screen_pos = sight_screen_pos.lerp(target_pos, SIGHT_SPEED * delta)
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
 
-	var margin := 40.0
-	sight_screen_pos.x = clampf(sight_screen_pos.x, margin, viewport_size.x - margin)
-	sight_screen_pos.y = clampf(sight_screen_pos.y, margin, viewport_size.y - margin)
+	# Project jet into screen space
+	var player := get_parent() as Node3D
+	if player == null:
+		return
+	var jet_world: Vector3 = player.global_position
+	if camera.is_position_behind(jet_world):
+		return
+	var jet_screen: Vector2 = camera.unproject_position(jet_world)
+
+	# Read raw input direction (-1..1 on each axis)
+	var input_x := Input.get_axis("move_left", "move_right")
+	var input_y := Input.get_axis("move_down", "move_up")  # up = positive
+
+	# Target: above the jet, leading in the input direction
+	var target := jet_screen + Vector2(
+		input_x * SIGHT_LEAD_X,
+		-SIGHT_AHEAD_Y + input_y * SIGHT_LEAD_Y   # negative Y = up on screen
+	)
+
+	# Never let sight drop below jet (keep it visually ahead)
+	target.y = minf(target.y, jet_screen.y - 20.0)
+
+	sight_screen_pos = sight_screen_pos.lerp(target, SIGHT_LERP_SPEED * delta)
 
 
 func _update_lockon(delta: float) -> void:
@@ -93,6 +113,8 @@ func _update_lockon(delta: float) -> void:
 		if best_enemy != locked_enemy:
 			AudioManager.play_lockon_beep()
 		locked_enemy = best_enemy
+		locked_enemy_screen_pos = camera.unproject_position(best_enemy.global_position)
+		locked_enemy_bracket_size = _get_enemy_bracket_size(best_enemy, camera)
 		_lock_break_timer = 0.0
 	elif locked_enemy != null:
 		# No enemy in zone — tick break timer
@@ -151,10 +173,20 @@ func _fire_missile() -> void:
 	_missile_cooldown = MISSILE_FIRE_COOLDOWN
 	AudioManager.play_missile_launch()
 
+	_last_fired_left = not _last_fired_left
+	var pylon_x := -0.8 if _last_fired_left else 0.8
+	var spawn_offset := Vector3(pylon_x, -0.15, 0.1)
+
 	var missile: Area3D = MissileScene.instantiate()
-	missile.position = get_parent().global_position
+	missile.position = get_parent().global_position + spawn_offset
 	missile.target = locked_enemy if is_instance_valid(locked_enemy) else null
 	_projectile_container.add_child(missile)
+
+
+func _get_enemy_bracket_size(enemy: Node3D, camera: Camera3D) -> float:
+	## Scale brackets 60px (near) → 36px (far) based on distance to camera.
+	var dist := camera.global_position.distance_to(enemy.global_position)
+	return clampf(remap(dist, 10.0, 60.0, 60.0, 36.0), 36.0, 60.0)
 
 
 func _find_scene_root() -> Node:

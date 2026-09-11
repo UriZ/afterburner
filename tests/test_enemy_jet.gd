@@ -117,7 +117,7 @@ func test_take_damage_reduces_health() -> void:
 func test_bullet_creation() -> void:
 	print("\ntest_bullet_creation:")
 	var enemy := _create_enemy()
-	var bullet := enemy._create_bullet()
+	var bullet: Variant = enemy._create_bullet()
 	assert_true(bullet != null, "Bullet is created")
 	assert_true(bullet is Area3D, "Bullet is an Area3D")
 	assert_eq(bullet.collision_layer, 4, "Bullet collision layer is 4")

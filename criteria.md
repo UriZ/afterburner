@@ -1,5 +1,19 @@
 # Quality Criteria
 
+## THE ONE RULE THAT OVERRIDES EVERYTHING
+
+**The game must look and feel as close as possible to the original After Burner II arcade game.**
+
+This is the ONLY criterion that matters. Every decision — mesh design, movement, effects, colors, HUD, sound — must be evaluated against one question: **"Does this look and feel like After Burner II?"** If the answer is no, it fails. Period.
+
+- "The code works" doesn't matter if it doesn't look like AB2.
+- "The parameters are correct" doesn't matter if the result doesn't feel like AB2.
+- "It technically meets the spec" doesn't matter if a player wouldn't recognize it as AB2.
+
+**Every agent** (designer, developer, judge, QA) must internalize this. Watch the gameplay videos. Study the reference screenshots. Compare EVERY visual element against the original. The gap between our game and AB2 is what we're closing. Nothing else matters.
+
+---
+
 This file defines what the judge agent evaluates against. Three layers: project-level, per-role, and per-task.
 
 ## Judge Configuration
@@ -14,20 +28,38 @@ JUDGE_TL: true
 
 ## Reference Material
 
-**Reference screenshot**: `assets/reference/ab2-arcade-desert.png` — an actual After Burner II arcade screenshot.
+The judge and QA MUST view ALL reference images and videos (Read tool) before every visual evaluation. Compare our game frame-by-frame against these references. If the gap is large, FAIL.
 
-The judge and QA MUST view this reference image (Read tool) before every visual evaluation. Compare our game frame-by-frame against this reference. If the gap is large, FAIL.
+### Reference Screenshots (ALL MANDATORY — view every one before evaluating)
 
-Source: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/images/7687-after-burner-ii)
+| File | Shows | Key Details |
+|------|-------|-------------|
+| `assets/reference/ab2-arcade-desert.png` | Desert stage, standard gameplay | Ground colors, horizon position, jet size, HUD layout |
+| `assets/reference/ab2-arcade-desert-explosions.png` | Desert stage with multiple explosions | HUGE puffy white/yellow explosion clouds, chaotic screen, multiple enemies |
+| `assets/reference/ab2-arcade-night-banking.png` | Night stage, F-14 banking with fire | Massive afterburner flames, dark ground with city lights, dramatic fire effect |
+| `assets/reference/ab2-arcade-closeup-enemies.jpg` | Close-up with enemy jets | Large dark-green enemy jets with detail, massive explosion filling half the screen, F-14 dorsal view with shading |
+| `assets/reference/ab2-arcade-coastal-banking.jpg` | Coastal stage, F-14 banking | Rocky terrain, ocean, blue enemy jets, green ground — shows terrain variety and banking |
+| `assets/reference/ab2-arcade-night-missiles.jpg` | Night stage with missile trails | F-14 with massive flames, missile smoke trails, enemy approaching — shows combat feel |
+| `assets/reference/ab2-arcade-city-stage.jpg` | City/forest stage with explosions | Buildings below, green terrain, blue enemies, mid-air explosions — shows stage variety |
+| `assets/reference/ab2-arcade-reload-dorsal.jpg` | Reload screen, F-14 dorsal close-up | Best reference for F-14 shape from behind — wing sweep, tail fins, canopy, panel lines |
+| `assets/reference/ab2-arcade-huge-explosion.jpg` | Massive explosion filling screen | Orange/yellow puffy cloud covering 80%+ of screen — THIS is how big explosions should be |
+
+### Reference Videos (for context — agents should understand the feel/speed)
+
+- After Burner II 60 FPS Longplay: `https://www.youtube.com/watch?v=65weTx0haog`
+- After Burner II Arcade Gameplay: `https://www.youtube.com/watch?v=8d-S1kcjieA`
+- After Burner II Arcade Longplay: `https://www.youtube.com/watch?v=W2loyeq9pDA`
+
+Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/images/7687-after-burner-ii), [Games Database](https://www.gamesdatabase.org), [Internet Archive](https://archive.org)
 
 ## Judge Mandatory Procedure
 
 1. **Read this file** (criteria.md)
-2. **View the reference screenshot** at `assets/reference/ab2-arcade-desert.png`
+2. **View ALL 9 reference screenshots** with the Read tool (every file in `assets/reference/`)
 3. **Capture gameplay** using the game-capture or game-video skill with `--start-game`
 4. **View ALL captured frames** with the Read tool
-5. **Compare EVERY element** against the reference — jet appearance, colors, ground, enemies, screen busyness, HUD
-6. **Be brutally honest** about the gap between our game and the reference
+5. **Compare EVERY element** against ALL 4 references — jet appearance, colors, ground, enemies, explosions, screen busyness, HUD
+6. **Be brutally honest** about the gap between our game and the references
 
 **Code that compiles and passes tests but looks bad is a FAIL.** The judge evaluates the VISUAL RESULT, not the code quality.
 
@@ -45,6 +77,8 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 - **Swept wings** clearly visible extending to both sides — NOT rectangles, they have aerodynamic planform
 - **Twin vertical tail fins** prominent at the rear
 - **Cockpit canopy** visible as a dark bubble on top of the fuselage
+- **Nose/radome** must be a WIDE, SMOOTH, bullet-shaped taper — like a real F-14 (it houses a 36-inch AWG-9 radar dish). NOT a needle, NOT a spike, NOT a thin antenna, NOT a blunt cone. It has substantial width at the base (nearly fuselage width) and tapers gradually to a slightly rounded tip over ~25% of total aircraft length. A needle/spike nose = FAIL. A stubby cone = FAIL. Compare against real F-14 photos.
+- **Every major component must be shaped AND proportionally correct.** Nose, canopy, wings, intakes, nacelles, tail fins, nozzles — each needs correct proportions relative to the whole aircraft, verified against real aircraft photos AND arcade references. A mesh with good wings but a wrong-proportioned nose is half-finished = FAIL.
 - **Afterburner flames are MASSIVE** — bright yellow/white core, orange outer, nearly as long as the jet body itself. They are the most eye-catching element. If the flames aren't dramatic and large, FAIL.
 - The jet fills **25-30% of screen height** and dominates the bottom quarter
 - The jet has **visual detail and shading** — it is NOT a flat-colored 3D shape. It has highlights, shadows, panel lines, color variation across the surface
@@ -100,6 +134,10 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 6. **Colors must be vivid and saturated.** Muted greys, washed-out pastels, or low-contrast color schemes = FAIL. Compare to the reference: hot oranges, deep blues, bright reds.
 
+7. **No rendering artifacts.** Seams, tearing, Z-fighting, flickering, or visual glitches of any kind = FAIL.
+
+8. **Player jet must move freely across the screen.** The jet must be able to reach all areas of the viewport, not be stuck at the bottom. Compare to AB2 — the jet roams the full screen.
+
 ---
 
 ### Visual Fidelity (Critical — all must pass)
@@ -145,7 +183,7 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 | 1 | Matches spec | Critical | Implementation matches spec exactly |
 | 2 | Runs in Godot | Critical | Opens and runs without errors in 4.6.2 |
 | 3 | Feature works | Critical | Actually functions as specified |
-| 4 | LOOKS RIGHT | Critical | View the reference at `assets/reference/ab2-arcade-desert.png`. Does your output look like that? If not, FAIL. Code that works but looks wrong = FAIL. |
+| 4 | LOOKS RIGHT | Critical | View ALL references in `assets/reference/` AND gameplay videos. Does your output look like After Burner II? If not, FAIL. Code that works but looks wrong = FAIL. |
 | 5 | Tests present | High | Tests for core logic |
 | 6 | No scope creep | High | Only what was specified |
 
@@ -153,10 +191,11 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 | # | Criterion | Weight | Description |
 |---|-----------|--------|-------------|
-| 1 | Reference comparison | Critical | Must view `assets/reference/ab2-arcade-desert.png` AND capture gameplay video. List EVERY visible difference between our game and the reference. |
-| 2 | All acceptance criteria tested | Critical | Every criterion explicitly verified |
-| 3 | Bug reports actionable | High | Repro steps, expected vs actual, root cause |
-| 4 | Video evidence | Critical | Must capture video with game-video skill. Static frames are insufficient. |
+| 1 | View ALL references | Critical | Must view ALL 4 reference screenshots in `assets/reference/` AND watch AB2 gameplay videos (URLs in Reference Material section above). Internalize what the game should look and feel like before testing. |
+| 2 | Capture gameplay evidence | Critical | Must capture video with game-video skill AND frame sequence with game-capture skill. Both are required. |
+| 3 | List EVERY difference | Critical | Compare our game against ALL references (screenshots AND videos). List EVERY visible difference — jet shape, colors, flames, explosions, ground, sky, enemies, HUD, screen busyness, speed sensation, enemy behavior. Nothing is too small to note. |
+| 4 | All acceptance criteria tested | Critical | Every criterion from the issue explicitly verified with evidence |
+| 5 | Bug reports actionable | High | Each bug: severity, repro steps, expected (citing which reference), actual (citing which frame), root cause hypothesis with file:line |
 
 ### Architect
 
@@ -172,7 +211,7 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 ## Verdict Rules
 
-- **PASS**: Score >= 9/10. ALL critical criteria met. Looks like After Burner II when compared to the reference screenshot.
+- **PASS**: Score >= 9/10. ALL critical criteria met. Looks like After Burner II when compared to the reference screenshot and videos, same look and feel 
 - **FAIL**: Any critical criterion not met. Or it doesn't look like the reference. Period.
 - **When in doubt, FAIL.** The cost of passing bad work is higher than sending it back.
 

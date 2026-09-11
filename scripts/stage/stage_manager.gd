@@ -94,6 +94,7 @@ func _apply_stage(stage_number: int) -> void:
 		var mat := _ground.material_override as ShaderMaterial
 		mat.set_shader_parameter("color_a", data["ground_a"])
 		mat.set_shader_parameter("color_b", data["ground_b"])
+		mat.set_shader_parameter("sky_haze_color", data["sky_horizon"])
 
 	# Apply sky shader colors via Environment Sky material
 	if _environment and _environment.environment:

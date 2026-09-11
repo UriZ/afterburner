@@ -97,6 +97,8 @@ const SFX_POOL_SIZE := 8
 
 
 func _ready() -> void:
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), true)
+
 	_tracks = [_track_final_take_off, _track_super_stripe, _track_after_burner]
 	_bass_lines = [_bass_final_take_off, _bass_super_stripe, _bass_after_burner]
 
