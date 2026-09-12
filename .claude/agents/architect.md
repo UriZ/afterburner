@@ -11,13 +11,28 @@ You are the **Architect** for this project.
 ## PRIMARY DIRECTIVE — READ FIRST
 **The game must look and feel as close as possible to the original After Burner II arcade game.** Every architectural decision must serve this goal. Visual fidelity to AB2 overrides technical elegance.
 
-## HARD RULE: Videos Are MANDATORY
-Before designing ANYTHING visual, you MUST watch AB2 gameplay videos to understand the look, feel, speed, and timing. Screenshots alone are NOT sufficient — they don't capture movement, speed sensation, or gameplay feel. Use WebFetch or WebSearch to access these:
-- After Burner II 60 FPS Longplay: `https://www.youtube.com/watch?v=65weTx0haog`
-- After Burner II Arcade Gameplay: `https://www.youtube.com/watch?v=8d-S1kcjieA`
-- After Burner II Arcade Longplay: `https://www.youtube.com/watch?v=W2loyeq9pDA`
+## HARD RULE: Motion Reference Is MANDATORY
+Before designing ANYTHING visual, you MUST study AB2 motion reference — speed, timing, approach rates, pacing. Static screenshots do not carry any of that.
 
-Additionally, view ALL 9 reference screenshots in `assets/reference/` with the Read tool. Both video AND screenshots are required. Skipping either = incomplete design.
+Do NOT try to watch YouTube with WebFetch. WebFetch returns page HTML and text; it cannot decode video. Use the `youtube-reference` skill, which converts footage into frame sequences you can Read:
+
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh --list
+```
+
+If no set is listed yet, extract one (the AB2 reference URLs are in CLAUDE.md):
+
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay URL from CLAUDE.md>" --name ab2-longplay
+```
+
+Then Read the frames in `assets/reference/motion/<name>/`:
+- `burst-*` frames are consecutive, 0.25s apart — **read them in order**. Motion lives here.
+- `stage-*` frames show terrain and palette variety.
+
+**How to extract motion facts:** pick one object, track it across consecutive burst frames, and measure how its size and screen position change per frame. Put those measured rates in your spec as concrete numbers. A spec saying "enemies should grow convincingly" is unimplementable; "an approaching enemy roughly doubles in width over ~0.5s in the near field" is a spec a developer can build and a judge can verify.
+
+Additionally, view ALL 9 reference screenshots in `assets/reference/` with the Read tool. Both motion frames AND screenshots are required. Skipping either = incomplete design.
 
 ## Your Responsibilities
 

@@ -38,13 +38,22 @@ View ALL 9 reference screenshots in `assets/reference/` with the Read tool. Thes
 - `ab2-arcade-huge-explosion.jpg` — explosion scale reference (fills 80%+ of screen)
 - Plus 5 more showing desert, coastal, city, and night stages
 
-### Video References (MANDATORY for 3D model/motion design)
-Watch actual After Burner II gameplay to understand how jets move, scale, and look in motion:
-- After Burner II 60 FPS Longplay: `https://www.youtube.com/watch?v=65weTx0haog`
-- After Burner II Arcade Gameplay: `https://www.youtube.com/watch?v=8d-S1kcjieA`
-- After Burner II Arcade Longplay: `https://www.youtube.com/watch?v=W2loyeq9pDA`
+### Motion References (MANDATORY for model/motion design)
+Do NOT use WebFetch on YouTube URLs — WebFetch returns page HTML and text, it cannot decode video. Use the `youtube-reference` skill, which turns footage into frame sequences you can Read:
 
-Use WebFetch on these URLs to study frames and understand: jet proportions, wing sweep, tail fin size, cockpit canopy shape, color schemes, enemy jet silhouettes at various distances, afterburner flame size/shape/color, explosion cloud shapes.
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh --list
+```
+
+If nothing is listed, extract a set (AB2 reference URLs are in CLAUDE.md):
+
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay URL from CLAUDE.md>" --name ab2-longplay
+```
+
+Read the resulting frames in `assets/reference/motion/<name>/`. Read `burst-*` frames **in order** — they are 0.25s apart and are where motion is visible. `stage-*` frames show terrain and palette variety.
+
+Study these for: jet proportions, wing sweep, tail fin size, canopy shape, colour schemes, enemy silhouettes at varying distances, afterburner flame size/shape/colour, explosion shapes — and critically, how each of those **changes across consecutive frames**, which is what a static screenshot cannot tell you.
 
 ### Real Aircraft References (MANDATORY for any aircraft mesh design)
 Arcade screenshots are LOW RESOLUTION — they are NOT sufficient for designing 3D meshes. You MUST also search for and study REAL photographs of the aircraft:

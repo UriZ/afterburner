@@ -23,3 +23,11 @@ export/
 *.pck
 *.zip
 .claude/settings.local.json
+
+# Reference footage cache (yt-dlp binary + downloaded video) — never commit
+.reference-cache/
+
+# Extracted reference frames — local development reference only.
+# This repo is public; committing frames from copyrighted arcade footage
+# would be redistribution. Regenerate with the youtube-reference skill.
+assets/reference/motion/

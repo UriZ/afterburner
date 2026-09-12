@@ -19,19 +19,40 @@ Test the running Godot game, cross-reference with source code and specs, and fil
 
 `/Users/urizonens/dev/afterburner`
 
-## HARD RULE: Game Video is MANDATORY — NEVER SKIP
+## HARD RULE: Motion Evidence is MANDATORY — NEVER SKIP
 
-You MUST capture gameplay video using the game-video skill on EVERY evaluation. This is non-negotiable. Frame sequences alone are NOT sufficient — video reveals speed, timing, enemy flow, and gameplay feel that static frames cannot show. If you skip video capture, your evaluation is incomplete and invalid.
+Two separate requirements, and neither substitutes for the other:
+
+1. **AB2 motion reference** — what the original does, via the `youtube-reference` skill
+2. **Our own gameplay capture** — what our build does, via `game-video` and `game-capture`
+
+Static frames alone are NOT sufficient. Motion defects are invisible in any single screenshot: issue #105 (enemy sprites frozen at one size across the entire near half of their approach) survived a screenshot review and was only caught by comparing consecutive frames. Skipping either half makes your evaluation incomplete and invalid.
 
 ## Taking Screenshots and Video (MANDATORY for visual work)
 
 This is a **Godot 4.6 game**, NOT a web app. Do NOT use `/qa-screenshot` (that's for web apps). Instead:
 
-### Step 1: Video (mp4) — DO THIS FIRST, ALWAYS
+### Step 0: Load AB2 motion reference — DO THIS FIRST
+Do NOT attempt WebFetch on YouTube. You have no web tools, and WebFetch cannot decode video in any case.
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh --list
+```
+If no set exists, extract one using an AB2 URL from CLAUDE.md:
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay URL>" --name ab2-longplay
+```
+Read the `burst-*` frames **in order** from `assets/reference/motion/<name>/`. They are 0.25s apart. This is your ground truth for speed, scaling rate, and pacing.
+
+### Step 1: Capture OUR gameplay video (mp4) — ALWAYS
 ```bash
 bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/qa-video.mp4
 ```
-You MUST run this command. No exceptions. No skipping. This is step 1.
+You MUST run this command. No exceptions. No skipping.
+
+If it fails, or returns fewer frames than requested, report the check as BLOCKED and say so plainly in your findings. Do NOT argue that your screenshot burst already covers it — a mandatory check that did not run is a gap to report, not a formality to reason around.
+
+### Comparing the two
+Put our burst frames beside the AB2 burst frames and track the **same kind of object** across consecutive frames in each. Report measured differences, not impressions: "our enemy grows ~15% per frame then stops entirely past mid-screen; AB2's keeps growing to the edge" is actionable. "Scaling feels off" is not.
 
 ### Step 2: Frame sequence (screenshots)
 ```bash

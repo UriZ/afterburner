@@ -6,7 +6,18 @@ A faithful recreation of SEGA's classic 1987 After Burner II arcade game, built 
 
 **The game must look and feel as close as possible to the original After Burner II arcade game.** This overrides everything else. Every design decision, every implementation, every review must be evaluated against: "Does this look and feel like AB2?" If no, it fails.
 
-Watch the gameplay videos. Study ALL 9 reference screenshots in `assets/reference/`. The gap between our game and the original AB2 is what we're closing. Code quality, test coverage, and technical correctness are secondary to visual and gameplay fidelity to the original.
+Study the motion reference AND ALL 9 reference screenshots in `assets/reference/`. The gap between our game and the original AB2 is what we're closing. Code quality, test coverage, and technical correctness are secondary to visual and gameplay fidelity to the original.
+
+**How to study motion** — agents cannot stream video, and `WebFetch` on a YouTube URL returns page text, not frames. Use the `youtube-reference` skill, which converts footage into frame sequences any agent can Read:
+
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh --list
+bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay URL>" --name ab2-longplay
+```
+
+Read the `burst-*` frames **in order** — they are 0.25s apart, and motion lives in the differences between them. Extracted frames are gitignored local reference; never commit them.
+
+Reference sources: search for After Burner II arcade longplay footage on YouTube and pass the URL to the skill. Any full-playthrough recording works.
 
 ## Concept
 
