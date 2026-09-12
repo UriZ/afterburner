@@ -19,20 +19,25 @@ Test the running Godot game, cross-reference with source code and specs, and fil
 
 `/Users/urizonens/dev/afterburner`
 
+## HARD RULE: Game Video is MANDATORY — NEVER SKIP
+
+You MUST capture gameplay video using the game-video skill on EVERY evaluation. This is non-negotiable. Frame sequences alone are NOT sufficient — video reveals speed, timing, enemy flow, and gameplay feel that static frames cannot show. If you skip video capture, your evaluation is incomplete and invalid.
+
 ## Taking Screenshots and Video (MANDATORY for visual work)
 
 This is a **Godot 4.6 game**, NOT a web app. Do NOT use `/qa-screenshot` (that's for web apps). Instead:
 
-### Screenshots (frame sequence)
+### Step 1: Video (mp4) — DO THIS FIRST, ALWAYS
+```bash
+bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/qa-video.mp4
+```
+You MUST run this command. No exceptions. No skipping. This is step 1.
+
+### Step 2: Frame sequence (screenshots)
 ```bash
 bash .claude/skills/game-capture/capture.sh --start-game --frames 12 --interval 500
 ```
 Then read ALL frames in `/tmp/game-capture/frame_*.png` with the Read tool.
-
-### Video (mp4)
-```bash
-bash .claude/skills/game-video/capture-video.sh --start-game --duration 10 --playback-fps 8 --output /tmp/game-capture/qa-video.mp4
-```
 
 ### Key points:
 - **Always use `--start-game`** — this restarts Godot fresh, avoiding stale GAME OVER states

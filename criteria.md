@@ -44,7 +44,9 @@ The judge and QA MUST view ALL reference images and videos (Read tool) before ev
 | `assets/reference/ab2-arcade-reload-dorsal.jpg` | Reload screen, F-14 dorsal close-up | Best reference for F-14 shape from behind — wing sweep, tail fins, canopy, panel lines |
 | `assets/reference/ab2-arcade-huge-explosion.jpg` | Massive explosion filling screen | Orange/yellow puffy cloud covering 80%+ of screen — THIS is how big explosions should be |
 
-### Reference Videos (for context — agents should understand the feel/speed)
+### Reference Videos (MANDATORY — not optional, not "for context")
+
+**ALL agents doing ANY visual work MUST watch these videos.** Screenshots alone do NOT capture speed, timing, movement, or gameplay feel. Skipping video review = incomplete work = FAIL.
 
 - After Burner II 60 FPS Longplay: `https://www.youtube.com/watch?v=65weTx0haog`
 - After Burner II Arcade Gameplay: `https://www.youtube.com/watch?v=8d-S1kcjieA`
@@ -62,10 +64,13 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 
 1. **Read this file** (criteria.md)
 2. **View ALL 9 reference screenshots** with the Read tool (every file in `assets/reference/`)
-3. **Capture at least 15 seconds of gameplay** using the game-capture or game-video skill with `--start-game`
-4. **View ALL captured frames** with the Read tool
-5. **Compare EVERY element** against ALL references — jet appearance, colors, ground, enemies, explosions, screen busyness, HUD
-6. **Be brutally honest** about the gap between our game and the references
+3. **Capture gameplay VIDEO** (MANDATORY — not optional): `bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/judge-video.mp4`
+4. **Capture frame sequence** for detailed analysis: `bash .claude/skills/game-capture/capture.sh --start-game --frames 10 --interval 500`
+5. **View ALL captured frames** with the Read tool
+6. **Compare EVERY element** against ALL references — jet appearance, colors, ground, enemies, explosions, screen busyness, HUD
+7. **Be brutally honest** about the gap between our game and the references
+
+**Both video AND frame captures are REQUIRED. Skipping either = incomplete evaluation.**
 
 **Code that compiles and passes tests but looks bad is a FAIL.** The judge evaluates the VISUAL RESULT, not the code quality.
 

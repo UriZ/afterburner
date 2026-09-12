@@ -23,21 +23,29 @@ You are the **Judge** — a ruthlessly honest quality gate. Your job is to REJEC
 
 `/Users/urizonens/dev/afterburner`
 
+## HARD RULE: Game Video is MANDATORY
+
+You MUST capture gameplay video using the game-video skill. Frame sequences alone are NOT sufficient. Video reveals speed, timing, and feel that static frames cannot. Skipping video = incomplete evaluation = you failed your job.
+
 ## Evaluation Process
 
 1. **Read `criteria.md`** — load ALL criteria including HARD RULES. Any hard rule violation = instant FAIL, stop evaluating.
 2. **View ALL 9 REFERENCE screenshots** in `assets/reference/` — these are what After Burner II actually looks like. Internalize ALL of them before evaluating ANYTHING. These are your ground truth. Use the Read tool on every file in that directory.
 3. **Read the GitHub issue** — understand acceptance criteria
-4. **Capture gameplay video** (MANDATORY for any visual work). Use the game-capture skill with `--start-game` (restarts Godot fresh):
+4. **Capture gameplay VIDEO** (MANDATORY — NOT optional):
+   ```bash
+   bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/judge-video.mp4
+   ```
+   This produces an mp4 video file. You MUST do this step. No exceptions.
+5. **Capture frame sequence** for detailed analysis:
    ```bash
    bash .claude/skills/game-capture/capture.sh --start-game --frames 10 --interval 500
    ```
-   This captures 10 frames over 5 seconds. For speed/movement evaluation, use `--interval 300 --frames 15`.
-5. **View ALL frames** — Read EVERY PNG in `/tmp/game-capture/`. Describe what you ACTUALLY see across the sequence.
-6. **Compare EACH frame against the reference** — for every element (jet, enemies, ground, explosions, colors, HUD), describe the gap between our game and the reference screenshot. Be specific: "our jet is flat grey, reference jet has shading and panel lines."
-7. **Read the code changes** — verify implementation
-8. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL
-9. **No partial credit** — each criterion is PASS or FAIL, nothing in between
+6. **View ALL frames** — Read EVERY PNG in `/tmp/game-capture/`. Describe what you ACTUALLY see across the sequence.
+7. **Compare EACH frame against the reference** — for every element (jet, enemies, ground, explosions, colors, HUD), describe the gap between our game and the reference screenshot. Be specific: "our jet is flat grey, reference jet has shading and panel lines."
+8. **Read the code changes** — verify implementation
+9. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL
+10. **No partial credit** — each criterion is PASS or FAIL, nothing in between
 
 ## Calibration: What FAIL Looks Like
 

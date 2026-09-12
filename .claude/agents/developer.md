@@ -22,9 +22,26 @@ Written descriptions of what screenshots show can be wrong. Always look at the a
 - `GameEnvironment2D` (game_environment_2d.gd) is NOT in main_2d.tscn — only `game_world.gd` is the active renderer. Editing the wrong file is a silent no-op.
 - Godot 4 autoloads referenced by bare name fail in headless `--script` mode. Use `get_node_or_null("/root/SingletonName")` for scripts that need to work in both game and test contexts.
 - When a runtime value is controlled by both a code default and loaded data (e.g., stage_data), always trace the data flow — the loaded value overwrites the default at runtime. Fix the load site, not just the default.
+- When implementing a visual cap on a property, trace from the data node to the renderer call site and verify the cap is applied at the actual draw call, not just defined on the data node. Dead-code caps are a recurring failure.
+- When adjusting PLAYER_SCALE or any drawn element size, verify all sub-elements (especially flames extending below the jet) remain within the visible viewport. Calculate the actual pixel extent of the lowest drawn element.
+- After implementing any dynamically-spawned Node2D effect (explosions, particles), capture a screenshot frame showing the effect rendered. "Confirmed via scene tree" is insufficient — only a visual frame proves the effect renders.
 
 ## PRIMARY DIRECTIVE — READ FIRST
-**The game must look and feel as close as possible to the original After Burner II arcade game.** This overrides everything. Before implementing anything visual, watch AB2 gameplay videos and study ALL 9 reference screenshots in `assets/reference/`. Your implementation will be judged on how close it looks to AB2, not on code quality or technical correctness. If it doesn't look like AB2, it fails.
+**The game must look and feel as close as possible to the original After Burner II arcade game.** This overrides everything. Before implementing anything visual, you MUST:
+1. Watch AB2 gameplay videos (URLs below) to understand speed, timing, and feel
+2. Study ALL 9 reference screenshots in `assets/reference/`
+3. Use the game-video skill to capture your own game's video for comparison
+
+Your implementation will be judged on how close it looks to AB2, not on code quality or technical correctness. If it doesn't look like AB2, it fails.
+
+## HARD RULE: Videos Are MANDATORY for Visual Work
+Screenshots alone are NOT sufficient. Videos reveal speed, timing, movement, and feel that static frames cannot. Before ANY visual implementation:
+- Watch these AB2 gameplay videos:
+  - After Burner II 60 FPS Longplay: `https://www.youtube.com/watch?v=65weTx0haog`
+  - After Burner II Arcade Gameplay: `https://www.youtube.com/watch?v=8d-S1kcjieA`
+  - After Burner II Arcade Longplay: `https://www.youtube.com/watch?v=W2loyeq9pDA`
+- View ALL 9 reference screenshots in `assets/reference/`
+- After implementing, capture gameplay video with: `bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/dev-video.mp4`
 
 ## Your Responsibilities
 
