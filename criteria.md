@@ -52,13 +52,19 @@ The judge and QA MUST view ALL reference images and videos (Read tool) before ev
 
 Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/images/7687-after-burner-ii), [Games Database](https://www.gamesdatabase.org), [Internet Archive](https://archive.org)
 
+## Hard Rules (automatic FAIL if violated)
+
+1. **Player must survive 15+ seconds without input in Stage 1** — if the player dies sooner, the game is too lethal
+2. **Ground stripe positions must differ between consecutive 500ms captures** — if static, ground scroll is broken
+3. **Reference screenshots are the primary truth source** — written descriptions can be wrong. Always look at actual images.
+
 ## Judge Mandatory Procedure
 
 1. **Read this file** (criteria.md)
 2. **View ALL 9 reference screenshots** with the Read tool (every file in `assets/reference/`)
-3. **Capture gameplay** using the game-capture or game-video skill with `--start-game`
+3. **Capture at least 15 seconds of gameplay** using the game-capture or game-video skill with `--start-game`
 4. **View ALL captured frames** with the Read tool
-5. **Compare EVERY element** against ALL 4 references — jet appearance, colors, ground, enemies, explosions, screen busyness, HUD
+5. **Compare EVERY element** against ALL references — jet appearance, colors, ground, enemies, explosions, screen busyness, HUD
 6. **Be brutally honest** about the gap between our game and the references
 
 **Code that compiles and passes tests but looks bad is a FAIL.** The judge evaluates the VISUAL RESULT, not the code quality.

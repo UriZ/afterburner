@@ -12,7 +12,7 @@ const BONUS_MISSILE_REWARD := 30
 # Wave definitions: type, count, formation pattern
 var wave_definitions: Array[Dictionary] = [
 	{"type": 0, "count": 4, "formation": "v"},
-	{"type": 0, "count": 5, "formation": "line"},
+	{"type": 0, "count": 3, "formation": "line"},
 	{"type": 1, "count": 4, "formation": "v"},
 	{"type": 0, "count": 5, "formation": "v"},
 	{"type": 2, "count": 4, "formation": "line"},
@@ -26,7 +26,7 @@ var wave_definitions: Array[Dictionary] = [
 ]
 
 var _spawn_timer: float = 0.0
-var _spawn_interval: float = 1.5
+var _spawn_interval: float = 0.8
 var _wave_index: int = 0
 var _spawning_enabled: bool = true
 
@@ -37,9 +37,12 @@ var _announce_label: Label = null
 
 
 func _ready() -> void:
+	# If launched directly (not from title screen), ensure phase is PLAYING
+	if GameState.phase == GameState.Phase.TITLE:
+		GameState.phase = GameState.Phase.PLAYING
 	_create_announce_label()
 	_apply_stage(GameState.current_stage)
-	_spawn_timer = 0.0  # spawn first wave immediately after announcement
+	_spawn_timer = 0.0  # spawn first wave immediately when announcement clears
 
 
 func _process(delta: float) -> void:
@@ -88,8 +91,8 @@ func _apply_stage(stage_number: int) -> void:
 		game_world.ground_color_a = data["ground_a"]
 		game_world.ground_color_b = data["ground_b"]
 
-	# Update spawn difficulty
-	_spawn_interval = data["spawn_interval"]
+	# Update spawn difficulty — cap at 0.8s to keep constant action
+	_spawn_interval = minf(data["spawn_interval"], 0.8)
 
 	_stage_timer = STAGE_DURATION
 

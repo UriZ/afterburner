@@ -26,10 +26,11 @@ func _init_sparks() -> void:
 	var spark_count := 10
 	for i in range(spark_count):
 		var angle := randf() * TAU
-		var spd := randf_range(80.0, 160.0)
+		# speed_frac resolved against base_radius in _draw_sparks
+		var spd_frac := randf_range(0.8, 1.6)
 		_sparks.append({
 			"dir": Vector2(cos(angle), sin(angle)),
-			"speed": spd,
+			"speed_frac": spd_frac,
 			"lifetime": randf_range(0.3, 0.6),
 			"color": Color(1.0, 0.8, 0.133) if i % 2 == 0 else Color(1.0, 0.4, 0.0),
 		})
@@ -40,11 +41,12 @@ func _init_smoke() -> void:
 	for i in range(count):
 		var angle := randf() * TAU
 		var dist := randf_range(0.0, 0.5)
-		var r := randf_range(20.0, 40.0)
+		# radius stored as fraction of base_radius — resolved in _draw_smoke
+		var r_frac := randf_range(0.25, 0.55)
 		_smoke_puffs.append({
 			"offset_dir": Vector2(cos(angle), sin(angle)),
 			"max_dist": dist,
-			"radius": r,
+			"radius_frac": r_frac,
 			"delay": randf_range(0.0, 0.15),
 		})
 
@@ -80,7 +82,7 @@ func _draw() -> void:
 func _draw_flash(t: float) -> void:
 	var r: float = base_radius * 2.5 * (0.2 + t * 0.8)
 	var a: float = 1.0 - t * 0.7
-	draw_circle(Vector2.ZERO, maxf(r, 40.0), Color(1.0, 1.0, 0.9, a))
+	draw_circle(Vector2.ZERO, maxf(r, base_radius * 0.5), Color(1.0, 1.0, 0.9, a))
 
 
 func _draw_fire(t: float) -> void:
@@ -140,7 +142,7 @@ func _draw_smoke(t: float) -> void:
 		var drift: Vector2 = puff["offset_dir"] * puff["max_dist"] * base_radius * local_t
 		# Jitter
 		drift += Vector2(randf_range(-2.0, 2.0), randf_range(-2.0, 2.0))
-		var r: float = puff["radius"] * (0.6 + local_t * 0.4)
+		var r: float = puff["radius_frac"] * base_radius * (0.6 + local_t * 0.4)
 		var a: float = 0.85 * (1.0 - local_t)
 
 		var color: Color
@@ -155,14 +157,13 @@ func _draw_smoke(t: float) -> void:
 
 
 func _draw_sparks() -> void:
-	var spark_t: float = _lifetime / 0.6
 	for spark in _sparks:
 		var life: float = spark["lifetime"]
 		if _lifetime > life:
 			continue
 		var st: float = _lifetime / life
 		var a: float = 1.0 - st
-		var spd: float = spark["speed"]
+		var spd: float = spark["speed_frac"] * base_radius
 		var end_pos: Vector2 = spark["dir"] * spd * _lifetime
 		var start_pos: Vector2 = spark["dir"] * spd * maxf(_lifetime - 0.04, 0.0)
 		draw_line(start_pos, end_pos, Color(spark["color"].r, spark["color"].g, spark["color"].b, a), 2.0)

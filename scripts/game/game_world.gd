@@ -11,15 +11,15 @@ const SCREEN_W: float = 960.0
 const SCREEN_H: float = 672.0
 const HORIZON_Y: float = 268.8
 
-var sky_top_color: Color = Color(0.72, 0.28, 0.04)
-var sky_horizon_color: Color = Color(0.95, 0.62, 0.18)
-var ground_color_a: Color = Color(0.78, 0.55, 0.25)
-var ground_color_b: Color = Color(0.65, 0.42, 0.18)
+var sky_top_color: Color = Color(0.08, 0.04, 0.28)
+var sky_horizon_color: Color = Color(1.00, 0.72, 0.10)
+var ground_color_a: Color = Color(0.88, 0.65, 0.30)
+var ground_color_b: Color = Color(0.50, 0.30, 0.12)
 var _ground_scroll: float = 0.0
 
 
 func _process(delta: float) -> void:
-	_ground_scroll = fmod(_ground_scroll + delta * 48.0, 60.0)
+	_ground_scroll = fmod(_ground_scroll + delta * 80.0, 100.0)
 	_check_collisions()
 	queue_redraw()
 
@@ -44,7 +44,7 @@ func _draw_sky() -> void:
 # --- Ground ---
 
 func _draw_ground() -> void:
-	var stripe_count: int = 80
+	var stripe_count: int = 100
 	for i in range(stripe_count):
 		var raw: float = float(i) + _ground_scroll
 		var t: float = float(i) / float(stripe_count)
@@ -94,6 +94,10 @@ func _draw_bullet_obj(bullet: Node) -> void:
 # --- Collision detection ---
 
 func _check_collisions() -> void:
+	# Player-weapon collisions always run regardless of player vulnerability
+	_check_player_weapons_vs_enemies()
+
+	# Player-damage collisions only run when player is vulnerable
 	var player: Node = _get_player()
 	if player == null or not player.is_vulnerable():
 		return
@@ -121,6 +125,8 @@ func _check_collisions() -> void:
 			bullet.queue_free()
 			break
 
+
+func _check_player_weapons_vs_enemies() -> void:
 	for b in get_tree().get_nodes_in_group("player_bullets"):
 		if not is_instance_valid(b):
 			continue

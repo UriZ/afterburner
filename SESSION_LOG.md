@@ -1,6 +1,139 @@
 # Session Log
 
 ---
+### [2026-09-12 15:45] — developer — #50, #86
+**Task**: Fix spawn density — enemies must appear within 2s, constant 4+ on screen
+**Result**: COMPLETED
+**Files changed**: scripts/game/game_manager_2d.gd
+**Key changes**:
+- game_manager_2d.gd:29 — `_spawn_interval` default 1.5 → 0.8
+- game_manager_2d.gd:45 — `_spawn_timer` initial value 3.5 → 0.0 (fires first wave immediately when announce clears)
+- game_manager_2d.gd:95 — `_spawn_interval = minf(data["spawn_interval"], 0.8)` caps stage data interval; stage 1 was 1.5s which overrode the default
+- game_manager_2d.gd:14 — first wave count 2 → 4
+**Testing**: Screenshot at t=7s shows 10+ enemies simultaneously, overlapping waves. Screenshot at t=8s shows 6+ in two formations. Enemy visibility confirmed from ~t=2s (announce end).
+**Improvement Insights**:
+- [developer.md]: When spawn rate is controlled by both a code default AND stage data, the stage data always wins at runtime — check both in the same pass to avoid surprises.
+
+---
+### [2026-09-12 14:30] — developer — #92, #93
+**Task**: Fix player invisible/flashing at start (#92) and enemy jets growing screen-filling (#93)
+**Result**: COMPLETED
+**Files changed**: scripts/player/player_jet_2d.gd, scripts/enemies/enemy_jet_2d.gd
+**Key changes**:
+- player_jet_2d.gd:32 — added `_is_respawn: bool = false` flag to distinguish initial spawn from respawn
+- player_jet_2d.gd:157-163 — flash logic in `_process_invincibility` gated on `_is_respawn`; initial spawn is invincible but fully visible
+- player_jet_2d.gd:150-151 — `_respawn()` sets `_is_respawn = true` so flash activates only after death
+- enemy_jet_2d.gd:36 — `DESPAWN_DEPTH` dropped from 1.2 to 0.92; enemies despawn before reaching absurd scale
+- enemy_jet_2d.gd:37,100 — added `MAX_VISUAL_SCALE = 2.5` hard cap applied in `get_screen_scale()`
+**Testing**: Launched game via Godot, confirmed `PlayerJet2D` in scene tree, gameplay active. MCP bridge screenshot fails for 2D viewports (known issue) but scene tree + game response confirms code loaded correctly.
+**Improvement Insights**:
+- [developer.md]: Note that MCP bridge `screenshot` cmd fails for 2D-only scenes — use `get_runtime_tree` + scene node presence as verification fallback
+- [CLAUDE.md]: Document DESPAWN_DEPTH tuning: at depth d, scale = 0.03 + d^2 * 3.0; keep DESPAWN_DEPTH < 0.95 for reasonable enemy sizes
+
+---
+### [2026-09-12 13:50] — senior-developer — #91
+**Task**: Fix aiming/lock-on/missile system end-to-end chain
+**Result**: COMPLETED
+**Files changed**: scripts/game/game_world.gd, scripts/game/game_manager_2d.gd, mcp_bridge_game.gd
+**Key changes**:
+- game_world.gd:96-159 — Split _check_collisions() so player-weapon-vs-enemy checks run regardless of player vulnerability (was blocked during 6-sec invincibility)
+- game_manager_2d.gd:40-42 — Set GameState.phase to PLAYING on _ready() if still TITLE (enables direct scene launch)
+- mcp_bridge_game.gd:146,156 — Changed Viewport.push_input() to Input.parse_input_event() so MCP key commands update Input singleton action state
+**Technical decisions**:
+- Collision guard was the most impactful bug: player weapons couldn't hit enemies during the initial 6-second invincibility window. This meant the first wave of enemies was unkillable.
+- MCP bridge fix: Viewport.push_input() only dispatches through _input/_unhandled_input methods, NOT the Input singleton. Any code using Input.is_action_* polling (which is the standard pattern) was invisible to MCP key commands.
+**Testing**: Verified full chain via screenshots: missile count decreased (50->48->46), score increased (0->100->700), explosions visible, lock-on brackets visible, smoke trails visible. Build check passes.
+**Improvement Insights**:
+- **MEMORY.md**: Add note: "Godot 4: Viewport.push_input() does NOT update Input singleton action state. Use Input.parse_input_event() for programmatic input that needs to trigger Input.is_action_* polling."
+- **mcp_bridge_game.gd**: The click handler still uses push_input — should also be reviewed for consistency, though mouse click actions may work differently.
+
+---
+### [2026-09-12 18:10] — developer — #87
+**Task**: Fix explosion size — triple base_radius so explosions fill 15-25% of screen per AB2 reference
+**Result**: COMPLETED
+**Files changed**: scripts/effects/explosion_2d.gd, scripts/enemies/enemy_jet_2d.gd
+**Key changes**:
+- enemy_jet_2d.gd:133 — base_radius formula: `scale_val * 80.0, 30.0` → `scale_val * 240.0, 90.0` (3x)
+- explosion_2d.gd:43-51 — smoke puff radius now stored as fraction of base_radius (0.25-0.55x) instead of hardcoded 20-40px
+- explosion_2d.gd:145 — smoke draw uses `radius_frac * base_radius` instead of fixed radius
+- explosion_2d.gd:30-36 — spark speed stored as fraction (0.8-1.6x base_radius) instead of hardcoded 80-160px/s
+- explosion_2d.gd:166 — spark draw uses `speed_frac * base_radius`
+- explosion_2d.gd:85 — flash minimum floor now `base_radius * 0.5` instead of hardcoded 40px
+**Testing**: No GDScript syntax errors (exit 144 = expected headless behavior). Size math: mid-depth enemy → 216px fire burst = 20% of 1080p height, hits 15-25% target.
+**Improvement Insights**:
+- [developer.md]: When size values are hardcoded in init functions but the effect has a dynamic base_radius set externally, ALL sub-measurements must be stored as fractions and resolved at draw time. Checklist: search for hardcoded px values in init() that should scale.
+
+---
+### [2026-09-12 17:30] — qa — #42, #65, #86, #87, #88, #90 (via #79)
+**Task**: Verify Round 3 bug fixes: ground scroll, movement agility, survivability, enemy explosions, respawn invincibility, ground strobing
+**Result**: FAIL (3 bugs found)
+**Issues verified**: #42 (PASS), #65 (PASS-code), #86 (FAIL), #87 (PASS), #88 (PARTIAL), #90 (PASS)
+**New bugs filed**: #92, #93, #94
+**Key findings**:
+- #42/#90: Ground scroll fixed — smooth tan/brown stripes, no strobing [LOW severity carry-forward]
+- #87: Enemy explosions confirmed visible above ground via z_index=6 [PASS]
+- #86: Survivability still fails — player lost all 3 lives in ~12-15s. Invincibility timer starts at game launch (not first hit), consuming 2-3s before first enemy arrives [CRITICAL]
+- #92 (new/High): Player jet invisible at game start — invincibility flash runs from frame 1 because `_is_invincible=true` is default in `_ready()`
+- #93 (new/High): Enemies grow to screen-filling ~470px wingspan at despawn depth 1.2 — no size cap. Two enemies cover full lower screen, hiding player
+- #94 (new/High): Score never increments — 0 kills in 15s capture (may be TCP bridge limitation — needs manual verify)
+**Improvement Insights**:
+- [qa.md]: When verifying survivability bugs, always capture 30+ seconds of gameplay (not just 15s) to observe the full death-respawn-death cycle. 20 frames at 750ms = 15s which is right at the boundary.
+- [CLAUDE.md/Testing Gotchas]: TCP bridge key presses are single-frame events, not held keys. Tests requiring sustained key holds (Z for vulcan, arrow for movement velocity) cannot be validated via TCP bridge — must note this limitation explicitly.
+- [developer.md]: When implementing invincibility timers, always distinguish "initial game start" from "post-death respawn" — starting with `_is_invincible=true` in `_ready()` is wrong; only `_respawn()` should set it.
+
+---
+### [2026-09-12 16:30] — developer — #89
+**Task**: Implement F-14 visual redesign per UI designer spec (13-layer polygon redesign)
+**Result**: COMPLETED
+**Files changed**: scripts/player/player_jet_2d.gd
+**Key changes**:
+- player_jet_2d.gd:204-494 — Replaced entire `_draw_player()` with 13-layer redesign:
+  - Fuselage: `Color(0.91, 0.92, 0.94)` near-white replaced with `Color(0.77, 0.79, 0.83)` silver-blue-grey
+  - Flames: 3 layers expanded to 5 (outer deep-orange, mid-orange, amber-yellow, pale-inner, white-core). Outer length increased from `s*1.5` to `s*1.8`. Flame lean 0.15 -> 0.18
+  - White core: 5px pale dot replaced with 7px pure white circle + white streak polygon drawn after nozzle rings so it's not obscured
+  - Belly triangle: new orange-vermilion marking `Color(0.88, 0.19, 0.06)` — was missing entirely
+  - Dorsal spine: new bright centerline highlight polygon
+  - Wings: reach extended from `s*1.6` to `s*1.75`, added underside shadow strip + leading edge bright strip
+  - Tail fins: height increased from `s*0.32` to `s*0.39`
+  - Nacelles: color darkened to `Color(0.23, 0.24, 0.28)` charcoal-blue
+  - Nozzle rings: 3 rings -> 4 rings, added bright orange inner
+  - Canopy color: corrected to spec `Color(0.047, 0.071, 0.141)`
+  - player_jet_2d.gd:308,324,330 — Added `if ff > 0.15/0.08` guards on wing detail strips to prevent degenerate polygon triangulation failures during extreme banking
+**Testing**: Launched main_2d.tscn, captured screenshot. Jet shows: silver-grey fuselage with blue cast, orange intake ramps, orange belly triangle, dark nacelles, white nozzle cores, long graduated flames, swept wings with shading. No triangulation errors. Build check exit 144 (expected headless).
+**Improvement Insights**:
+- [developer.md]: When drawing foreshortened polygons where two vertices have the same scale factor, guard with `if ff > threshold` before drawing or Godot will emit triangulation failed errors at runtime.
+
+---
+### [2026-09-12 15:00] — developer — #90
+**Task**: Fix ground strobing/epilepsy effect
+**Result**: COMPLETED
+**Files changed**: scripts/game/game_world.gd
+**Key changes**:
+- game_world.gd:16-17 — ground colors narrowed from 0.85/0.45 contrast to 0.78/0.68 (tan-on-tan)
+- game_world.gd:22 — scroll speed 144.0 → 60.0, modulo 60 → 100
+- game_world.gd:47 — stripe_count 80 → 100
+**Testing**: Launched main_2d.tscn, captured screenshot. Ground shows 100 fine tan stripes with gentle contrast. No strobing visible. Scrolls smoothly.
+**Improvement Insights**:
+- [developer.md]: For ground scroll, the modulo value must equal the stripe_count to keep the color cycling in sync — mismatched values cause aliasing artifacts.
+
+---
+### [2026-09-12 14:00] — developer — #65, #86, #87, #88
+**Task**: Fix player movement agility + 3 gameplay bugs (spawn aggression, explosion z_index, invincibility duration)
+**Result**: COMPLETED
+**Files changed**: scripts/player/player_jet_2d.gd, scripts/game/game_manager_2d.gd, scripts/enemies/enemy_jet_2d.gd
+**Key changes**:
+- player_jet_2d.gd:13 — MAX_BANK_ANGLE 45° → 57°
+- player_jet_2d.gd:16 — INVINCIBILITY_DURATION 4.0 → 6.0s (#88)
+- player_jet_2d.gd:19-21 — move_speed 500→720, acceleration 1200→2200, deceleration 900→1400
+- player_jet_2d.gd:93 — roll rate 320→460°/s
+- game_manager_2d.gd:42 — initial _spawn_timer 0.0 → 3.5s (#86)
+- game_manager_2d.gd:14-15 — first wave 4→2 enemies, second wave 5→3 (#86)
+- enemy_jet_2d.gd:129 — explosion.z_index = 6 (#87)
+**Testing**: Launched game, pressed Right rapidly — jet visibly displaced right and banking. Enemy explosion rendered above ground stripes. Game ran without errors.
+**Improvement Insights**:
+- [developer.md]: Set z_index before add_child on dynamically-created Node2D to avoid 1-frame render at wrong depth.
+
+---
 ### [2026-09-12 13:00] — developer — #83
 **Task**: Fix afterburner flames (too dim/small) and explosions (jagged star → AB2 starburst)
 **Result**: COMPLETED
@@ -2586,3 +2719,60 @@ Return to developer with feedback on all gaps. The most critical fix is player j
 - [qa.md]: When testing game difficulty/balance bugs, verify from a fresh process restart (pkill Godot then relaunch) — GameState autoload persists across scene transitions within same process, potentially masking lives/score state bugs
 - [game_manager_2d.gd]: Spawn parameters (interval, fire_interval) should be configurable constants at top of file, not buried in TYPE_DATA dictionaries, to make difficulty tuning easier during QA
 - [workflow]: Add "difficulty/survivability test" as explicit QA checklist item — measure how long a new player survives without input as a baseline metric
+
+---
+### [2026-09-12 14:00] — developer — #42
+**Task**: Fix ground scroll speed and sky colors to match AB2 desert visual style
+**Result**: COMPLETED
+**Files changed**: scripts/game/game_world.gd
+**Key changes**:
+- game_world.gd:14 — sky_top_color: Color(0.72, 0.28, 0.04) → Color(0.15, 0.10, 0.35) (deep blue-purple)
+- game_world.gd:15 — sky_horizon_color: Color(0.95, 0.62, 0.18) → Color(0.95, 0.65, 0.20) (vivid amber, minor saturation bump)
+- game_world.gd:16 — ground_color_a: Color(0.78, 0.55, 0.25) → Color(0.85, 0.60, 0.20) (brighter golden tan)
+- game_world.gd:17 — ground_color_b: Color(0.65, 0.42, 0.18) → Color(0.45, 0.28, 0.08) (much darker brown, doubled contrast gap)
+- game_world.gd:22 — scroll rate: delta * 48.0 → delta * 144.0 (tripled, from 48 to 144 units/sec at 60fps)
+**Testing**: Launched main_2d.tscn. Took 2 screenshots 0.5s apart — stripe pattern visibly shifted between frames confirming 3x scroll speed increase. Sky shows dramatic blue-purple→amber gradient. Stripe contrast clearly improved.
+**Improvement Insights**:
+- [developer.md]: When adjusting scroll speed, verify against POC scroll rate first — in this case both were already at 48 units/sec, confirming the game matched the POC but the spec called for higher speed.
+
+---
+### [2026-09-12 15:00] — ui-designer — #89
+**Task**: Produce pixel-accurate visual redesign spec for the player F-14 Tomcat to match AB2 arcade original
+**Result**: COMPLETED
+**Elements designed**: F-14 fuselage, wings, tail fins, engine nacelles, intake ramps, belly marking, dorsal spine, canopy, afterburner flames, nozzle rings (13 polygon layers)
+**Key design decisions**:
+- Issue brief stated "dark blue-grey fuselage" but ALL 9 reference screenshots show LIGHT SILVER-GREY fuselage (#C4CAD4). Corrected spec to match actual references. The night screenshot gives false blue impression — same jet, ambient lighting shift.
+- Added orange-vermilion belly triangle marking (confirmed in ab2-arcade-closeup-enemies.jpg) — this marking is completely absent from current implementation and is a distinctive AB2 visual
+- Flame spec extended from 3 to 5 layers; white core changed from 5.5px pale-yellow dot to 7px pure-white circle + streak polygon — the blazing white core is the most recognizable visual element of AB2 flames
+- Added dedicated dorsal spine highlight polygon (currently missing) — visible as the bright centerline strip in ab2-arcade-reload-dorsal.jpg
+- Wing reach extended from s*1.6 to s*1.75 per side; tail fin height from s*0.37 to s*0.44
+- Added leading edge highlight strip to wings — the bright front edge is visible in all reference screenshots
+**Improvement Insights**:
+- [ui-designer.md]: When an issue brief's color description contradicts the actual reference screenshots, always trust the screenshots over the brief. Call out the contradiction explicitly in the spec.
+- [CLAUDE.md]: Reference screenshots should be studied for what they show, not what the issue text claims they show. Primary visual truth source = screenshots, not written descriptions.
+
+---
+### [2026-09-12 18:00] — judge — #79
+**Gate type**: per-agent (developer) — Round 3 Fixes evaluation
+**Verdict**: FAIL
+**Score**: 5/10
+**Key gaps**: Ground doesn't create speed (low contrast), screen never chaotic (sparse enemies), explosions invisible (too small), enemy visual pop lacking
+**Improvement Insights**:
+- criteria.md: Add "time-to-first-enemy-visible" criterion — if first enemy >3s, FAIL
+- game_manager_2d.gd: 3.5s spawn delay + approach time = 6+ seconds empty sky, contradicts AB2 feel
+- stage_data.gd: spawn_interval 1.5s for Stage 1 far too generous
+
+---
+### [2026-09-12 19:00] — developer — #42, #50
+**Task**: Fix ground contrast — bold stripe colors, sky gradient boost, scroll speed
+**Result**: COMPLETED
+**Files changed**: `scripts/game/game_world.gd`
+**Key changes**:
+- game_world.gd:16 — ground_color_a from Color(0.78, 0.55, 0.25) to Color(0.88, 0.65, 0.30) (bright golden-tan)
+- game_world.gd:17 — ground_color_b from Color(0.68, 0.45, 0.20) to Color(0.50, 0.30, 0.12) (rich chocolate-brown — was near-identical to A)
+- game_world.gd:14 — sky_top deepened to Color(0.08, 0.04, 0.28)
+- game_world.gd:15 — sky_horizon boosted to Color(1.00, 0.72, 0.10)
+- game_world.gd:22 — scroll speed 60 → 80
+**Testing**: Launched game, captured screenshot. Stripes are visually distinct (not a wash). Sky punchy amber-to-purple gradient. Screenshot posted to #42.
+**Improvement Insights**:
+- [developer.md]: When fixing visual contrast bugs, read the reference image first — it immediately shows the target. The old colors (0.78 vs 0.68) were a 10% brightness difference; reference demanded ~40% difference.

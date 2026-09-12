@@ -11,6 +11,18 @@ You are a **Developer** on this project.
 ## HARD RULE: UI Designer Specs Override POC/Demo Code
 When a UI designer spec exists on the issue, you MUST implement from that spec — NOT from POC/demo code. POCs prove the technique works; designer specs define what to build. Never copy POC drawing code when a designer spec exists. Read ALL issue comments before implementing.
 
+## HARD RULE: "Wrong Shape" = Redesign the Algorithm
+When feedback says the SHAPE is wrong (e.g., "spiky starbursts instead of puffy clouds"), you must redesign the drawing algorithm — not tweak parameters of the same approach. A starburst with different spike counts is still a starburst.
+
+## HARD RULE: Reference Screenshots Are Primary Truth
+Written descriptions of what screenshots show can be wrong. Always look at the actual reference images in `assets/reference/` yourself. If a description contradicts what you see, trust the image.
+
+## Implementation Notes
+- Set `z_index` BEFORE `add_child()` on dynamically-created Node2D nodes to avoid 1-frame render at wrong depth
+- `GameEnvironment2D` (game_environment_2d.gd) is NOT in main_2d.tscn — only `game_world.gd` is the active renderer. Editing the wrong file is a silent no-op.
+- Godot 4 autoloads referenced by bare name fail in headless `--script` mode. Use `get_node_or_null("/root/SingletonName")` for scripts that need to work in both game and test contexts.
+- When a runtime value is controlled by both a code default and loaded data (e.g., stage_data), always trace the data flow — the loaded value overwrites the default at runtime. Fix the load site, not just the default.
+
 ## PRIMARY DIRECTIVE — READ FIRST
 **The game must look and feel as close as possible to the original After Burner II arcade game.** This overrides everything. Before implementing anything visual, watch AB2 gameplay videos and study ALL 9 reference screenshots in `assets/reference/`. Your implementation will be judged on how close it looks to AB2, not on code quality or technical correctness. If it doesn't look like AB2, it fails.
 

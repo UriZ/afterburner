@@ -141,7 +141,9 @@ func _cmd_key(key_name: String) -> Dictionary:
 	press.keycode = keycode
 	press.physical_keycode = keycode
 	press.pressed = true
-	get_viewport().push_input(press)
+	# Use Input.parse_input_event to update both Input singleton action state
+	# AND viewport input chain (push_input only updates the viewport chain)
+	Input.parse_input_event(press)
 	var release := InputEventKey.new()
 	release.keycode = keycode
 	release.physical_keycode = keycode
@@ -151,7 +153,7 @@ func _cmd_key(key_name: String) -> Dictionary:
 
 
 func _send_deferred_key_release(event: InputEventKey) -> void:
-	get_viewport().push_input(event)
+	Input.parse_input_event(event)
 
 
 func _cmd_get_runtime_tree() -> Dictionary:
