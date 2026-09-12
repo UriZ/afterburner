@@ -28,6 +28,9 @@ func _init() -> void:
 	test_collision_radius_scales_with_depth()
 	test_depth_util_scale_formula()
 	test_enemy_renderer_colors_count()
+	test_get_screen_scale_capped_at_despawn()
+	test_get_screen_scale_uncapped_at_far_depth()
+	test_max_visual_scale_value()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -201,6 +204,40 @@ func test_depth_util_scale_formula() -> void:
 	# Monotonically increasing
 	assert_true(DepthUtil.depth_to_scale(0.5) > DepthUtil.depth_to_scale(0.2),
 		"depth_to_scale is monotonically increasing")
+
+
+# --- Scale cap ---
+
+func test_get_screen_scale_capped_at_despawn() -> void:
+	print("\ntest_get_screen_scale_capped_at_despawn:")
+	# At DESPAWN_DEPTH (0.92): raw depth_to_scale = 0.03 + 0.92^2 * 3 = ~2.567
+	# get_screen_scale() must return MAX_VISUAL_SCALE (1.5), not 2.567
+	var e := _make_enemy(0, 0.0, 0.92)
+	var raw_scale: float = DepthUtil.depth_to_scale(0.92)
+	var capped: float = e.get_screen_scale()
+	assert_true(raw_scale > e.MAX_VISUAL_SCALE, "raw scale at DESPAWN_DEPTH exceeds cap (%.3f > %.3f)" % [raw_scale, e.MAX_VISUAL_SCALE])
+	assert_approx(capped, e.MAX_VISUAL_SCALE, 0.001, "get_screen_scale() returns MAX_VISUAL_SCALE at despawn depth")
+	e.free()
+
+
+func test_get_screen_scale_uncapped_at_far_depth() -> void:
+	print("\ntest_get_screen_scale_uncapped_at_far_depth:")
+	# At d=0.2: raw = 0.03 + 0.04 * 3 = 0.15 — well below cap
+	var e := _make_enemy(0, 0.0, 0.2)
+	var raw_scale: float = DepthUtil.depth_to_scale(0.2)
+	var capped: float = e.get_screen_scale()
+	assert_approx(capped, raw_scale, 0.001, "get_screen_scale() equals raw scale when below cap")
+	e.free()
+
+
+func test_max_visual_scale_value() -> void:
+	print("\ntest_max_visual_scale_value:")
+	var e := _make_enemy()
+	# Cap must be <= 1.5 so enemies are not screen-filling at close range
+	assert_true(e.MAX_VISUAL_SCALE <= 1.5, "MAX_VISUAL_SCALE <= 1.5 (got %.2f)" % e.MAX_VISUAL_SCALE)
+	# Cap must be > 0.5 so enemies are visible at close range
+	assert_true(e.MAX_VISUAL_SCALE > 0.5, "MAX_VISUAL_SCALE > 0.5 (got %.2f)" % e.MAX_VISUAL_SCALE)
+	e.free()
 
 
 # --- Enemy renderer ---

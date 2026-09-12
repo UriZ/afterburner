@@ -6,15 +6,21 @@ extends Node2D
 
 const SCREEN_W := 960.0
 const SCREEN_H := 672.0
-const MOVE_MIN := Vector2(80.0, 280.0)
+const MOVE_MIN := Vector2(80.0, 200.0)
 const MOVE_MAX := Vector2(880.0, 600.0)
-const RESPAWN_POSITION := Vector2(480.0, 480.0)
-const PLAYER_SCALE := 75.0
+const RESPAWN_POSITION := Vector2(480.0, 380.0)
+const PLAYER_SCALE := 130.0
 const MAX_BANK_ANGLE := 57.0
 
 const DEATH_DURATION := 2.0
 const INVINCIBILITY_DURATION := 6.0
 const FLASH_INTERVAL := 0.1
+
+# Flame animation speed multipliers
+const FLAME_SPEED_OUTER := 0.30
+const FLAME_SPEED_MID := 0.45
+const FLAME_SPEED_INNER := 0.55
+const FLAME_JITTER_POINTS := 5  # ragged edge segments per flame side
 
 @export var move_speed: float = 720.0
 @export var acceleration: float = 2200.0
@@ -304,14 +310,14 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 		Vector2(-14.0,                s * 0.16),
 	], Color(0.69, 0.72, 0.77))
 	# Left wing — underside shadow strip (rear/inner half)
-	if ff_left > 0.08:
+	if ff_left > 0.30:
 		_draw_rotated_poly(pos, rad, [
 			Vector2(-s * 0.55 * ff_left,  s * 0.08),
 			Vector2(-s * 1.48 * ff_left,  s * 0.32),
 			Vector2(-14.0,                s * 0.16),
 		], Color(0.42, 0.45, 0.50, 0.55))
 	# Left wing — leading edge bright strip (skip if nearly folded to avoid degenerate polygon)
-	if ff_left > 0.15:
+	if ff_left > 0.30:
 		_draw_rotated_poly(pos, rad, [
 			Vector2(-22.0,               -s * 0.08),
 			Vector2(-s * 1.75 * ff_left,  s * 0.20),
@@ -327,14 +333,14 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 		Vector2(14.0,                 s * 0.16),
 	], Color(0.69, 0.72, 0.77))
 	# Right wing — underside shadow strip
-	if ff_right > 0.08:
+	if ff_right > 0.30:
 		_draw_rotated_poly(pos, rad, [
 			Vector2(s * 0.55 * ff_right,  s * 0.08),
 			Vector2(s * 1.48 * ff_right,  s * 0.32),
 			Vector2(14.0,                 s * 0.16),
 		], Color(0.42, 0.45, 0.50, 0.55))
 	# Right wing — leading edge bright strip (skip if nearly folded to avoid degenerate polygon)
-	if ff_right > 0.15:
+	if ff_right > 0.30:
 		_draw_rotated_poly(pos, rad, [
 			Vector2(22.0,                -s * 0.08),
 			Vector2(s * 1.75 * ff_right,  s * 0.20),

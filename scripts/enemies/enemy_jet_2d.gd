@@ -34,7 +34,7 @@ const TYPE_DATA: Dictionary = {
 }
 
 const DESPAWN_DEPTH: float = 0.92
-const MAX_VISUAL_SCALE: float = 2.5  # cap enemy scale so they never fill the screen
+const MAX_VISUAL_SCALE: float = 1.5  # cap enemy scale so they never fill the screen
 const BULLET_SPEED: float = 0.6
 
 var enemy_type: int = 0  # EnemyType.FIGHTER
@@ -128,7 +128,7 @@ func _spawn_explosion() -> void:
 	var explosion := Node2D.new()
 	explosion.set_script(explosion_script)
 	explosion.position = get_screen_position()
-	explosion.z_index = 6
+	explosion.z_index = 999
 	var scale_val: float = _DepthUtil.depth_to_scale(logical_depth)
 	explosion.set("base_radius", maxf(scale_val * 240.0, 90.0))
 	if get_parent():

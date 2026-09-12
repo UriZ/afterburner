@@ -76,8 +76,7 @@ func _draw_sorted_objects() -> void:
 
 
 func _draw_enemy_obj(enemy: Node) -> void:
-	var d: float = enemy.logical_depth
-	var s: float = _DepthUtil.depth_to_scale(d) * 35.0
+	var s: float = enemy.get_screen_scale() * 35.0
 	var pos: Vector2 = enemy.get_screen_position()
 	_EnemyRenderer.draw_enemy(self, enemy.get_visual_type(), pos, s)
 
