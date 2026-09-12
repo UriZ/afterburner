@@ -224,290 +224,349 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	elif bank > 0.0:
 		ff_right = cos(deg_to_rad(absf(bank) * 0.7))
 
-	# Flame lean: tips shift horizontally in bank direction (increased per spec)
-	var flame_lean: float = bank * 0.18
+	# Flame lean: tips shift horizontally in bank direction
+	var flame_lean: float = bank * 0.22
 
 	# Belly triangle alpha increases when banking (belly faces viewer)
 	var belly_alpha: float = clampf(0.85 + absf(bank) / 30.0 * 0.15, 0.85, 1.0)
 
 	var ny: float = s * 0.32  # nozzle exit Y
+	var cant: float = s * 0.06  # tail fin outward cant
 
 	# --- Layer 0: Afterburner flames (draw FIRST, behind everything) ---
 	for i in range(2):
 		var nox: float = [-20.0, 20.0][i]
-		var fh_outer: float = s * (1.8 + sin(float(frame) * 0.35 + float(i) * 1.7) * 0.22)
-		var fh_mid: float = fh_outer * 0.72
-		var fh_inner: float = fh_outer * 0.52
-		var fh_core: float = fh_outer * 0.35
+		var fh_outer: float = s * (3.0 + sin(float(frame) * FLAME_SPEED_OUTER + float(i) * 1.7) * 0.35
+				+ sin(float(frame) * 0.17 + float(i) * 3.1) * 0.15)
+		var fh_mid: float = fh_outer * 0.70
+		var fh_inner: float = fh_outer * 0.48
+		var fh_core: float = fh_outer * 0.32
+		var fh_hot: float = fh_outer * 0.18
 
-		# Layer 0a — deep outer orange (widest, longest)
+		# Layer 0a — deep red outer fringe (ragged edges)
+		# Clamp left-side points to stay left of nox, right-side to stay right of nox
+		# to prevent self-intersecting polygons that break the triangulator.
+		var pts_0a: Array = []
+		pts_0a.append(Vector2(nox - 22.0, ny))
+		for j in range(FLAME_JITTER_POINTS):
+			var t_j: float = float(j + 1) / float(FLAME_JITTER_POINTS + 1)
+			var base_x: float = lerp(-22.0, -2.0, t_j * t_j)
+			var jitter_x: float = sin(float(frame) * 0.5 + float(j) * 2.3 + float(i) * 4.0) * (4.0 + float(j) * 1.0)
+			pts_0a.append(Vector2(nox + minf(base_x + jitter_x, -1.5) + flame_lean * t_j, ny + fh_outer * t_j))
+		pts_0a.append(Vector2(nox + flame_lean, ny + fh_outer))
+		for j in range(FLAME_JITTER_POINTS - 1, -1, -1):
+			var t_j: float = float(j + 1) / float(FLAME_JITTER_POINTS + 1)
+			var base_x: float = lerp(22.0, 2.0, t_j * t_j)
+			var jitter_x: float = sin(float(frame) * 0.7 + float(j) * 1.9 + float(i) * 5.0) * (4.0 + float(j) * 1.0)
+			pts_0a.append(Vector2(nox + maxf(base_x + jitter_x, 1.5) + flame_lean * t_j, ny + fh_outer * t_j))
+		pts_0a.append(Vector2(nox + 22.0, ny))
+		_draw_rotated_poly(pos, rad, pts_0a, Color(0.85, 0.15, 0.0, 0.80))
+
+		# Layer 0b — bright orange mid layer (ragged)
+		var pts_0b: Array = []
+		pts_0b.append(Vector2(nox - 16.0, ny))
+		for j in range(FLAME_JITTER_POINTS):
+			var t_j: float = float(j + 1) / float(FLAME_JITTER_POINTS + 1)
+			var base_x: float = lerp(-16.0, -2.0, t_j * t_j)
+			var jitter_x: float = sin(float(frame) * 0.65 + float(j) * 2.7 + float(i) * 3.5) * (3.0 + float(j) * 0.8)
+			pts_0b.append(Vector2(nox + minf(base_x + jitter_x, -1.5) + flame_lean * t_j, ny + fh_mid * t_j))
+		pts_0b.append(Vector2(nox + flame_lean, ny + fh_mid))
+		for j in range(FLAME_JITTER_POINTS - 1, -1, -1):
+			var t_j: float = float(j + 1) / float(FLAME_JITTER_POINTS + 1)
+			var base_x: float = lerp(16.0, 2.0, t_j * t_j)
+			var jitter_x: float = sin(float(frame) * 0.8 + float(j) * 2.1 + float(i) * 4.3) * (3.0 + float(j) * 0.8)
+			pts_0b.append(Vector2(nox + maxf(base_x + jitter_x, 1.5) + flame_lean * t_j, ny + fh_mid * t_j))
+		pts_0b.append(Vector2(nox + 16.0, ny))
+		_draw_rotated_poly(pos, rad, pts_0b, Color(1.0, 0.45, 0.0, 0.88))
+
+		# Layer 0c — yellow fire (ragged, smaller jitter)
+		var pts_0c: Array = []
+		pts_0c.append(Vector2(nox - 10.0, ny))
+		for j in range(FLAME_JITTER_POINTS):
+			var t_j: float = float(j + 1) / float(FLAME_JITTER_POINTS + 1)
+			var base_x: float = lerp(-10.0, -2.0, t_j * t_j)
+			var jitter_x: float = sin(float(frame) * 0.8 + float(j) * 3.1) * (2.0 + float(j) * 0.6)
+			pts_0c.append(Vector2(nox + minf(base_x + jitter_x, -1.5) + flame_lean * t_j, ny + fh_inner * t_j))
+		pts_0c.append(Vector2(nox + flame_lean, ny + fh_inner))
+		for j in range(FLAME_JITTER_POINTS - 1, -1, -1):
+			var t_j: float = float(j + 1) / float(FLAME_JITTER_POINTS + 1)
+			var base_x: float = lerp(10.0, 2.0, t_j * t_j)
+			var jitter_x: float = sin(float(frame) * 0.95 + float(j) * 2.5) * (2.0 + float(j) * 0.6)
+			pts_0c.append(Vector2(nox + maxf(base_x + jitter_x, 1.5) + flame_lean * t_j, ny + fh_inner * t_j))
+		pts_0c.append(Vector2(nox + 10.0, ny))
+		_draw_rotated_poly(pos, rad, pts_0c, Color(1.0, 0.78, 0.0, 0.92))
+
+		# Layer 0d — pale yellow-white (smooth — inner layers are smoother)
+		var lean_d: float = clampf(flame_lean, -6.0, 6.0)
 		_draw_rotated_poly(pos, rad, [
-			Vector2(nox - 17.0, ny),
-			Vector2(nox + 17.0, ny),
-			Vector2(nox + 11.0, ny + fh_outer * 0.20),
-			Vector2(nox + 3.0 + flame_lean,  ny + fh_outer),
-			Vector2(nox - 3.0 + flame_lean,  ny + fh_outer),
-			Vector2(nox - 11.0, ny + fh_outer * 0.20),
-		], Color(1.0, 0.33, 0.0, 0.88))
+			Vector2(nox - 6.0, ny),
+			Vector2(nox + 6.0, ny),
+			Vector2(nox + 3.0, ny + fh_core * 0.3),
+			Vector2(nox + lean_d, ny + fh_core),
+			Vector2(nox - lean_d, ny + fh_core),
+			Vector2(nox - 3.0, ny + fh_core * 0.3),
+		], Color(1.0, 0.93, 0.55, 0.95))
 
-		# Layer 0b — bright mid-orange
+		# Layer 0e — white-hot core circle + streak
+		var lean_e: float = clampf(flame_lean, -3.0, 3.0)
+		_draw_rotated_circle(pos, rad, Vector2(nox, ny), 8.0, Color(1.0, 1.0, 1.0, 1.0))
 		_draw_rotated_poly(pos, rad, [
-			Vector2(nox - 12.0, ny),
-			Vector2(nox + 12.0, ny),
-			Vector2(nox + 7.0,  ny + fh_mid * 0.25),
-			Vector2(nox + 2.0 + flame_lean,  ny + fh_mid),
-			Vector2(nox - 2.0 + flame_lean,  ny + fh_mid),
-			Vector2(nox - 7.0,  ny + fh_mid * 0.25),
-		], Color(1.0, 0.53, 0.0, 0.92))
+			Vector2(nox - 3.0, ny),
+			Vector2(nox + 3.0, ny),
+			Vector2(nox + lean_e, ny + fh_hot),
+			Vector2(nox - lean_e, ny + fh_hot),
+		], Color(1.0, 1.0, 1.0, 0.92))
 
-		# Layer 0c — amber-yellow
-		_draw_rotated_poly(pos, rad, [
-			Vector2(nox - 8.0,  ny),
-			Vector2(nox + 8.0,  ny),
-			Vector2(nox + 4.0,  ny + fh_inner * 0.28),
-			Vector2(nox + 1.5 + flame_lean, ny + fh_inner),
-			Vector2(nox - 1.5 + flame_lean, ny + fh_inner),
-			Vector2(nox - 4.0,  ny + fh_inner * 0.28),
-		], Color(1.0, 0.80, 0.0, 0.94))
-
-		# Layer 0d — pale yellow-white inner
-		_draw_rotated_poly(pos, rad, [
-			Vector2(nox - 5.0,  ny),
-			Vector2(nox + 5.0,  ny),
-			Vector2(nox + 1.5 + flame_lean, ny + fh_core),
-			Vector2(nox - 1.5 + flame_lean, ny + fh_core),
-		], Color(1.0, 0.94, 0.50, 0.96))
-
-		# Layer 0e — WHITE CORE: circle at nozzle base + streak
-		_draw_rotated_circle(pos, rad, Vector2(nox, ny), 7.0, Color(1.0, 1.0, 1.0, 1.0))
-		_draw_rotated_poly(pos, rad, [
-			Vector2(nox - 2.0, ny),
-			Vector2(nox + 2.0, ny),
-			Vector2(nox + 1.0 + flame_lean, ny + fh_core),
-			Vector2(nox - 1.0 + flame_lean, ny + fh_core),
-		], Color(1.0, 1.0, 1.0, 0.90))
-
-	# --- Layer 1: Horizontal stabilizers (darker underside, behind main wings) ---
+	# Layer 0f — nozzle heat glow (between the two nozzles)
+	var glow_alpha: float = 0.20 + sin(float(frame) * 0.4) * 0.08
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-11.0,     s * 0.14),
-		Vector2(-s * 0.75, s * 0.38),
-		Vector2(-s * 0.60, s * 0.44),
-		Vector2(-9.0,      s * 0.22),
-	], Color(0.42, 0.45, 0.50))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(11.0,      s * 0.14),
-		Vector2(s * 0.75,  s * 0.38),
-		Vector2(s * 0.60,  s * 0.44),
-		Vector2(9.0,       s * 0.22),
-	], Color(0.42, 0.45, 0.50))
+		Vector2(-12.0, ny - 4.0),
+		Vector2(12.0,  ny - 4.0),
+		Vector2(14.0,  ny + s * 0.15),
+		Vector2(-14.0, ny + s * 0.15),
+	], Color(1.0, 0.5, 0.1, glow_alpha))
 
-	# --- Layers 2-3: Wings ---
-	# Left wing — main top surface
+	# --- Layer 1: Horizontal stabilizers ---
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-22.0,               -s * 0.08),
-		Vector2(-s * 1.75 * ff_left,  s * 0.20),
-		Vector2(-s * 1.48 * ff_left,  s * 0.32),
-		Vector2(-14.0,                s * 0.16),
-	], Color(0.69, 0.72, 0.77))
-	# Left wing — underside shadow strip (rear/inner half)
-	if ff_left > 0.30:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(-s * 0.55 * ff_left,  s * 0.08),
-			Vector2(-s * 1.48 * ff_left,  s * 0.32),
-			Vector2(-14.0,                s * 0.16),
-		], Color(0.42, 0.45, 0.50, 0.55))
-	# Left wing — leading edge bright strip (skip if nearly folded to avoid degenerate polygon)
-	if ff_left > 0.30:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(-22.0,               -s * 0.08),
-			Vector2(-s * 1.75 * ff_left,  s * 0.20),
-			Vector2(-s * 1.68 * ff_left,  s * 0.22),
-			Vector2(-20.0,               -s * 0.06),
-		], Color(0.60, 0.62, 0.66, 0.70))
+		Vector2(-13.0,     s * 0.14),
+		Vector2(-s * 0.72, s * 0.36),
+		Vector2(-s * 0.55, s * 0.42),
+		Vector2(-11.0,     s * 0.22),
+	], Color(0.55, 0.58, 0.65))
+	_draw_rotated_poly(pos, rad, [
+		Vector2(13.0,      s * 0.14),
+		Vector2(s * 0.72,  s * 0.36),
+		Vector2(s * 0.55,  s * 0.42),
+		Vector2(11.0,      s * 0.22),
+	], Color(0.55, 0.58, 0.65))
 
-	# Right wing — main top surface
+	# --- Layer 2: Main wings ---
+	# Left wing — main surface
 	_draw_rotated_poly(pos, rad, [
-		Vector2(22.0,                -s * 0.08),
-		Vector2(s * 1.75 * ff_right,  s * 0.20),
-		Vector2(s * 1.48 * ff_right,  s * 0.32),
-		Vector2(14.0,                 s * 0.16),
-	], Color(0.69, 0.72, 0.77))
-	# Right wing — underside shadow strip
-	if ff_right > 0.30:
+		Vector2(-24.0,               -s * 0.12),
+		Vector2(-s * 1.85 * ff_left,  s * 0.18),
+		Vector2(-s * 1.55 * ff_left,  s * 0.34),
+		Vector2(-16.0,                s * 0.22),
+	], Color(0.88, 0.89, 0.92))
+	# Left wing — underside shadow
+	if ff_left > 0.25:
 		_draw_rotated_poly(pos, rad, [
-			Vector2(s * 0.55 * ff_right,  s * 0.08),
-			Vector2(s * 1.48 * ff_right,  s * 0.32),
-			Vector2(14.0,                 s * 0.16),
-		], Color(0.42, 0.45, 0.50, 0.55))
-	# Right wing — leading edge bright strip (skip if nearly folded to avoid degenerate polygon)
-	if ff_right > 0.30:
+			Vector2(-s * 0.50 * ff_left,  s * 0.06),
+			Vector2(-s * 1.55 * ff_left,  s * 0.34),
+			Vector2(-16.0,                s * 0.22),
+		], Color(0.52, 0.55, 0.60, 0.50))
+	# Left wing — leading edge highlight
+	if ff_left > 0.25:
 		_draw_rotated_poly(pos, rad, [
-			Vector2(22.0,                -s * 0.08),
-			Vector2(s * 1.75 * ff_right,  s * 0.20),
-			Vector2(s * 1.68 * ff_right,  s * 0.22),
-			Vector2(20.0,                -s * 0.06),
-		], Color(0.60, 0.62, 0.66, 0.70))
+			Vector2(-24.0,               -s * 0.12),
+			Vector2(-s * 1.85 * ff_left,  s * 0.18),
+			Vector2(-s * 1.78 * ff_left,  s * 0.20),
+			Vector2(-22.0,               -s * 0.10),
+		], Color(0.96, 0.97, 1.0, 0.65))
 
-	# --- Layers 4-5: Engine nacelles (dark charcoal-blue) ---
+	# Right wing — main surface
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-28.0, -s * 0.02),
-		Vector2(-12.0, -s * 0.02),
+		Vector2(24.0,                -s * 0.12),
+		Vector2(s * 1.85 * ff_right,  s * 0.18),
+		Vector2(s * 1.55 * ff_right,  s * 0.34),
+		Vector2(16.0,                 s * 0.22),
+	], Color(0.88, 0.89, 0.92))
+	# Right wing — underside shadow
+	if ff_right > 0.25:
+		_draw_rotated_poly(pos, rad, [
+			Vector2(s * 0.50 * ff_right,  s * 0.06),
+			Vector2(s * 1.55 * ff_right,  s * 0.34),
+			Vector2(16.0,                 s * 0.22),
+		], Color(0.52, 0.55, 0.60, 0.50))
+	# Right wing — leading edge highlight
+	if ff_right > 0.25:
+		_draw_rotated_poly(pos, rad, [
+			Vector2(24.0,                -s * 0.12),
+			Vector2(s * 1.85 * ff_right,  s * 0.18),
+			Vector2(s * 1.78 * ff_right,  s * 0.20),
+			Vector2(22.0,                -s * 0.10),
+		], Color(0.96, 0.97, 1.0, 0.65))
+
+	# --- Layer 3: Engine nacelles ---
+	_draw_rotated_poly(pos, rad, [
+		Vector2(-30.0, -s * 0.04),
+		Vector2(-12.0, -s * 0.04),
 		Vector2(-10.0,  s * 0.32),
-		Vector2(-30.0,  s * 0.32),
-	], Color(0.23, 0.24, 0.28))
-	# Left nacelle top highlight
+		Vector2(-32.0,  s * 0.32),
+	], Color(0.30, 0.32, 0.38))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-27.0, -s * 0.02),
-		Vector2(-13.0, -s * 0.02),
-		Vector2(-13.0,  s * 0.02),
-		Vector2(-27.0,  s * 0.02),
-	], Color(0.35, 0.37, 0.42, 0.6))
+		Vector2(-29.0, -s * 0.04),
+		Vector2(-13.0, -s * 0.04),
+		Vector2(-13.0,  s * 0.01),
+		Vector2(-29.0,  s * 0.01),
+	], Color(0.45, 0.48, 0.55, 0.55))
 
 	_draw_rotated_poly(pos, rad, [
-		Vector2(12.0,  -s * 0.02),
-		Vector2(28.0,  -s * 0.02),
-		Vector2(30.0,   s * 0.32),
+		Vector2(12.0,  -s * 0.04),
+		Vector2(30.0,  -s * 0.04),
+		Vector2(32.0,   s * 0.32),
 		Vector2(10.0,   s * 0.32),
-	], Color(0.23, 0.24, 0.28))
-	# Right nacelle top highlight
+	], Color(0.30, 0.32, 0.38))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(13.0,  -s * 0.02),
-		Vector2(27.0,  -s * 0.02),
-		Vector2(27.0,   s * 0.02),
-		Vector2(13.0,   s * 0.02),
-	], Color(0.35, 0.37, 0.42, 0.6))
+		Vector2(13.0,  -s * 0.04),
+		Vector2(29.0,  -s * 0.04),
+		Vector2(29.0,   s * 0.01),
+		Vector2(13.0,   s * 0.01),
+	], Color(0.45, 0.48, 0.55, 0.55))
 
-	# --- Layers 7-8: Orange intake ramps ---
+	# --- Layer 4: Intake ramps (orange/red — distinctive AB2 feature) ---
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-30.0, -s * 0.14),
-		Vector2(-22.0, -s * 0.14),
-		Vector2(-20.0, -s * 0.02),
-		Vector2(-28.0, -s * 0.02),
-	], Color(0.80, 0.25, 0.06))
+		Vector2(-32.0, -s * 0.18),
+		Vector2(-22.0, -s * 0.18),
+		Vector2(-20.0, -s * 0.04),
+		Vector2(-30.0, -s * 0.04),
+	], Color(0.85, 0.22, 0.04))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-28.0, -s * 0.13),
-		Vector2(-23.0, -s * 0.13),
-		Vector2(-22.0, -s * 0.03),
-		Vector2(-27.0, -s * 0.03),
-	], Color(0.94, 0.38, 0.13, 0.6))
+		Vector2(-30.0, -s * 0.17),
+		Vector2(-24.0, -s * 0.17),
+		Vector2(-22.0, -s * 0.05),
+		Vector2(-28.0, -s * 0.05),
+	], Color(0.96, 0.42, 0.10, 0.65))
 
 	_draw_rotated_poly(pos, rad, [
-		Vector2(22.0,  -s * 0.14),
-		Vector2(30.0,  -s * 0.14),
-		Vector2(28.0,  -s * 0.02),
-		Vector2(20.0,  -s * 0.02),
-	], Color(0.80, 0.25, 0.06))
+		Vector2(22.0,  -s * 0.18),
+		Vector2(32.0,  -s * 0.18),
+		Vector2(30.0,  -s * 0.04),
+		Vector2(20.0,  -s * 0.04),
+	], Color(0.85, 0.22, 0.04))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(23.0,  -s * 0.13),
-		Vector2(28.0,  -s * 0.13),
-		Vector2(27.0,  -s * 0.03),
-		Vector2(22.0,  -s * 0.03),
-	], Color(0.94, 0.38, 0.13, 0.6))
+		Vector2(24.0,  -s * 0.17),
+		Vector2(30.0,  -s * 0.17),
+		Vector2(28.0,  -s * 0.05),
+		Vector2(22.0,  -s * 0.05),
+	], Color(0.96, 0.42, 0.10, 0.65))
 
-	# --- Layer 9: Fuselage (silver-blue grey) ---
+	# --- Layer 5: Fuselage (BRIGHT WHITE) ---
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-4.0,  -s * 0.75),  # nose left
-		Vector2(4.0,   -s * 0.75),  # nose right
-		Vector2(22.0,  -s * 0.10),  # shoulder right
-		Vector2(28.0,   s * 0.08),  # max width right
-		Vector2(26.0,   s * 0.32),  # nozzle right
-		Vector2(-26.0,  s * 0.32),  # nozzle left
-		Vector2(-28.0,  s * 0.08),  # max width left
-		Vector2(-22.0, -s * 0.10),  # shoulder left
-	], Color(0.77, 0.79, 0.83))
+		Vector2(-6.0,  -s * 0.78),  # nose left
+		Vector2(6.0,   -s * 0.78),  # nose right
+		Vector2(24.0,  -s * 0.12),  # shoulder right
+		Vector2(30.0,   s * 0.06),  # max width right
+		Vector2(28.0,   s * 0.32),  # nozzle right
+		Vector2(-28.0,  s * 0.32),  # nozzle left
+		Vector2(-30.0,  s * 0.06),  # max width left
+		Vector2(-24.0, -s * 0.12),  # shoulder left
+	], Color(0.93, 0.94, 0.96))
 
-	# Dorsal spine highlight (bright centerline strip, nose to tail)
+	# Dorsal spine highlight
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-2.0,  -s * 0.74),
-		Vector2(2.0,   -s * 0.74),
-		Vector2(3.0,    s * 0.20),
-		Vector2(-3.0,   s * 0.20),
-	], Color(0.89, 0.90, 0.93, 0.75))
+		Vector2(-2.5,  -s * 0.76),
+		Vector2(2.5,   -s * 0.76),
+		Vector2(3.5,    s * 0.15),
+		Vector2(-3.5,   s * 0.15),
+	], Color(0.98, 0.98, 1.0, 0.60))
 
-	# Panel line 1 (diagonal chine left)
+	# Left fuselage shadow (triangle — subtle left-side depth shading)
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-6.0,  -s * 0.60),
-		Vector2(-3.0,  -s * 0.60),
-		Vector2(2.0,   -s * 0.30),
-		Vector2(-1.0,  -s * 0.30),
-	], Color(0.53, 0.57, 0.63, 0.5))
+		Vector2(-6.0,  -s * 0.78),
+		Vector2(-24.0, -s * 0.12),
+		Vector2(-28.0,  s * 0.32),
+	], Color(0.72, 0.74, 0.78, 0.30))
 
-	# Panel line 2 (horizontal mid-fuselage seam)
+	# Panel line — diagonal chine
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-20.0,  s * 0.04),
-		Vector2(20.0,   s * 0.04),
-		Vector2(20.0,   s * 0.06),
-		Vector2(-20.0,  s * 0.06),
-	], Color(0.53, 0.57, 0.63, 0.5))
+		Vector2(-7.0,  -s * 0.62),
+		Vector2(-4.0,  -s * 0.62),
+		Vector2(1.0,   -s * 0.32),
+		Vector2(-2.0,  -s * 0.32),
+	], Color(0.60, 0.63, 0.70, 0.40))
 
-	# Belly shadow (rear underside)
+	# Panel line — horizontal mid-fuselage seam
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-14.0,  s * 0.10),
-		Vector2(14.0,   s * 0.10),
-		Vector2(12.0,   s * 0.32),
-		Vector2(-12.0,  s * 0.32),
-	], Color(0.54, 0.57, 0.63, 0.45))
+		Vector2(-22.0,  s * 0.04),
+		Vector2(22.0,   s * 0.04),
+		Vector2(22.0,   s * 0.06),
+		Vector2(-22.0,  s * 0.06),
+	], Color(0.60, 0.63, 0.70, 0.40))
 
-	# Orange belly triangle marking (distinctive AB2 feature)
+	# Belly shadow
+	_draw_rotated_poly(pos, rad, [
+		Vector2(-16.0,  s * 0.10),
+		Vector2(16.0,   s * 0.10),
+		Vector2(14.0,   s * 0.32),
+		Vector2(-14.0,  s * 0.32),
+	], Color(0.62, 0.65, 0.70, 0.40))
+
+	# Orange belly triangle marking
 	_draw_rotated_poly(pos, rad, [
 		Vector2(0.0,   s * 0.02),
-		Vector2(10.0,  s * 0.20),
-		Vector2(-10.0, s * 0.20),
-	], Color(0.88, 0.19, 0.06, belly_alpha))
+		Vector2(12.0,  s * 0.22),
+		Vector2(-12.0, s * 0.22),
+	], Color(0.90, 0.20, 0.05, belly_alpha))
 
-	# --- Layers 10-11: Tail fins (increased height per spec) ---
+	# --- Layer 6: Vertical tail fins (canted outward) ---
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-20.0,  s * 0.05),
-		Vector2(-25.0, -s * 0.39),
-		Vector2(-19.0, -s * 0.32),
-		Vector2(-16.0,  s * 0.14),
-	], Color(0.48, 0.52, 0.58))
-	# Left fin highlight
+		Vector2(-20.0,           s * 0.05),
+		Vector2(-25.0 - cant,   -s * 0.52),
+		Vector2(-19.0 - cant,   -s * 0.42),
+		Vector2(-16.0,           s * 0.14),
+	], Color(0.58, 0.62, 0.68))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-20.0,  s * 0.05),
-		Vector2(-25.0, -s * 0.39),
-		Vector2(-23.0, -s * 0.37),
-		Vector2(-19.0,  s * 0.04),
-	], Color(0.60, 0.64, 0.70, 0.6))
+		Vector2(-20.0,           s * 0.05),
+		Vector2(-25.0 - cant,   -s * 0.52),
+		Vector2(-23.0 - cant,   -s * 0.49),
+		Vector2(-19.0,           s * 0.04),
+	], Color(0.72, 0.75, 0.80, 0.55))
+	# Left fin tip accent
+	_draw_rotated_poly(pos, rad, [
+		Vector2(-25.0 - cant,  -s * 0.52),
+		Vector2(-23.0 - cant,  -s * 0.49),
+		Vector2(-24.0 - cant,  -s * 0.52),
+	], Color(0.85, 0.15, 0.05, 0.70))
 
 	_draw_rotated_poly(pos, rad, [
-		Vector2(16.0,   s * 0.14),
-		Vector2(19.0,  -s * 0.32),
-		Vector2(25.0,  -s * 0.39),
-		Vector2(20.0,   s * 0.05),
-	], Color(0.48, 0.52, 0.58))
-	# Right fin highlight
+		Vector2(20.0,            s * 0.05),
+		Vector2(25.0 + cant,    -s * 0.52),
+		Vector2(19.0 + cant,    -s * 0.42),
+		Vector2(16.0,            s * 0.14),
+	], Color(0.58, 0.62, 0.68))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(19.0,   s * 0.04),
-		Vector2(23.0,  -s * 0.37),
-		Vector2(25.0,  -s * 0.39),
-		Vector2(20.0,   s * 0.05),
-	], Color(0.60, 0.64, 0.70, 0.6))
+		Vector2(20.0,            s * 0.05),
+		Vector2(25.0 + cant,    -s * 0.52),
+		Vector2(23.0 + cant,    -s * 0.49),
+		Vector2(19.0,            s * 0.04),
+	], Color(0.72, 0.75, 0.80, 0.55))
+	# Right fin tip accent
+	_draw_rotated_poly(pos, rad, [
+		Vector2(25.0 + cant,   -s * 0.52),
+		Vector2(23.0 + cant,   -s * 0.49),
+		Vector2(24.0 + cant,   -s * 0.52),
+	], Color(0.85, 0.15, 0.05, 0.70))
 
-	# --- Layer 12: Nozzle rings (4 per engine) ---
+	# --- Layer 7: Nozzle rings ---
 	for nox_r in [-20.0, 20.0]:
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny), 12.0, Color(0.16, 0.17, 0.20))
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  9.0, Color(0.23, 0.24, 0.28))
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  6.0, Color(0.88, 0.42, 0.0))
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  3.0, Color(0.94, 0.565, 0.0))
-		# White core blazing out of nozzle center (drawn after rings to stay on top)
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny + 3.0), 5.0, Color(1.0, 1.0, 1.0, 1.0))
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny), 13.0, Color(0.14, 0.15, 0.18))
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny), 10.0, Color(0.25, 0.26, 0.30))
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  7.0, Color(0.90, 0.45, 0.0))
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  4.0, Color(0.96, 0.60, 0.0))
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny + 3.0), 5.5, Color(1.0, 1.0, 1.0, 1.0))
 
-	# --- Layer 13: Canopy ---
+	# --- Layer 8: Canopy ---
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-6.0,  -s * 0.40),
-		Vector2(6.0,   -s * 0.40),
+		Vector2(-7.0,  -s * 0.48),
+		Vector2(7.0,   -s * 0.48),
+		Vector2(10.0,  -s * 0.24),
+		Vector2(0.0,   -s * 0.12),
+		Vector2(-10.0, -s * 0.24),
+	], Color(0.04, 0.06, 0.14))
+	_draw_rotated_poly(pos, rad, [
+		Vector2(-5.0,  -s * 0.46),
+		Vector2(3.0,   -s * 0.38),
+		Vector2(2.0,   -s * 0.30),
+		Vector2(-6.0,  -s * 0.36),
+	], Color(0.18, 0.30, 0.65, 0.50))
+	# Canopy rear edge highlight
+	_draw_rotated_poly(pos, rad, [
+		Vector2(-10.0, -s * 0.24),
+		Vector2(10.0,  -s * 0.24),
 		Vector2(9.0,   -s * 0.22),
-		Vector2(0.0,   -s * 0.10),
 		Vector2(-9.0,  -s * 0.22),
-	], Color(0.047, 0.071, 0.141))
-	# Canopy glint (electric blue slash)
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-4.0,  -s * 0.38),
-		Vector2(2.0,   -s * 0.32),
-		Vector2(1.0,   -s * 0.26),
-		Vector2(-5.0,  -s * 0.30),
-	], Color(0.16, 0.27, 0.63, 0.55))
+	], Color(0.80, 0.82, 0.86, 0.45))
 
 
 func _draw_rotated_poly(center: Vector2, angle: float, local_pts: Array, color: Color) -> void:
