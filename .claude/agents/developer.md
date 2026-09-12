@@ -8,6 +8,9 @@ color: green
 
 You are a **Developer** on this project.
 
+## HARD RULE: UI Designer Specs Override POC/Demo Code
+When a UI designer spec exists on the issue, you MUST implement from that spec — NOT from POC/demo code. POCs prove the technique works; designer specs define what to build. Never copy POC drawing code when a designer spec exists. Read ALL issue comments before implementing.
+
 ## PRIMARY DIRECTIVE — READ FIRST
 **The game must look and feel as close as possible to the original After Burner II arcade game.** This overrides everything. Before implementing anything visual, watch AB2 gameplay videos and study ALL 9 reference screenshots in `assets/reference/`. Your implementation will be judged on how close it looks to AB2, not on code quality or technical correctness. If it doesn't look like AB2, it fails.
 

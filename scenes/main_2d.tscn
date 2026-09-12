@@ -1,0 +1,29 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/game/game_world.gd" id="1_game_world"]
+[ext_resource type="Script" path="res://scripts/player/player_jet_2d.gd" id="2_player_jet"]
+[ext_resource type="Script" path="res://scripts/weapons/weapon_manager_2d.gd" id="3_weapon_mgr"]
+[ext_resource type="Script" path="res://scripts/ui/reticle_2d.gd" id="4_reticle"]
+[ext_resource type="Script" path="res://scripts/game/game_manager_2d.gd" id="5_game_mgr"]
+[ext_resource type="PackedScene" uid="uid://hud_scene_001" path="res://scenes/hud/hud.tscn" id="6_hud"]
+
+[node name="Main2D" type="Node2D"]
+
+[node name="GameWorld" type="Node2D" parent="."]
+script = ExtResource("1_game_world")
+
+[node name="PlayerJet2D" type="Node2D" parent="."]
+z_index = 5
+script = ExtResource("2_player_jet")
+
+[node name="WeaponManager2D" type="Node" parent="PlayerJet2D"]
+script = ExtResource("3_weapon_mgr")
+
+[node name="Reticle2D" type="Node2D" parent="."]
+z_index = 10
+script = ExtResource("4_reticle")
+
+[node name="GameManager2D" type="Node" parent="."]
+script = ExtResource("5_game_mgr")
+
+[node name="HUD" parent="." instance=ExtResource("6_hud")]

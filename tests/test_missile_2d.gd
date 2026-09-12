@@ -1,0 +1,107 @@
+extends Node
+
+## Unit tests for missile_2d.gd and explosion_2d.gd
+## Tests missile data model, trail buffer, and explosion phases.
+## Run via Godot's headless test runner.
+
+var _passed: int = 0
+var _failed: int = 0
+
+
+func _ready() -> void:
+	print("=== test_missile_2d ===")
+	test_missile_initial_state()
+	test_missile_trail_buffer()
+	test_missile_collision_radius_scales_with_depth()
+	test_explosion_phases()
+	test_missile_screen_position()
+	print("=== %d passed, %d failed ===" % [_passed, _failed])
+	if _failed > 0:
+		push_error("TESTS FAILED: %d" % _failed)
+
+
+func assert_true(condition: bool, label: String) -> void:
+	if condition:
+		print("  PASS: %s" % label)
+		_passed += 1
+	else:
+		push_error("  FAIL: %s" % label)
+		_failed += 1
+
+
+func assert_approx(a: float, b: float, label: String, tolerance: float = 0.01) -> void:
+	assert_true(abs(a - b) < tolerance, label)
+
+
+func _make_missile() -> Node2D:
+	var script: GDScript = preload("res://scripts/weapons/missile_2d.gd")
+	var m := Node2D.new()
+	m.set_script(script)
+	add_child(m)
+	return m
+
+
+func _make_explosion() -> Node2D:
+	var script: GDScript = preload("res://scripts/effects/explosion_2d.gd")
+	var e := Node2D.new()
+	e.set_script(script)
+	add_child(e)
+	return e
+
+
+func test_missile_initial_state() -> void:
+	var m := _make_missile()
+	assert_true(m.logical_depth == 0.9, "missile starts at depth 0.9")
+	assert_true(m.speed == 0.8, "missile speed is 0.8")
+	assert_true(m.logical_x == 0.0, "missile starts at center x")
+	assert_true(m.is_in_group("missiles"), "missile in 'missiles' group")
+	m.queue_free()
+
+
+func test_missile_trail_buffer() -> void:
+	var m := _make_missile()
+	# Trail starts empty
+	assert_true(m._trail_count == 0, "trail empty at start")
+	# Trail max size
+	assert_true(m.TRAIL_MAX == 40, "trail max is 40 samples")
+	# Trail buffer preallocated
+	assert_true(m._trail.size() == 40, "trail buffer size 40")
+	m.queue_free()
+
+
+func test_missile_collision_radius_scales_with_depth() -> void:
+	var m := _make_missile()
+	m.logical_depth = 0.9
+	var r_near: float = m.get_collision_radius()
+	m.logical_depth = 0.3
+	var r_far: float = m.get_collision_radius()
+	assert_true(r_near > r_far, "closer missile has larger collision radius")
+	assert_true(r_near > 0.0, "collision radius is positive")
+	m.queue_free()
+
+
+func test_missile_screen_position() -> void:
+	var m := _make_missile()
+	# At center x=0, d=0.9 — should be near screen center horizontally
+	m.logical_x = 0.0
+	m.logical_depth = 0.9
+	var pos: Vector2 = m.get_screen_position()
+	assert_approx(pos.x, 480.0, "center x at logical 0.0", 10.0)
+	assert_true(pos.y > 268.8, "missile below horizon")
+
+	# At horizon (depth=0) should be near horizon y
+	m.logical_depth = 0.0
+	var pos_horizon: Vector2 = m.get_screen_position()
+	assert_approx(pos_horizon.y, 268.8, "depth=0 near horizon", 5.0)
+	m.queue_free()
+
+
+func test_explosion_phases() -> void:
+	var e := _make_explosion()
+	assert_true(e.is_in_group("explosions"), "explosion in 'explosions' group")
+	assert_true(e.base_radius == 60.0, "default base_radius 60")
+	assert_true(e._sparks.size() == 10, "10 sparks generated")
+	assert_true(e._smoke_puffs.size() == 8, "8 smoke puffs generated")
+	# Lifetime starts at 0
+	assert_true(e._lifetime == 0.0, "lifetime starts at 0")
+	e.queue_free()

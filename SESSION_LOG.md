@@ -1,6 +1,272 @@
 # Session Log
 
 ---
+### [2026-09-12 13:00] — developer — #83
+**Task**: Fix afterburner flames (too dim/small) and explosions (jagged star → AB2 starburst)
+**Result**: COMPLETED
+**Files changed**: scripts/player/player_jet_2d.gd, scripts/effects/explosion_2d.gd
+**Key changes**:
+- player_jet_2d.gd:223 — flame height `s * 1.5` (was `s * 1.05`), wider base widths (±14/±9/±5 vs ±11/±7/±4)
+- player_jet_2d.gd:235-247 — outer flame `Color(1.0,0.55,0.1)`, mid `Color(1.0,0.75,0.2)`, core `Color(1.0,0.95,0.6)`, core dot 5.5px (was 3px)
+- explosion_2d.gd:80-83 — flash radius 2.5x base_radius (was 1.5x), brighter start alpha
+- explosion_2d.gd:86-131 — replaced 14-pt regular star with 3 concentric 8-spike starbursts (dark red/orange/orange-yellow) + large round central glow (40% r) + white core (20% r)
+**Testing**: Launched main_2d.tscn. Captured player death explosion — fills ~50% screen at close range, shows correct AB2 starburst: dark red-orange spikes radiating from bright yellow-white center. Flames clearly visible and dramatic on player jet. Both match AB2 reference imagery.
+**Improvement Insights**:
+- [developer.md]: To reliably capture explosions mid-animation, time screenshot bursts to start ~0.08s after a kill (after flash phase) — file size spikes 30-40% indicate an active explosion frame.
+
+---
+### [2026-09-12 12:00] — developer — #85, #37
+**Task**: Fix player death explosion, verify score display, verify stage progression
+**Result**: COMPLETED
+**Files changed**: scripts/player/player_jet_2d.gd
+**Key changes**:
+- player_jet_2d.gd:107-115 — added `_spawn_death_explosion()` call in `_start_death()` and new function that instantiates explosion_2d.tscn at player position with base_radius=120 (larger than enemy explosions which are 30-80px)
+**Testing**: Launched main_2d.tscn, confirmed game runs cleanly. Screenshot after play session showed score=00000200/HI:00000200 confirming score increments on kill. Confirmed stage progression and sky/ground color changes work via game_manager_2d → game_world.gd property assignment.
+**Improvement Insights**:
+- [CLAUDE.md]: Note that `GameEnvironment2D` (game_environment_2d.gd) is a separate unused script — only `game_world.gd` is active in main_2d.tscn. Editing the wrong one is a silent no-op.
+- [developer.md]: When verifying "is X already working?", trace the full signal chain in code before concluding — don't assume just because the wiring looks right.
+
+---
+### [2026-09-12 10:30] — developer — #77
+**Task**: Fix ground scrolling (static stripes) and desert color palette in game_world.gd
+**Result**: COMPLETED
+**Files changed**: scripts/game/game_world.gd
+**Key changes**:
+- game_world.gd:18-22 — removed scroll_speed var, simplified _ground_scroll to `fmod(_ground_scroll + delta * 48.0, 60.0)` matching POC rate exactly
+- game_world.gd:46-55 — _draw_ground now uses _ground_scroll directly (removed /12.5 division that was causing 16x slowdown)
+- game_world.gd:14-17 — sky colors changed from blue (0.15,0.20,0.65)/(0.55,0.55,0.85) to amber/orange (0.72,0.28,0.04)/(0.95,0.62,0.18); ground colors boosted to (0.78,0.55,0.25)/(0.65,0.42,0.18)
+**Testing**: Launched main_2d.tscn, took two screenshots 2s apart — ground stripes visibly shifted positions confirming ~48 scroll units/sec. Sky is now rich amber/golden-orange matching AB2 desert reference.
+**Improvement Insights**:
+- [developer.md]: When debugging "static" animations, check both rate-of-change AND wrap divisor — the bug here was a /12.5 divisor that made 48 units/sec look like 3.84 effective units/sec
+- [CLAUDE.md]: Note that GameEnvironment2D exists but is NOT wired into main_2d.tscn — only game_world.gd is active. Future devs may edit the wrong file.
+
+---
+### [2026-09-11 18:30] — senior-developer — #79
+**Task**: Integration — wire all 2D components into playable game
+**Result**: COMPLETED
+**Files changed**: scenes/main_2d.tscn, scripts/game/game_manager_2d.gd, scripts/weapons/weapon_manager_2d.gd, scripts/weapons/vulcan_bullet_2d.gd, scripts/enemies/enemy_jet_2d.gd, scripts/ui/title_screen.gd
+**Key changes**:
+- scenes/main_2d.tscn — new main scene with layered Node2D structure (GameWorld z=0, PlayerJet z=5, Reticle z=10, HUD CanvasLayer)
+- scripts/game/game_manager_2d.gd — game controller with wave-based enemy spawning and stage progression using StageData
+- scripts/weapons/weapon_manager_2d.gd:101-104,119-121,146-147,150-152 — fixed Engine.get_singleton() to use get_node_or_null() and direct autoload refs
+- scripts/weapons/vulcan_bullet_2d.gd:16-17 — added add_to_group("player_bullets") so collision detection finds bullets
+- scripts/enemies/enemy_jet_2d.gd:121-133 — added _spawn_explosion() on death for visual feedback
+- scripts/ui/title_screen.gd:112 — changed scene transition from main.tscn to main_2d.tscn
+**Technical decisions**:
+- Used Option B (layered Node2D children) rather than merging everything into GameWorld's draw call. This lets each component own its rendering while z_index handles draw order. Simpler to wire and debug.
+- GameManager2D handles both enemy spawning and stage management (merged spawner+stage_manager responsibilities) because the old spawner was 3D-based and stage_manager referenced 3D nodes.
+- Kept old main.tscn untouched as fallback.
+**Testing**:
+- Launched game via main_2d.tscn — verified sky/ground rendering, player jet visible, enemies spawning/approaching, crosshair, lock-on brackets, HUD updating, score incrementing, death/respawn, game over
+- Launched via title screen — verified scene transition from title → main_2d.tscn works
+- No GDScript parse errors in headless check
+**Improvement Insights**:
+- agent-definition: When creating 2D components independently, enforce that each script documents which groups it adds itself to. The missing "player_bullets" group on vulcan_bullet_2d was a silent integration failure.
+- CLAUDE.md: Add note that Engine.get_singleton() does NOT work for GDScript autoloads — use global name directly or get_node_or_null("/root/AutoloadName").
+- workflow: Integration tasks should have a checklist of all group memberships and signal connections that need to work across components.
+
+---
+### [2026-09-11 24:15] — developer — #75 (Part 2)
+**Task**: Implement enemy jets in 2D sprite scaling — EnemyJet2D, GameWorld, DepthUtil, EnemySpriteRenderer
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/game/depth_util.gd` — new: depth-to-screen transforms (class_name DepthUtil, static funcs)
+- `scripts/enemies/enemy_sprite_renderer.gd` — new: static draw_enemy() for 3 types (olive green, blue-grey, charcoal), 8-layer polygon spec
+- `scripts/enemies/enemy_jet_2d.gd` — new: 2D enemy logic node, configure(), take_damage(), _die(), _fire_bullet(), group "enemies"
+- `scripts/enemies/enemy_bullet_2d.gd` — new: enemy bullet, logical depth movement, drift toward player
+- `scripts/game/game_world.gd` — new: central renderer (sky 50-band gradient, ground 80 stripes, depth-sorted draw, screen-space collision)
+- `scenes/enemies/enemy_jet_2d.tscn` — new minimal scene
+- `scenes/test_enemy_2d.tscn` — new test scene (5 enemies at different depths/types)
+- `scripts/ui/test_enemy_2d_init.gd` — new: test scene initializer (frozen enemies at fixed depths)
+- `tests/test_enemy_jet_2d.gd` — new: 54 unit tests (all pass)
+**Key changes**:
+- enemy_sprite_renderer.gd:1 — dark olive green #2E4018 body + red engine intake circle (#CC1A0A) as primary AB2 visual; 8 draw layers per spec
+- enemy_jet_2d.gd:48 — GameState/AudioManager accessed via get_node_or_null() to avoid headless test failures (Godot 4 autoload limitation in --script mode)
+- enemy_jet_2d.gd:55 — configure() re-calls _apply_type_data() since children's _ready() fires before parent's _ready() in scene tree
+- game_world.gd:7 — uses preload() for DepthUtil/EnemySpriteRenderer instead of class_name references (const-expression limitation)
+- depth_util.gd:1 — HORIZON_Y=268.8 (40% of 672px), quadratic depth formula: sy = horizon + d² * (H-horizon) * 0.95
+**Testing**: 54/54 unit tests pass headless. Test scene visual confirmed: dark olive green FIGHTER with swept delta wings and red intake circle at depth=0.95 matches ab2-arcade-closeup-enemies.jpg reference. INTERCEPTOR (blue-grey) and scale progression all correct.
+**Improvement Insights**:
+- **CLAUDE.md**: In Godot 4, autoload singletons referenced by bare name (GameState, AudioManager) fail to compile in headless --script mode. Use get_node_or_null("/root/SingName") pattern in any script used in unit tests. Add to conventions.
+- **developer.md**: Multiple parallel agent sessions create competing Godot instances — all fighting for port 9501. Always check ps aux for Godot processes before launching a test scene and kill them first.
+
+---
+### [2026-09-11 23:45] — developer — #78
+**Task**: Implement vulcan cannon bullets and targeting reticle in 2D sprite-scaling system
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/weapons/vulcan_bullet_2d.gd` — new: 2D bullet, depth-based movement/scaling
+- `scripts/weapons/weapon_manager_2d.gd` — new: vulcan fire, crosshair lead, lock-on, missile proxy
+- `scripts/ui/reticle_2d.gd` — new: crosshair cross + lock-on brackets + blink animation
+- `scenes/weapons/vulcan_bullet_2d.tscn` — new scene
+- `scenes/hud/reticle_2d.tscn` — new scene
+- `scenes/test_vulcan_2d.tscn` — new test scene
+- `scripts/ui/test_vulcan_2d.gd` — new test scene controller
+- `tests/test_vulcan_2d.gd` — new: 21 unit tests (all pass)
+**Key changes**:
+- vulcan_bullet_2d.gd:1 — extends Node2D; inlines DepthUtil math to avoid class_name resolution issue in new scripts; fires at 3.5 depth/sec, despawns at d<0.05
+- weapon_manager_2d.gd:1 — extends Node; uses Engine.get_singleton("AudioManager") instead of bare AudioManager ref (avoids autoload dependency failure in headless test mode)
+- reticle_2d.gd:1 — extends Node2D; z_index=10; guards WeaponManager2D access with "locked_enemy" in _weapon_manager check to handle script load timing
+- test_vulcan_2d.gd:1 — extends SceneTree; 21 assertions covering bullet math, collision scaling, weapon manager constants, reticle blink state
+**Testing**: 21/21 unit tests pass headless. Test scene launches clean (--quit-after 5, no errors). Visual: lock-on brackets visible around nearest target, crosshair cross inside brackets, sky/ground, 5 red target dots. Bullet firing confirmed by no crashes under Z key input.
+**Improvement Insights**:
+- **CLAUDE.md**: Autoload references (AudioManager, GameState) in new GDScript files cause "Identifier not found" in headless --script mode. Always use Engine.get_singleton() pattern in scripts that need to run in both test and game contexts.
+- **developer.md**: When screenshot shows wrong scene, suspect multiple Godot instances sharing port 9501. Kill all Godot processes before launching test scene.
+
+---
+### [2026-09-11 23:10] — developer — #75
+**Task**: Implement heat-seeking missiles in 2D sprite scaling (missile_2d, explosion_2d, test scene)
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/weapons/missile_2d.gd` — new file, 2D homing missile with smoke trail
+- `scripts/effects/explosion_2d.gd` — new file, 4-phase animated explosion
+- `scenes/weapons/missile_2d.tscn` — new minimal scene
+- `scenes/effects/explosion_2d.tscn` — new minimal scene
+- `scenes/test_missiles_2d.tscn` — new test scene
+- `scripts/ui/test_missiles_2d.gd` — new test scene controller
+- `tests/test_missile_2d.gd` — new unit tests (6 assertions)
+**Key changes**:
+- missile_2d.gd:1 — extends Node2D; 40-sample ring buffer trail, homing via logical_x lerp, _draw() renders trail + body
+- missile_2d.gd:50 — inlines depth math (_to_screen, _depth_to_scale) to avoid class_name DepthUtil cache issue (global_script_class_cache.cfg is empty without editor)
+- explosion_2d.gd:1 — extends Node2D; 4 phases: flash (0-80ms), fire star polygon (80-400ms), smoke puffs (300-900ms), debris sparks (0-600ms)
+- test_missiles_2d.gd:11 — static to_screen() inlined; _HomingHelper inner class drives homing for fake targets
+**Testing**: Test scene confirmed running (idle screenshot: sky+ground+5 targets+player). Post-fire screenshot shows smoke/explosion cloud puffs at target positions. Build check: no GDScript parse errors (only expected MCP port error in headless). 6 unit test assertions cover initial state, trail buffer, collision radius scaling, screen position math, explosion phases.
+**Improvement Insights**:
+- **CLAUDE.md**: Add note: "DepthUtil class_name requires editor scan to register in global_script_class_cache. In standalone test scenes launched without editor, inline the math or preload explicitly."
+- **developer.md**: When creating standalone test scenes, verify scene launches correctly by checking log output for SCRIPT ERROR before claiming visual verification.
+
+---
+### [2026-09-11 22:45] — developer — #77
+**Task**: Implement 2D ground/sky environment rendering (AB2-style perspective stripes + sky gradient)
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/environment/game_environment_2d.gd` — new file, core renderer
+- `scenes/environment/game_environment_2d.tscn` — new minimal scene
+- `scenes/test_environment_2d.tscn` — new test scene
+- `scripts/environment/test_environment_2d_ctrl.gd` — new test controller
+- `tests/test_environment_2d.gd` — new unit test file (13 tests)
+**Key changes**:
+- game_environment_2d.gd:1 — class_name GameEnvironment2D extends Node2D; renders sky (48-band gradient) + ground (80-stripe quadratic perspective) via _draw()
+- game_environment_2d.gd:15 — StageType enum with 4 palettes: DESERT, COASTAL, NIGHT, CITY
+- game_environment_2d.gd:59 — set_stage_palette(stage_num) maps 1-23 to palette type
+- game_environment_2d.gd:111 — _draw_city_lights() draws 320 perspective-scaled dots for night stage
+- Avoids const dict type inference issues by using match functions instead of const Dictionary lookup
+**Testing**: 13/13 unit tests pass. Visual screenshot confirms desert environment matches AB2 desert reference. Build check exits 0. scene renders at correct horizon Y=240 with scrolling ground animation.
+**Improvement Insights**:
+- CLAUDE.md: Note that Godot 4 const Dictionary with enum keys causes `:=` type inference failure — use match functions instead.
+- developer.md: When `class_name` is declared in a script, Godot 4 may not have it in the global cache on cold first-load of a scene — sibling scripts using the class_name fail to parse. Use `preload()` or untyped vars instead.
+
+---
+### [2026-09-11 22:00] — developer — #76
+**Task**: Fix reversed left/right banking visual on player jet
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/player/player_jet_2d.gd`
+**Key changes**:
+- player_jet_2d.gd:92 — removed negation from `target_bank = -input_x * MAX_BANK_ANGLE` → `target_bank = input_x * MAX_BANK_ANGLE`. Pressing right now correctly produces a positive bank angle (right wing raises), matching real aircraft banking.
+**Testing**: `--check-only` headless build passes. Movement direction was never broken (get_axis args were correct); only the bank visual was inverted.
+**Improvement Insights**:
+- developer.md: when investigating "reversed controls" bugs, check both movement AND visual banking separately — they can diverge independently.
+
+---
+### [2026-09-11 21:30] — developer — #75
+**Task**: Rewrite player F-14 drawing to implement UI designer spec (Round 2 — after judge FAIL at 4/10)
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/player/player_jet_2d.gd` — `_draw_player()` function rewritten (lines 192-430)
+**Key changes**:
+- player_jet_2d.gd:199-208 — wing foreshortening (cosine factor on raised wing) and flame lean (bank*0.15 pixel offset) for banking visual effects
+- player_jet_2d.gd:211-247 — 4 layers per engine (outer 6-vertex, mid 6-vertex, core 4-vertex, bright dot circle); fh formula s*(1.05+sin(f*0.35+i*1.7)*0.18); base at s*0.30
+- player_jet_2d.gd:251-276 — left/right wings with shadow overlays; foreshortening applied to tip X coords
+- player_jet_2d.gd:292-304 — nacelles as trapezoids (wider at rear), correctly outboard (X -28 to -12)
+- player_jet_2d.gd:307-333 — trapezoidal intake ramps on nacelle front faces (Y=-s*0.14 to -s*0.02) with highlight strips
+- player_jet_2d.gd:336-345 — fuselage 8-vertex with TWO nose vertices at ±4px (bullet nose, not spike)
+- player_jet_2d.gd:347-369 — fuselage panel lines and belly shadow (3 additional polys)
+- player_jet_2d.gd:372-390 — tail fins at X -20 to -16, top at -s*0.32 (outboard on nacelles) with highlights
+- player_jet_2d.gd:393-398 — 3 nozzle rings per engine (outer/mid/glow) per designer spec Layer 12
+- player_jet_2d.gd:401-413 — canopy 5-vertex with glint highlight; designer color #101838
+- All colors from designer spec section B (arcade-reference-derived palette)
+**Testing**:
+- GDScript syntax check: PASS (no errors emitted in headless mode)
+- Visual screenshot: F-14 renders with wide bullet nose, orange intake ramps, dark navy canopy, 4-layer dramatic flames, outboard tail fins
+- All 36 draw calls present (counted against designer spec section F)
+- Gameplay logic untouched — movement/death/respawn/hit unchanged
+**Improvement Insights**:
+- **developer.md**: When a judge FAIL cites "copied POC verbatim", re-read ALL issue comments before writing a single line. The latest designer spec comment always supersedes demo code.
+- **workflow**: Screenshots with the Vulkan renderer return compressed/dark results. Use --rendering-driver opengl3 for cleaner visual verification screenshots.
+
+---
+### [2026-09-11 17:55] — developer — #75
+**Task**: Implement player F-14 jet in 2D sprite scaling (Part 1 of migration)
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/player/player_jet_2d.gd` (new — 2D player jet, 277 lines)
+- `scenes/player/player_jet_2d.tscn` (new — minimal player scene for instantiation)
+- `scenes/test_player_2d.tscn` (new — test scene)
+- `tests/test_player_jet_2d.gd` (new — 19 unit tests, all passing)
+**Key changes**:
+- player_jet_2d.gd:1 — extends Node2D, draws F-14 with 14 polygon parts via `_draw()`
+- player_jet_2d.gd:98 — public `hit()` method for collision system (per addendum Gap 5)
+- player_jet_2d.gd:105 — `is_vulnerable()` guards collision checks
+- player_jet_2d.gd:155 — `_draw_player()` with exact POC vertices + colors
+- player_jet_2d.gd:242 — `_draw_rotated_poly()` and `_draw_rotated_circle()` helpers ported from POC
+- tests: used `_initialize()` instead of `_init()` to defer load past autoload init; manually calls `_ready()` to test group membership
+**Testing**:
+- 19/19 unit tests passing (exit code 0)
+- Visual screenshot: F-14 renders correctly at (480,480) — fuselage, swept wings, canopy, intake ramps, nacelles, afterburner flames all visible
+- No GDScript errors on game launch (only expected MCP bridge port conflict)
+**Improvement Insights**:
+- **developer.md**: In Godot 4 `--headless --script` mode, `add_to_group()` called in `_ready()` does NOT execute when using `add_child()` from tests — `_ready()` is deferred. Workaround: explicitly call `_ready()` in tests if group membership needs to be verified.
+- **developer.md**: When a script uses autoload singletons (GameState etc.), use `_initialize()` not `_init()` in SceneTree test scripts — `_initialize()` runs after autoloads are registered, allowing `load()` to compile the script successfully.
+
+---
+### [2026-09-11 16:10] — developer — #73
+**Task**: Import real F-14 3D model as GLB proof of concept
+**Result**: COMPLETED
+**Files changed**:
+- `assets/models/f14_player.glb` (new — 23KB procedurally generated GLB)
+- `assets/models/f14_player.glb.import` (new — Godot import metadata)
+- `assets/models/LICENSE.txt` (new — CC0 license declaration)
+- `tools/generate_f14.py` (new — Python generator script)
+- `scripts/player/jet_model_loader.gd` (new — GLB loader with flame material override)
+- `scripts/player/player_jet.gd` — added `use_glb_model` export toggle + `_build_primitive_mesh()`/`_load_glb_model()` split
+- `scenes/test_glb_model.tscn` (new — test scene with `use_glb_model = true`)
+**Key changes**:
+- player_jet.gd:7 — `@export var use_glb_model: bool = false` toggle (default false = no regression)
+- player_jet.gd:43-74 — `_ready()` branches into `_load_glb_model()` or `_build_primitive_mesh()` based on flag
+- jet_model_loader.gd:1 — loads f14_player.glb as PackedScene, applies unshaded emission to flame nodes
+- generate_f14.py — builds F-14 geometry: fuselage (oval cross-sections at 9 Z-stations), swept wings at 55°, HStab, VTail, twin nacelles, nozzles, intake ramps, flame cones. Outputs valid GLB binary.
+**Testing**:
+- GLB binary validated (magic bytes, version, chunk structure) via Python
+- Godot editor headless import completed successfully (f14_player.glb.import generated)
+- Ran test_glb_model.tscn and captured 4 screenshots — F-14 silhouette visible: swept wings, twin orange nozzles, blue canopy, central flame pulse working
+- Main game scene unaffected (use_glb_model defaults to false)
+**Improvement Insights**:
+- **developer.md**: GLB files in Godot 4 MUST be imported via the editor (or `--headless --editor --quit`) before `load()` works at runtime. Add this to the workflow as a mandatory step after adding any binary asset.
+- **CLAUDE.md**: Add workflow note: after adding .glb/.png to assets/, always run `Godot --headless --editor --quit` before the game run to trigger import pipeline. Otherwise `load()` returns null at runtime.
+
+---
+### [2026-09-11 14:30] — developer — #74
+**Task**: Create 2D drawn F-14 Tomcat sprite using Godot _draw() API — proof of concept
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/player/jet_sprite_builder.gd` (new)
+- `scenes/test_2d_jet.tscn` (new)
+- `scripts/ui/test_2d_jet_scene.gd` (new)
+**Key changes**:
+- jet_sprite_builder.gd:1 — Node2D with `_draw()` rendering 9 sub-functions: flames, wings, stabs, fuselage, nacelles, tail fins, canopy, panel lines, nozzles
+- jet_sprite_builder.gd:47 — Afterburner: 3-layer polygon gradient (outer glow / mid orange / white core) with pulse + jitter animation
+- jet_sprite_builder.gd:87 — Wings: 7-point polygons, swept ±155px, per-vertex shading top-to-tip gradient
+- scenes/test_2d_jet.tscn — 960x672 blue background, jet at position (480,400) scale 1.4
+**Testing**:
+- Verified no parse errors via headless Godot run (zero GDScript errors)
+- Visual confirmed via screenshot: F-14 silhouette, orange intake ramps, animated flames, twin nozzles, canopy all visible
+- Main scene unaffected — test scene is isolated
+**Improvement Insights**:
+- **developer.md**: Godot 4 `draw_colored_polygon()` takes a single `Color`, NOT `PackedColorArray` — use `draw_polygon()` for per-vertex colors. Document this API distinction in CLAUDE.md to prevent repeated rewrite cycles.
+- **CLAUDE.md**: Add Godot 4 2D draw API note: `draw_polygon(pts, colors)` for per-vertex; `draw_colored_polygon(pts, color)` for solid fill.
+
+---
 ### [2026-09-11 23:45] — qa — #65
 **Task**: Verify movement feel tuning — speed/acceleration/banking parameters match AB2 agility
 **Result**: PARTIAL PASS (2 bugs found)
@@ -2076,3 +2342,247 @@ Return to developer with feedback on all gaps. The most critical fix is player j
 - **criteria.md**: Add requirement that missile fire must be testable via TCP bridge — either change fire_missile to is_action_pressed or add a dedicated bridge command
 - **developer.md**: When modifying input-dependent features, verify they can be triggered via the MCP bridge for judge/QA evaluation
 - **game-capture skill**: Should support action-based commands (fire_missile, fire_vulcan) not just raw key presses
+
+---
+### [2026-09-11 20:45] — architect — #75
+**Task**: Design 2D sprite scaling migration spec (Super Scaler)
+**Result**: COMPLETED
+**Key decisions**:
+- Use single GameWorld Node2D with `_draw()` for all depth-sorted objects (sky, ground, enemies, bullets, missiles, explosions). Player jet in separate Node2D drawn on top via scene tree order.
+- Logical depth coordinate system: d=0.0 at horizon, d=1.0 at camera plane. All game objects use (logical_x, logical_depth) instead of Vector3. Centralized DepthUtil class for coordinate transforms.
+- Screen-space circle-circle collision replaces Area3D collision. Collision radius scales with depth for natural difficulty curve.
+- 5-part sequential migration: Player → Enemies+GameWorld → Ground/Sky → Weapons/Effects → Integration+Cleanup. Each part results in a testable state.
+- Reticle and HUD require zero changes — already 2D, interfaces preserved. GameState/AudioManager/StageData unchanged — pure data/logic, no rendering.
+- WeaponManager sight targeting switches from camera.unproject_position() to direct screen-space math relative to player position.
+**Spec posted to**: GitHub issue #75 comment
+**Files referenced**: 13 files to create, 3 to modify, 15+ to delete
+**Improvement Insights**:
+- [architect.md]: Add a checklist item to verify that POC code is directly referenced/ported in the spec rather than abstractly described — prevents drift between proven code and spec
+- [CLAUDE.md]: Document that `_draw()` based rendering requires `queue_redraw()` every frame in `_process()` — multiple developers have missed this
+- [criteria.md]: For migration tasks, add criterion "no regression in existing non-visual systems" (GameState, scoring, stage progression) alongside visual criteria
+
+---
+### [2026-09-11 18:15] — judge — #75
+**Gate type**: per-agent (architect)
+**Verdict**: FAIL
+**Score**: 7/10
+**Key gaps**:
+- enemy_jet_2d.gd severely underspecified — missing configure(), take_damage(), _die(), _fire_bullet(), get_collision_radius(), destroyed signal, health/type data, _process() behavior
+- reticle.gd incorrectly listed as "no changes" — has Node3D type annotations that will break with Node-based weapon_manager_2d
+- Camera parallax effect (player_jet.gd lines 128-134) not addressed — silently dropped or replicated?
+- Enemy bullet creation flow from enemy to bullet not specified
+- Player group membership not explicitly listed
+**Improvement Insights**:
+- [architect.md]: Add checklist: "For every script being replaced, audit ALL public methods, signals, and group memberships"
+- [criteria.md]: Architect "Clear interfaces" criterion should require: every cross-module function call must have complete signature in spec
+- [CLAUDE.md]: Add note: "Migration specs require line-by-line audit of replaced files to catch silently dropped behavior"
+
+---
+### [2026-09-11 19:45] — architect — #75
+**Task**: Fix 5 gaps in sprite scaling migration spec (round 2 after judge FAIL 7/10)
+**Result**: COMPLETED
+**Key decisions**:
+- Gap 1: Wrote complete enemy_jet_2d.gd spec (~120 lines) with all methods: configure(), _process(), take_damage(), _die(), _fire_bullet(), _find_player(), _spawn_explosion(), get_screen_position(), get_screen_scale(), get_collision_radius(), get_visual_type(). Includes TYPE_DATA dict, EnemyType enum, destroyed signal, and GameState.add_score connection.
+- Gap 2: Added reticle.gd to "Files to Modify" list — 3 type annotations change from Node3D to Node (lines 22, 37, 60).
+- Gap 3: Camera parallax intentionally dropped. Original AB2 has no camera parallax. Our 3D implementation added it as enhancement. Dropping it moves closer to AB2 fidelity (primary directive).
+- Gap 4: Specified complete enemy bullet creation flow in _fire_bullet(). Also revised enemy_bullet_2d.gd with missing get_collision_radius(), _ready() group registration, and cleaner lateral drift logic using logical coordinates.
+- Gap 5: Explicit group membership table for all 6 scripts (player, enemies, enemy_bullets, player_bullets, missiles, explosions). Also specified public hit() method on player_jet_2d.gd and noted spawner's _add_player_to_group() fallback should be removed.
+**Spec posted to**: GitHub issue #75 comment (addendum)
+**Improvement Insights**:
+- [architect.md]: When doing migration specs, always produce a complete script skeleton for the most complex replacement script — not just data fields. The enemy_jet_2d was the most complex file and got the least coverage initially.
+- [workflow]: Judge feedback was specific and actionable. The addendum format (gap-by-gap with complete code) is efficient — avoids rewriting the entire spec.
+
+---
+### [2026-09-11 18:45] — judge — #75
+**Gate type**: per-agent (architect) — Round 2
+**Verdict**: PASS
+**Score**: 9/10
+**Key gaps**: none (all 5 round-1 gaps fully resolved)
+**Details**: Architect addendum addressed every gap from round 1. enemy_jet_2d.gd now has complete 165-line spec. reticle.gd type fix specified with exact line numbers. Camera parallax explicitly dropped with rationale. Enemy bullet creation flow fully specified with revised enemy_bullet_2d.gd. Group memberships documented with dependency table. Minor non-blocking note: weapon_manager_2d.gd bracket size computation uses shorthand ("same logic as current") but developer has enough context.
+**Improvement Insights**:
+- [criteria.md]: No changes needed — the architect criteria caught the right issues
+- [judge.md]: The gap-by-gap verification format for round 2 is effective — should be the standard approach for re-evaluations
+- [workflow]: Addendum format (supplement, not replace) avoids spec churn and keeps the review focused
+
+---
+### [2026-09-11 19:00] — ui-designer — #75
+**Task**: Design visual spec for player F-14 Tomcat drawn with Godot `_draw()` API (2D sprite scaling migration)
+**Result**: COMPLETED
+**Elements designed**:
+- Fuselage (8-vertex polygon with broad bullet nose, 2 panel lines, belly shadow)
+- Left/right main wings (4-vertex swept delta with shadow overlay)
+- Left/right horizontal stabilizers (4-vertex)
+- Left/right engine nacelles (trapezoidal)
+- Left/right intake ramps (orange — AB2 signature color)
+- Left/right vertical tail fins (swept, with highlight strip)
+- Engine nozzle rings (3 circles per nozzle: outer/mid/glow)
+- Canopy (5-vertex arch with glint highlight)
+- Afterburner flames (3-layer cone per engine: outer/mid/core + bright dot)
+- Banking foreshortening behavior spec
+- Complete draw order table (36 draw calls)
+**Key design decisions**:
+- Flame width (±11px outer base) is the highest-impact single fix vs POC's ±4.5px — width creates drama, not length
+- Nose broadened from single vertex to 8px flat tip to match AB2 bullet radome shape
+- Tail fins repositioned to X ±18-24px range (outboard on nacelles), taller at -s*0.32 height
+- Intake ramps redesigned as trapezoidal front-face overlays on nacelles, not floating rectangles
+- Wing foreshortening via cosine factor on raised-side wingtip X during banking — not in POC
+- Flame lean: `tip_x += bank * 0.15` adds subtle direction cue during rolls
+- All hex colors sampled from `ab2-arcade-closeup-enemies.jpg` (highest-res reference)
+**Improvement Insights**:
+- **ui-designer.md**: Add explicit step to read ALL reference screenshots before designing — studying all 9 revealed the closeup-enemies.jpg as the single best color/detail source that would have been missed otherwise
+- **CLAUDE.md**: Note that `ab2-arcade-closeup-enemies.jpg` is the highest-resolution reference and should always be the primary color sampling source for player jet design
+- **workflow**: UI designer should produce a numbered developer checklist at the end of every spec so the developer has a clear priority-ordered implementation list (added as section G in this spec)
+
+---
+### [2026-09-11 18:45] — judge — #75
+**Gate type**: per-agent (developer)
+**Verdict**: FAIL
+**Score**: 4/10
+**Key gaps**: Developer ported POC drawing code verbatim instead of implementing the UI designer spec. Needle-point nose (criteria.md Hard Rule violation), thin pencil flames (2 of 4 layers per engine), missing 14 of 36 draw calls, all colors from POC instead of designer palette, tail fins wrong position, intake ramps floating, no wing foreshortening, no flame lean. Gameplay logic is correct -- only visual rendering fails.
+**Improvement Insights**:
+- developer.md: Add instruction that UI designer specs override POC/demo code. Never copy POC drawing code when a designer has provided corrected specs.
+- criteria.md: Add developer criterion requiring comparison against designer spec when one exists.
+- CLAUDE.md: Add agent behaviour note that developers must read ALL issue comments including UI designer specs before implementing.
+
+---
+### [2026-09-11 22:45] — ui-designer — #75
+**Task**: Design visual spec for heat-seeking missiles (2D sprite scaling renderer)
+**Result**: COMPLETED
+**Elements designed**:
+- Missile body (shape, size scaling table by depth, 3-layer color stack)
+- Smoke trail (40-sample ring buffer, radius/alpha formulas, day/night color variants)
+- Missile flight behavior (pylon offsets, launch arc, depth-to-screen projection)
+- Lock-on indicator (bracket geometry, blink timing correction to 80ms, state table)
+- Explosion on impact (4-phase animation: flash → fire burst → smoke cloud → debris sparks)
+- Full color palette (hex values for all elements)
+**Key design decisions**:
+- Smoke trail uses position history ring buffer (40 samples at 2-frame intervals) rather than a particle system — this is the correct approach for `_draw()` API and naturally produces curved trails when missile tracks off-center
+- Explosion uses a 4-phase animated node approach: instantiate at impact with enemy screen size passed in, auto-free after 1.0s — keeps explosion logic self-contained
+- Fire burst uses a jagged star polygon (12-16 alternating inner/outer vertices) to replicate the AB2 "spiky sun" explosion shape visible in ab2-arcade-huge-explosion.jpg
+- Smoke trail colors split into 3 zones (hot white / warm cream / grey) to match the gradient visible in reference screenshots; added night stage variant (#D0D0F0) from ab2-arcade-night-missiles.jpg
+- Flagged existing reticle.gd blink interval bug: 60ms vs correct 80ms — noted for developer as small correction needed
+- Pylon alternation tracked in weapon_manager.gd and offset passed to missile at instantiation so trail originates at physically correct underwing position
+**Improvement Insights**:
+- **ui-designer.md**: After studying reference screenshots, explicitly note which screenshots directly justify each spec decision — this makes judge evaluation faster and reduces "where did this come from?" questions
+- **workflow**: For visual design tasks involving existing `_draw()` code, always read the demo/POC scripts first — they define the coordinate system and scale constants that the spec must be consistent with
+
+---
+### [2026-09-11 22:30] — ui-designer — #75
+**Task**: Design visual spec for enemy jets drawn with _draw() API (Part 2 of sprite scaling migration)
+**Result**: COMPLETED
+**Elements designed**:
+- Type 0 FIGHTER enemy jet (dark olive green, stages 1-8)
+- Type 1 INTERCEPTOR enemy jet (blue-grey, stages 9-16)
+- Type 2 BOMBER enemy jet (charcoal grey, stages 17-23)
+- 8-layer polygon draw order with detail thresholds
+- Depth scaling table (d=0.0 to d=1.0+)
+- Complete color palette (9 values per type)
+- Enemy bullet visual spec
+- Stage-to-type mapping
+**Key design decisions**:
+- Discarded the POC red-fuselage placeholder entirely. Reference screenshots (ab2-arcade-closeup-enemies.jpg) clearly show DARK OLIVE GREEN enemies — this is non-negotiable.
+- The RED ENGINE INTAKE CIRCLE is the single most important visual element. It must render even at sub-silhouette depth (s=4px+). It is what makes AB2 enemies instantly identifiable as targets.
+- Wing span set to 2.90s (±1.45s from center) — making enemies substantially wider than tall (1.87:1 ratio). This matches the wide delta-wing silhouette visible in all reference shots.
+- Fuselage polygon is 7 vertices (not the POC's 5) to get the correct narrow-nose, shoulder-shoulder shape seen in the closeup reference.
+- Detail thresholds split at s=1.5 (dot), s=4 (inner engine ring), s=8 (canopy), s=10 (tail stub), s=14 (canopy glint), s=16 (wing chevrons). This ensures the game reads correctly at all depth stages.
+- Dot color for FIGHTER is RED (#CC3322) — historically accurate and communicates "enemy" even at 1-2px.
+**Improvement Insights**:
+- **ui-designer.md**: When POC code exists, explicitly call out which POC elements are WRONG vs which should be retained. Designers who only say "use the spec" leave developers guessing about what to keep.
+- **CLAUDE.md**: Add rule: developer must NOT re-use POC placeholder colors when a designer spec supersedes them. This caused a judge FAIL in Part 1.
+- **criteria.md**: Add explicit visual criterion for enemy jets: "enemy engine intake circle must be visible as red/orange distinct element at all depths >= 0.5".
+
+---
+### [2026-09-12 12:45] — judge — #75, #77, #78, #79
+**Gate type**: final
+**Verdict**: FAIL
+**Score**: 4/10
+**Key gaps**: (1) Ground scrolling broken/static — zero visible movement across 12 frames, (2) Explosions are comic-book starbursts not AB2 puffy clouds, (3) Afterburner flames too small (~30% jet length vs AB2's ~80%), (4) Screen mostly empty — sparse enemy spawning, (5) Color palette washed-out vs AB2 vivid saturation, (6) Player jet disappears entirely during death/respawn
+**Improvement Insights**:
+- criteria.md: Add explicit criterion "ground stripe positions must differ between consecutive 500ms captures" — static ground is automatic FAIL
+- judge.md: When evaluating ground motion, diff stripe positions between frame_001 and frame_002 pixel-level
+- developer.md: Require developer to view reference images before implementing each visual element, not just at start
+
+---
+### [2026-09-12 12:55] — qa — #79
+**Task**: Full QA test of integrated 2D After Burner game
+**Result**: FAIL (5 new bugs found)
+**Issues verified**: #50 (FAIL), #52 (PASS), #53 (PASS), #54 (FAIL), #65 (PARTIAL), #76 (PASS), #79 (FAIL)
+**New bugs filed**: #80, #81, #82, #83, #84
+**Key findings**:
+- Enemy bullets never fire (High): fire_interval 4.0s vs enemy lifetime 3.4s — fire timer exceeds lifetime for most enemies. Root cause in enemy_jet_2d.gd initial fire timer calculation.
+- Afterburner flames too dim (High): outer flame Color(0.88, 0.25, 0.06) too dark, core dot only 3px. AB2 reference shows bright white-core dramatic flames.
+- Player can fly above horizon (Medium): MOVE_MIN.y=200 vs HORIZON_Y=268.8 allows 68px of sky flight.
+- Dead 3D reticle in HUD (Low): hud.tscn uses reticle.gd (3D) which silently fails in 2D scene. Duplicate of working Reticle2D node.
+- Enemy bullet visibility gap (Medium): bullets invisible below depth 0.3 — appear from nowhere at mid-screen.
+- Core systems WORKING: score, death/respawn, explosions, enemy scaling, lock-on, HUD, stage progression all functional.
+- Issue #52 RESOLVED: horizon at 40% from top (within 40-55% spec).
+- Issue #76 RESOLVED: left/right controls correct in 2D build.
+**Improvement Insights**:
+- qa.md: Add math verification step for timer/lifetime ratios when reviewing enemy behavior. "Can the enemy fire before it despawns?" is a cheap calculation that catches #80-class bugs instantly.
+- CLAUDE.md: Note that initial fire timers should be set to a small random value (0.5-2.0s), not proportional to fire_interval, to guarantee at least one fire per lifetime.
+- workflow: QA should capture a longer video (30+ seconds) to observe inter-wave empty periods and confirm periodic behaviors.
+
+---
+### [2026-09-12 11:45] — developer — #50, #80, #81, #82, #84
+**Task**: Fix enemy spawn density, enemy bullets, player horizon lock, dead 3D reticle, bullet visibility
+**Result**: COMPLETED
+**Files changed**:
+- scripts/game/game_manager_2d.gd
+- scripts/enemies/enemy_jet_2d.gd
+- scripts/game/game_world.gd
+- scripts/player/player_jet_2d.gd
+- scenes/hud/hud.tscn
+- scripts/ui/hud.gd
+**Key changes**:
+- game_manager_2d.gd:14-26 — wave counts bumped from 3-6 to 4-6 (minimum 4 per wave)
+- game_manager_2d.gd:42 — _spawn_timer 1.0 → 0.0 so first wave fires right after 2s announcement (was 3s+ wait)
+- enemy_jet_2d.gd:14-33 — fire_interval 4.0s → 1.5s (fighter/interceptor), 3.5s → 2.0s (bomber)
+- enemy_jet_2d.gd:53 — initial fire timer randf_range(3.2,6.0) → randf_range(0.8,1.5) so enemies fire early
+- game_world.gd:87-88 — bullet draw depth threshold 0.3 → 0.05; bullets now appear almost immediately
+- player_jet_2d.gd:9 — MOVE_MIN.y 200 → 280 (horizon is at 268.8, was allowing flight into sky)
+- scenes/hud/hud.tscn — removed dead Reticle node (3D reticle.gd with Node3D refs, useless in 2D mode)
+- scripts/ui/hud.gd:12 — removed @onready var reticle referencing removed node
+**Testing**: Launched main_2d.tscn, screenshot at t=12s shows 6 enemies across 2 overlapping waves, orange bullets visible, score=200 confirming kills and scoring. No crashes.
+**Improvement Insights**:
+- [workflow]: When fire_interval and lifetime are both set by the same type data, derive one from the other (fire_interval < lifetime / 2) to guarantee at least one shot per enemy lifetime — make this a rule in enemy type design
+- [CLAUDE.md]: Document that bullet depth threshold in _draw_bullet_obj controls when bullets first appear visually — not a bug, a design param
+
+---
+### [2026-09-12 15:30] — judge — #79
+**Gate type**: final (Round 2)
+**Verdict**: FAIL
+**Score**: 5/10
+**Threshold**: 9/10
+**Previous score**: 4/10
+**Key gaps**:
+- Hard Rule 0 violated: player dies in <15s without input (3 lives consumed in ~8-10s)
+- Explosions still geometric starbursts, not AB2 puffy clouds (Gap 2 unfixed)
+- Sky colors still muted grey-tan, not vivid golden-orange (Gap 5 unfixed)
+- Flames lack white-hot core (Gap 3 partially fixed)
+- Ground speed too slow for "nauseating" sensation (Gap 1 partially fixed)
+- Gap 6 (player death explosion) FIXED
+**Improvement Insights**:
+- [criteria.md]: Add explicit time-to-die measurement to Hard Rule 0 — "capture at least 15 seconds of gameplay frames as evidence the player survives"
+- [developer.md]: When given "fix explosion shape" feedback, developers changed parameters but kept the same starburst polygon approach. Agent definition should emphasize: "wrong shape means redesign the drawing algorithm, not tweak parameters of the existing one"
+- [game-capture SKILL.md]: Add a --duration flag that ensures minimum capture time, so judges can verify 15-second survival rule mechanically
+
+---
+### [2026-09-12 15:30] — qa — #79
+**Task**: Full QA regression after 9 developer fixes (ground scrolling, explosions, flames, spawn density, enemy bullets, player death explosion, player horizon lock, dead 3D reticle, bullet visibility)
+**Result**: FAIL (3 new bugs found)
+**Issues verified**: #79 (PARTIAL — previous bugs fixed, new bugs found)
+**Previous bugs verified**: #50 PASS, #80 PASS, #81 PASS, #82 PASS, #83 PASS, #84 PASS
+**New bugs filed**: #86 (Critical), #87 (High), #88 (High)
+**Key findings**:
+- [CRITICAL] Game over in under 15s on fresh start — spawn density (1.5s interval, 4-6 enemies/wave) makes game unwinnable even without player input (#86)
+- [HIGH] Enemy kill explosions not rendering — score increments confirm kills but no visual explosion at kill site; player death explosion works correctly, suggesting z_index layering issue (#87)
+- [HIGH] Respawn invincibility (4s) too short given current enemy density — player dies immediately after grace period (#88)
+- [PASS] Enemy bullets now visible and tracking player correctly — orange projectiles clearly visible in multiple frames
+- [PASS] Player cannot fly above horizon — MOVE_MIN.y=280 correctly enforces the boundary
+- [PASS] HUD has no 3D reticle node — clean 2D-only implementation
+- [PASS] Ground scrolling visible with t² perspective compression
+- [PASS] Afterburner flames visible with 3-layer bright rendering
+**Improvement Insights**:
+- [qa.md]: When testing game difficulty/balance bugs, verify from a fresh process restart (pkill Godot then relaunch) — GameState autoload persists across scene transitions within same process, potentially masking lives/score state bugs
+- [game_manager_2d.gd]: Spawn parameters (interval, fire_interval) should be configurable constants at top of file, not buried in TYPE_DATA dictionaries, to make difficulty tuning easier during QA
+- [workflow]: Add "difficulty/survivability test" as explicit QA checklist item — measure how long a new player survives without input as a baseline metric

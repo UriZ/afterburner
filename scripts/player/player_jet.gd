@@ -3,6 +3,8 @@ extends Node3D
 @export var move_speed: float = 32.0
 @export var acceleration: float = 80.0
 @export var deceleration: float = 60.0
+## Set true to load the real GLB model instead of the primitive mesh builder.
+@export var use_glb_model: bool = false
 
 # Camera at (0,5,0) with 5deg downward tilt, FOV 70 (vertical), aspect 16:9.
 # Jet at Z=-8.0. Godot FOV is vertical: half-angle=35deg, tan(35deg)=0.700.
@@ -41,19 +43,35 @@ static var _explosion_scene: PackedScene = null
 func _ready() -> void:
 	add_to_group("player")
 	position = RESPAWN_POSITION
-	# Build 3D mesh jet at runtime
-	var Builder := preload("res://scripts/player/jet_mesh_builder.gd")
-	_jet_mesh = Builder.build_player_jet()
-	add_child(_jet_mesh)
-	_central_flame = _jet_mesh.get_node("CentralFlameCore")
-	_central_flame_mid = _jet_mesh.get_node("CentralFlameMid")
-	_central_flame_glow = _jet_mesh.get_node("CentralFlameGlow")
+	if use_glb_model:
+		_load_glb_model()
+	else:
+		_build_primitive_mesh()
 	_hit_area.area_entered.connect(_on_hit_area_entered)
 	# Grant invincibility at game start so the player isn't killed immediately
 	_is_invincible = true
 	_invincibility_timer = 6.0
 	_hit_area.collision_mask = 0
 	_camera = get_viewport().get_camera_3d()
+
+
+func _build_primitive_mesh() -> void:
+	var Builder := preload("res://scripts/player/jet_mesh_builder.gd")
+	_jet_mesh = Builder.build_player_jet()
+	add_child(_jet_mesh)
+	_central_flame = _jet_mesh.get_node("CentralFlameCore")
+	_central_flame_mid = _jet_mesh.get_node("CentralFlameMid")
+	_central_flame_glow = _jet_mesh.get_node("CentralFlameGlow")
+
+
+func _load_glb_model() -> void:
+	var Loader := preload("res://scripts/player/jet_model_loader.gd")
+	_jet_mesh = Loader.load_model()
+	add_child(_jet_mesh)
+	# GLB model has named nodes matching flame parts (best-effort)
+	_central_flame = _jet_mesh.get_node_or_null("CentralFlame")
+	_central_flame_mid = null
+	_central_flame_glow = null
 
 
 func _process(delta: float) -> void:

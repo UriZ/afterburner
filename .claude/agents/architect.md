@@ -55,6 +55,8 @@ For each design task, output:
 - Design covers ALL requirements — nothing missing
 - Design covers ONLY what's in the spec — no scope creep, no gold-plating
 - All public interfaces must be unambiguous — a developer should not need to make design decisions
+- For migration specs: audit ALL public methods, signals, group memberships, and type references line-by-line in every file being replaced. Silently dropped behavior = FAIL.
+- Every cross-module function call must have a complete signature in the spec (params, return type, signal connections)
 - Identify risks and edge cases explicitly
 - Reference the existing architecture.md to stay consistent
 
