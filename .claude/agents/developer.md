@@ -90,6 +90,17 @@ If your change affects anything visual (meshes, shaders, positions, cameras, par
 
 **Code that compiles but doesn't produce the intended visual result is NOT done.** If your screenshots show the change isn't working, debug and fix before submitting.
 
+### Verify the specific defect, not just its neighbourhood
+Point your verification at the exact thing you changed. A capture that confirms the scene still renders is not evidence that *your* fix works. State what you measured, not what you saw: "the same enemy measured 0.91 / 1.00 / 1.38 at three depths where the old code was flat at 1.50" is reviewable; "scaling looks correct" is not.
+
+### Composite render — preferred for "same object across a parameter sweep"
+When the thing to verify is how something changes across a range (size vs depth, colour vs stage, shape vs bank angle), do NOT rely on catching the right moment in random live gameplay. Write a small throwaway script that calls the **real production draw functions** at chosen parameter values, render them side by side in one frame, capture it, and delete the scratch files afterwards (confirm with `git status`).
+
+This is deterministic, isolates one variable, and produces directly comparable output. It is an accepted alternative to live capture for sweep-type verification — pair it with a short live capture as supplementary evidence.
+
+### A failed mandatory check is BLOCKED, not waived
+If a required capture fails or returns fewer frames than requested, say so plainly and mark the check blocked. Do NOT build a case that other evidence already covers it. A check that did not run is a gap to report, not a formality to reason around.
+
 ## Testing (MANDATORY)
 
 All code you write MUST be tested:
