@@ -4,6 +4,7 @@ extends Node
 ## Handles enemy spawning (waves), stage progression, and scene wiring.
 
 const StageData := preload("res://scripts/stage/stage_data.gd")
+const SpawnPacing := preload("res://scripts/game/spawn_pacing.gd")
 
 const STAGE_DURATION := 30.0
 const STAGE_ANNOUNCE_DURATION := 2.0
@@ -25,8 +26,9 @@ var wave_definitions: Array[Dictionary] = [
 	{"type": 0, "count": 6, "formation": "scattered"},
 ]
 
-var _spawn_timer: float = 0.0
-var _spawn_interval: float = 0.8
+var _dispense_timer: float = 0.0
+var _dispense_interval: float = 0.5
+var _pending_spawns: Array = []  # queued [enemy_type, logical_x, logical_depth, x_drift]
 var _wave_index: int = 0
 var _spawning_enabled: bool = true
 
@@ -42,7 +44,7 @@ func _ready() -> void:
 		GameState.phase = GameState.Phase.PLAYING
 	_create_announce_label()
 	_apply_stage(GameState.current_stage)
-	_spawn_timer = 0.0  # spawn first wave immediately when announcement clears
+	_dispense_timer = 0.0  # start dispensing immediately when announcement clears
 
 
 func _process(delta: float) -> void:
@@ -62,12 +64,12 @@ func _process(delta: float) -> void:
 	if _stage_timer <= 0.0:
 		_advance_stage()
 
-	# Enemy spawning
+	# Enemy spawning — dispense one enemy at a time, gated by MAX_ON_SCREEN_ENEMIES
 	if _spawning_enabled:
-		_spawn_timer -= delta
-		if _spawn_timer <= 0.0:
-			_spawn_timer = _spawn_interval
-			_spawn_wave()
+		_dispense_timer -= delta
+		if _dispense_timer <= 0.0:
+			_dispense_timer = _dispense_interval
+			_dispense_next_enemy()
 
 
 # --- Stage management ---
@@ -91,8 +93,9 @@ func _apply_stage(stage_number: int) -> void:
 		game_world.ground_color_a = data["ground_a"]
 		game_world.ground_color_b = data["ground_b"]
 
-	# Update spawn difficulty — cap at 0.8s to keep constant action
-	_spawn_interval = minf(data["spawn_interval"], 0.8)
+	# Update spawn difficulty — later/harder stages dispense enemies more often,
+	# but always within a band that SpawnPacing.MAX_ON_SCREEN_ENEMIES can absorb.
+	_dispense_interval = SpawnPacing.dispense_interval_for(data["spawn_interval"])
 
 	_stage_timer = STAGE_DURATION
 
@@ -139,7 +142,25 @@ func _create_announce_label() -> void:
 
 # --- Enemy spawning ---
 
-func _spawn_wave() -> void:
+func _dispense_next_enemy() -> void:
+	if _pending_spawns.is_empty():
+		_queue_next_wave()
+	if _pending_spawns.is_empty():
+		return
+
+	var on_screen := get_tree().get_nodes_in_group("enemies").size()
+	if on_screen >= SpawnPacing.MAX_ON_SCREEN_ENEMIES:
+		return  # queued spawns wait; retried on the next tick once room opens
+
+	var spawn_data: Array = _pending_spawns.pop_front()
+	var enemy := Node.new()
+	enemy.set_script(preload("res://scripts/enemies/enemy_jet_2d.gd"))
+	# Add as child of Main2D so GameWorld can find via group
+	get_parent().add_child(enemy)
+	enemy.configure(spawn_data[0], spawn_data[1], spawn_data[2], spawn_data[3])
+
+
+func _queue_next_wave() -> void:
 	var wave_def := wave_definitions[_wave_index % wave_definitions.size()]
 	_wave_index += 1
 
@@ -148,13 +169,8 @@ func _spawn_wave() -> void:
 	var formation: String = wave_def["formation"]
 
 	var positions := _calculate_formation(count, formation)
-
 	for pos_data in positions:
-		var enemy := Node.new()
-		enemy.set_script(preload("res://scripts/enemies/enemy_jet_2d.gd"))
-		# Add as child of Main2D so GameWorld can find via group
-		get_parent().add_child(enemy)
-		enemy.configure(enemy_type, pos_data[0], pos_data[1], pos_data[2])
+		_pending_spawns.append([enemy_type, pos_data[0], pos_data[1], pos_data[2]])
 
 
 func _calculate_formation(count: int, formation: String) -> Array:

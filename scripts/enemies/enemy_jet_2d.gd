@@ -34,8 +34,16 @@ const TYPE_DATA: Dictionary = {
 }
 
 const DESPAWN_DEPTH: float = 0.92
-const MAX_VISUAL_SCALE: float = 1.5  # cap enemy scale so they never fill the screen
+# Asymptote for the saturating scale curve (see get_screen_scale()). A hard
+# minf() clamp here would create a plateau — the curve below approaches this
+# value but never reaches it, so size keeps growing (just decelerating) all
+# the way to despawn instead of freezing at a fixed size (#105), while still
+# staying well under the raw quadratic's ~2.57 at DESPAWN_DEPTH (#95).
+const SCALE_SATURATION: float = 3.0
 const BULLET_SPEED: float = 0.6
+# Enemy must be visibly close before it's allowed to open fire — gives the
+# player an approach window instead of getting shot at while still a distant dot.
+const MIN_FIRE_DEPTH: float = 0.3
 
 var enemy_type: int = 0  # EnemyType.FIGHTER
 var logical_x: float = 0.0
@@ -51,7 +59,7 @@ var _fire_timer: float = 0.0
 func _ready() -> void:
 	add_to_group("enemies")
 	_apply_type_data()
-	_fire_timer = randf_range(0.8, 1.5)
+	_fire_timer = randf_range(1.2, 2.0)
 	# Connect score signal in deferred call so autoloads are guaranteed available
 	call_deferred("_connect_score_signal")
 
@@ -87,7 +95,7 @@ func _process(delta: float) -> void:
 		return
 
 	_fire_timer -= delta
-	if _fire_timer <= 0.0:
+	if _fire_timer <= 0.0 and logical_depth >= MIN_FIRE_DEPTH:
 		_fire_timer = fire_interval
 		_fire_bullet()
 
@@ -97,7 +105,14 @@ func get_screen_position() -> Vector2:
 
 
 func get_screen_scale() -> float:
-	return minf(_DepthUtil.depth_to_scale(logical_depth), MAX_VISUAL_SCALE)
+	# Saturating curve: raw*K/(K+raw) is strictly increasing in raw (and thus
+	# in depth, since depth_to_scale() is strictly increasing) for all
+	# raw >= 0, and approaches K asymptotically without ever reaching it. For
+	# raw << K it's close to raw unchanged (distant enemies look the same as
+	# before); as raw grows, growth decelerates smoothly instead of hitting a
+	# hard wall.
+	var raw: float = _DepthUtil.depth_to_scale(logical_depth)
+	return raw * SCALE_SATURATION / (SCALE_SATURATION + raw)
 
 
 func get_collision_radius() -> float:

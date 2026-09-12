@@ -28,9 +28,12 @@ func _init() -> void:
 	test_collision_radius_scales_with_depth()
 	test_depth_util_scale_formula()
 	test_enemy_renderer_colors_count()
-	test_get_screen_scale_capped_at_despawn()
-	test_get_screen_scale_uncapped_at_far_depth()
-	test_max_visual_scale_value()
+	test_get_screen_scale_strictly_increasing_across_depths()
+	test_get_screen_scale_bounded_below_saturation()
+	test_get_screen_scale_near_raw_at_far_depth()
+	test_min_fire_depth_value()
+	test_enemy_does_not_fire_before_min_depth()
+	test_enemy_fires_once_past_min_depth()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -206,37 +209,81 @@ func test_depth_util_scale_formula() -> void:
 		"depth_to_scale is monotonically increasing")
 
 
-# --- Scale cap ---
+# --- Scale saturation (#105: no plateau — strictly increasing, bounded) ---
 
-func test_get_screen_scale_capped_at_despawn() -> void:
-	print("\ntest_get_screen_scale_capped_at_despawn:")
-	# At DESPAWN_DEPTH (0.92): raw depth_to_scale = 0.03 + 0.92^2 * 3 = ~2.567
-	# get_screen_scale() must return MAX_VISUAL_SCALE (1.5), not 2.567
+func test_get_screen_scale_strictly_increasing_across_depths() -> void:
+	print("\ntest_get_screen_scale_strictly_increasing_across_depths:")
+	# Sample across the full approach range, including the 0.7-0.92 band that
+	# used to be a dead plateau under the old minf() cap. Every step must be
+	# a strict increase — a future hard cap reintroducing a plateau would
+	# fail this immediately.
+	var depths: Array[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.92]
+	var prev_scale: float = -1.0
+	var all_increasing := true
+	for d in depths:
+		var e := _make_enemy(0, 0.0, d)
+		var s: float = e.get_screen_scale()
+		if s <= prev_scale:
+			all_increasing = false
+		prev_scale = s
+		e.free()
+	assert_true(all_increasing, "get_screen_scale() strictly increases across every sampled depth, no plateau")
+
+
+func test_get_screen_scale_bounded_below_saturation() -> void:
+	print("\ntest_get_screen_scale_bounded_below_saturation:")
+	# Never reaches SCALE_SATURATION (asymptotic), and stays well under the
+	# raw quadratic's ~2.57 at despawn so enemies don't regress to
+	# screen-filling (#95).
 	var e := _make_enemy(0, 0.0, 0.92)
-	var raw_scale: float = DepthUtil.depth_to_scale(0.92)
 	var capped: float = e.get_screen_scale()
-	assert_true(raw_scale > e.MAX_VISUAL_SCALE, "raw scale at DESPAWN_DEPTH exceeds cap (%.3f > %.3f)" % [raw_scale, e.MAX_VISUAL_SCALE])
-	assert_approx(capped, e.MAX_VISUAL_SCALE, 0.001, "get_screen_scale() returns MAX_VISUAL_SCALE at despawn depth")
+	assert_true(capped < e.SCALE_SATURATION, "scale at despawn stays below the asymptote (%.3f < %.3f)" % [capped, e.SCALE_SATURATION])
+	assert_true(capped < 1.5, "scale at despawn does not regress past the old #95 cap (%.3f < 1.5)" % capped)
 	e.free()
 
 
-func test_get_screen_scale_uncapped_at_far_depth() -> void:
-	print("\ntest_get_screen_scale_uncapped_at_far_depth:")
-	# At d=0.2: raw = 0.03 + 0.04 * 3 = 0.15 — well below cap
+func test_get_screen_scale_near_raw_at_far_depth() -> void:
+	print("\ntest_get_screen_scale_near_raw_at_far_depth:")
+	# At small depths, raw scale is tiny relative to SCALE_SATURATION, so the
+	# saturating curve should barely distort it — distant enemies look the
+	# same as before this fix.
 	var e := _make_enemy(0, 0.0, 0.2)
 	var raw_scale: float = DepthUtil.depth_to_scale(0.2)
-	var capped: float = e.get_screen_scale()
-	assert_approx(capped, raw_scale, 0.001, "get_screen_scale() equals raw scale when below cap")
+	var actual: float = e.get_screen_scale()
+	assert_approx(actual, raw_scale, 0.02, "get_screen_scale() is close to raw scale far from saturation")
 	e.free()
 
 
-func test_max_visual_scale_value() -> void:
-	print("\ntest_max_visual_scale_value:")
+# --- Firing depth gate (#103: no shots until the enemy is visibly close) ---
+
+func test_min_fire_depth_value() -> void:
+	print("\ntest_min_fire_depth_value:")
 	var e := _make_enemy()
-	# Cap must be <= 1.5 so enemies are not screen-filling at close range
-	assert_true(e.MAX_VISUAL_SCALE <= 1.5, "MAX_VISUAL_SCALE <= 1.5 (got %.2f)" % e.MAX_VISUAL_SCALE)
-	# Cap must be > 0.5 so enemies are visible at close range
-	assert_true(e.MAX_VISUAL_SCALE > 0.5, "MAX_VISUAL_SCALE > 0.5 (got %.2f)" % e.MAX_VISUAL_SCALE)
+	assert_true(e.MIN_FIRE_DEPTH > 0.0, "MIN_FIRE_DEPTH is positive, gating early shots (%.2f)" % e.MIN_FIRE_DEPTH)
+	assert_true(e.MIN_FIRE_DEPTH < e.DESPAWN_DEPTH, "MIN_FIRE_DEPTH is reachable before despawn (%.2f < %.2f)" % [e.MIN_FIRE_DEPTH, e.DESPAWN_DEPTH])
+	e.free()
+
+
+func test_enemy_does_not_fire_before_min_depth() -> void:
+	print("\ntest_enemy_does_not_fire_before_min_depth:")
+	var e := _make_enemy(0, 0.0, 0.0)
+	e.set("_fire_timer", 0.0)  # timer expired, but still below MIN_FIRE_DEPTH
+	e._process(0.001)
+	assert_true(e.get("_fire_timer") <= 0.0, "fire_timer stays expired (not reset) while below MIN_FIRE_DEPTH")
+	e.free()
+
+
+func test_enemy_fires_once_past_min_depth() -> void:
+	print("\ntest_enemy_fires_once_past_min_depth:")
+	var e := _make_enemy(0, 0.0, 0.0)
+	e.logical_depth = e.MIN_FIRE_DEPTH
+	e.set("_fire_timer", 0.0)
+	# _process() attempts to fire, which calls _find_player() -> get_tree().
+	# Godot logs a harmless "data.tree is null" engine error for the orphaned
+	# test node here (get_tree() still correctly returns null and the code
+	# handles it); it does not affect the assertion below.
+	e._process(0.001)
+	assert_approx(e.fire_interval, e.get("_fire_timer"), 0.001, "fire_timer resets to fire_interval once past MIN_FIRE_DEPTH")
 	e.free()
 
 

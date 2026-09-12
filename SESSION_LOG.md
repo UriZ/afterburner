@@ -1,6 +1,84 @@
 # Session Log
 
 ---
+### [2026-09-13 01:30] — developer — #105
+**Task**: Fix enemy scale plateau — enemies stop growing for the entire near 30% of approach (d>=0.7)
+**Result**: COMPLETED
+**Files changed**: `scripts/enemies/enemy_jet_2d.gd`, `tests/test_enemy_jet_2d.gd`
+**Key changes**:
+- enemy_jet_2d.gd:37-42 — replaced `MAX_VISUAL_SCALE = 1.5` hard cap with `SCALE_SATURATION = 3.0`, an asymptote for a saturating curve rather than a clamp value.
+- enemy_jet_2d.gd:102-109 — `get_screen_scale()` changed from `minf(raw, MAX_VISUAL_SCALE)` to `raw * SCALE_SATURATION / (SCALE_SATURATION + raw)`. This form is strictly increasing in `raw` for all `raw >= 0` (derivative `K²/(K+raw)² > 0` always) and approaches `SCALE_SATURATION` asymptotically without ever reaching it — for `raw << K` it's ≈unchanged (distant enemies look the same as before), and growth decelerates smoothly instead of hitting a wall. At DESPAWN_DEPTH (0.92) the new value is ~1.38, actually below the old 1.5 cap, so #95 (screen-filling enemies) is not regressed.
+- Replaced 3 stale tests that asserted the old plateau/cap behavior (`test_get_screen_scale_capped_at_despawn`, `test_get_screen_scale_uncapped_at_far_depth`, `test_max_visual_scale_value`) with 3 new ones matching the acceptance criteria directly: strictly-increasing across 14 sampled depths spanning the full range (explicitly including the old 0.7-0.92 dead zone), bounded below the asymptote and below the old 1.5 cap, and near-raw at far depth.
+**Testing**: `test_enemy_jet_2d.gd` 62/62 pass. `--check-only` clean (exit 144 expected, no parse errors).
+**Visual verification**: Two independent proofs — (1) a deterministic composite render using the actual production `get_screen_scale()` + `EnemySpriteRenderer.draw_enemy()` at 6 depths (0.1/0.3/0.5/0.65/0.7/0.92) spanning the old plateau zone, showing continuous visible growth with no freeze (temp scratch script, deleted after use — not committed); (2) live gameplay capture at 300ms intervals showing the same enemy tracked growing across 3 consecutive frames. Console output confirmed strict increase at every sampled step including exactly through the old d=0.7 cap-engagement point.
+**Improvement Insights**:
+- **developer.md**: For "strictly increasing, bounded" curve requirements, a saturating rational function `raw*K/(K+raw)` is a reusable pattern — simpler than exp-based alternatives, one tunable constant, easy to reason about (asymptote = K, matches raw for raw<<K).
+- **workflow**: For "same object at multiple depths" visual verification requirements, a small deterministic composite-render script using the production draw functions directly is more reliable and faster to produce than hoping to catch the right live-gameplay moment — worth calling out as an accepted alternative to live captures in task instructions.
+
+---
+### [2026-09-13 01:00] — developer — #42
+**Task**: Ground has no terrain detail and no speed sensation — flat two-color checkerboard
+**Result**: COMPLETED
+**Files changed**: `scripts/game/game_world.gd`, `tests/test_ground_grid.gd` (new)
+**Key changes**:
+- game_world.gd:46-134 — replaced the 100-stripe flat 2-color checkerboard with a proper perspective grid (36 depth rows × 12 columns) built on `DepthUtil.to_screen`, the same math flying objects use. Columns converge toward the horizon vanishing point but are pinned to screen edges (x=0/x=SCREEN_W) at every depth so the grid always fills edge-to-edge rather than forming a funnel.
+- game_world.gd:29 — scroll changed from a wrapping stripe-index counter (`fmod(...,100)`, only affected color parity) to an unbounded depth accumulator (`_ground_scroll += delta*1.4`) that directly drives row *geometry*. Combined with the existing quadratic depth→screen mapping this is what actually creates the speed cue — near rows now visibly rush past while far rows near the horizon barely move.
+- game_world.gd:105-130 — added `_cell_color()` (hash-based per-cell shade 0.72-1.18× + 18% chance of blending toward the opposite stage color) and `_draw_row_detail()` (sparse hashed rock/vegetation speckle circles on near rows only) to break up the flat two-tone look, derived only from each stage's existing `ground_a`/`ground_b` colors — no new stage data needed.
+- game_world.gd:97-102 — added `_player_lateral_offset()`: the whole column grid shifts with the player's screen x position (clamped ±0.6) so banking reads as ground movement, not just vertical scroll.
+- Bug found mid-implementation: thin near-horizon rows caused `ERROR: Invalid polygon data, triangulation failed` on the column quads. Fixed by skipping column polygons (falling back to the already-drawn full-width base rect) whenever a row's pixel height is <1px — no visual loss since those rows are sub-pixel anyway.
+- Left `scripts/stage/ground_scroll.gd` untouched — confirmed it's dead code, only referenced by the legacy 3D `scenes/main.tscn`, not the active `main_2d.tscn`.
+**Testing**: New `tests/test_ground_grid.gd` — 26/26 pass (`_hash2` range/determinism/variation, `_cell_color` clamped output + derives only from stage colors, `_player_lateral_offset` null-safe + clamped). Ran full existing suite headless: no regressions from this change. Pre-existing unrelated failures noted but not touched (out of scope): `test_enemy_jet.gd` (0/0, stale 3D-era test), `test_jet_mesh_builder.gd` (13 failed), `test_lock_on.gd` (1 failed), `test_player_jet_2d.gd` (2 failed, stale PLAYER_SCALE/MAX_BANK_ANGLE expectations from a prior redesign).
+**Visual verification**: Captured 6 screenshots + a gameplay video clip via `--start-game`. Confirmed a converging perspective grid with visible cell-shade variation and rock/vegetation speckle; consecutive frames show near-ground features moving/scaling noticeably faster than far ones. Compared against `ab2-arcade-desert.png`/`ab2-arcade-desert-explosions.png` — large improvement over the flat stripes, reads as a recognizable AB2-style scaling floor, though still more grid-regular than the organic rock clumps in the references.
+**Note on videos**: No yt-dlp/youtube-dl available in this environment — could not download/watch the 3 mandated AB2 YouTube references. Relied on all 9 reference screenshots (viewed directly) plus captured/reviewed my own game's video, per the fallback workflow already logged by another agent this session.
+**Improvement Insights**:
+- **workflow**: This is at least the second time in one session a developer has hit "no video-fetch tooling available" for a hard-mandated video-watching step. Worth either provisioning a yt-dlp-equipped tool for visual-work agents, or updating the hard rule to explicitly accept "reference screenshots + own captured video" as the sanctioned fallback instead of each agent independently flagging the same gap.
+- **CLAUDE.md**: `--headless --script res://tests/test_X.gd` only works for scripts that `extends SceneTree`; two existing test files (`test_missile_2d.gd`, and my own first draft) used `extends Node` and hang forever with zero output instead of erroring, silently wasting significant time. Worth adding a one-line note to the testing section and auditing `test_missile_2d.gd`, which currently cannot be run at all by the documented command.
+
+**Update [2026-09-13 01:10]**: User rejected the above on sight ("the ground is horrible... it will be rejected") without needing a test cycle. Correct root cause: it was still fundamentally a checkerboard (grid of shaded/speckled cells) — exactly the "tuned parameters of the same wrong shape" anti-pattern the HARD RULE warns about, which I cited but didn't actually follow. Redesigned from scratch: dropped the row×column grid entirely in favor of plain full-width gradient bands (`ground_a`→`ground_b` by depth) with organic, non-gridded rock/vegetation clusters (dark rim + tinted fill + random overlapping lobes) placed at continuous hash-based lateral positions, density/size scaling with depth. Re-verified against `ab2-arcade-desert.png`/`ab2-arcade-coastal-banking.jpg` — no grid structure in either reference, confirming the diagnosis. Updated `tests/test_ground_grid.gd` (dropped tests for removed `_cell_color`/`_draw_row_detail`, 24/24 pass), re-ran full suite (no regressions), recaptured screenshots + video confirming dense organic terrain with correct perspective and no grid artifacts. Posted redesign notes to #42.
+- **Improvement Insights (redesign)**:
+  - **developer.md**: Before submitting any visual redesign, explicitly ask "if I saw only my own screenshot next to the reference, would I call this the same *shape* or just the same *approach with decoration*?" A checkerboard with hashed per-cell shading and circle speckle is still, honestly, a checkerboard — I should have caught this myself before shipping, not after user rejection.
+
+---
+### [2026-09-13 01:00] — developer — #103, #50
+**Task**: Fix enemy spawn timing and wave density — player dies within 5-8s (#103) vs screen sits empty between waves (#50)
+**Result**: COMPLETED
+**Files changed**:
+- `scripts/game/game_manager_2d.gd`
+- `scripts/game/spawn_pacing.gd` (new)
+- `scripts/enemies/enemy_jet_2d.gd`
+- `tests/test_game_manager_2d.gd` (new)
+- `tests/test_enemy_jet_2d.gd`
+**Key changes**:
+- Discovered `scripts/enemies/enemy_spawner.gd` (my originally-assigned file) is dead code — only referenced by legacy `scenes/main.tscn`. Its `configure()` call signature doesn't even match `enemy_jet_2d.gd`'s real signature, proving it hasn't run since the 2D migration. The live spawner is `scripts/game/game_manager_2d.gd` (wired via `scenes/main_2d.tscn:27`). Flagged this to TL before editing; got file ownership transferred.
+- game_manager_2d.gd — replaced "spawn whole wave formation as a burst every fixed 0.8s interval" with a capped trickle: formations are queued (`_pending_spawns`), then dispensed one enemy at a time on a short timer (`_dispense_next_enemy`), gated by `SpawnPacing.MAX_ON_SCREEN_ENEMIES` (5). This single mechanism fixes both bugs — the cap stops bursts from overwhelming the player, and the short per-enemy dispense tick (checked every 0.3-0.7s, scaled from per-stage difficulty) keeps something always in flight so the screen never empties.
+- spawn_pacing.gd (new) — extracted the pure pacing constants/math (`MAX_ON_SCREEN_ENEMIES`, `dispense_interval_for()`) into a dependency-free static class, mirroring `depth_util.gd`. Necessary because `game_manager_2d.gd` has a bare `GameState` autoload reference that fails to compile when `load()`ed in headless test mode (same pre-existing limitation documented in `test_stage_manager.gd`) — this keeps the new logic testable without touching that unrelated legacy pattern.
+- enemy_jet_2d.gd:41 — `MIN_FIRE_DEPTH := 0.3` gate added: enemies can't fire until visibly close (was: could fire the instant they spawned at the horizon).
+- enemy_jet_2d.gd:57 — initial fire grace period raised `randf_range(0.8, 1.5)` → `randf_range(1.2, 2.0)`.
+**Testing**: All touched test files green — `test_enemy_jet_2d.gd` (63 pass, incl. 3 new for MIN_FIRE_DEPTH), `test_game_manager_2d.gd` (5 pass, new file, tests SpawnPacing directly since the manager itself can't be instantiated headless). `--check-only` clean (exit 144 expected/no parse errors). Confirmed `enemy_spawner.gd`'s existing 12 tests still pass untouched (12/12) since I left that dead file alone per TL direction.
+**Visual verification**: Captured 20 frames at 1s intervals (`/tmp/game-capture-spawnfix/`) covering the full 20s window. Confirmed: no frame has an empty sky (2-3 enemies visible continuously, matching reference screenshot density), enemies visibly approach from a distance before threatening, player is alive and maneuvering at frame_020 (20s mark) with score 300 from 2 kills — meets the "survive 20s idle-ish" success bar (note: game-capture script doesn't send zero-input, but no unexplained deaths occurred and enemy density/pacing is the verified variable).
+**Note on videos**: Could not watch the mandated AB2 YouTube references — my toolset has no web/video-fetch capability (Read/Write/Edit/Bash/SendMessage only). Relied on the 9 reference screenshots in `assets/reference/` (viewed directly, esp. `ab2-arcade-closeup-enemies.jpg` showing 2 enemies simultaneously) plus documented AB2 pacing knowledge for the density target.
+**Improvement Insights**:
+- **CLAUDE.md/task templates**: The "MANDATORY: watch AB2 videos" instruction should note that developer agents may not have web-fetch tooling — either grant it explicitly per-task or accept reference screenshots as the fallback, rather than asserting a hard requirement that some agents structurally cannot satisfy.
+- **workflow**: File ownership assignments for spawn/gameplay-timing bugs should be verified against `scenes/main_2d.tscn`'s actual `ext_resource` wiring before being handed to a developer — `enemy_spawner.gd` vs `game_manager_2d.gd` confusion cost a full round-trip. A quick `grep` of the active scene file during task creation would catch this.
+- **developer.md**: When a production script can't be unit-tested headless due to a bare autoload reference (GameState pattern), the fix is to extract pure/dependency-free logic into a sibling static-class file (see `depth_util.gd`, now `spawn_pacing.gd`) rather than editing the autoload-access pattern in the original file — keeps the fix scoped and doesn't risk unrelated behavior.
+
+---
+### [2026-09-13 00:50] — developer — #49
+**Task**: HUD uses plain system font — implement bold blocky arcade typography
+**Result**: COMPLETED
+**Files changed**: `scripts/ui/block_font.gd` (new), `scripts/ui/hud_canvas.gd` (new), `scripts/ui/hud.gd` (rewritten), `scenes/hud/hud.tscn` (rewritten), `tests/test_block_font.gd` (new)
+**Key changes**:
+- block_font.gd — procedural 5x7 dot-matrix glyph font (`draw_text`/`text_width`), covering the HUD's fixed vocabulary (SCORE/HI/STAGE/SPEED + digits). `assets/fonts/` is empty, so this follows the project's existing `_draw()`-based rendering convention instead of downloading a font.
+- hud_canvas.gd — new Control child of the HUD CanvasLayer that owns all HUD drawing: SCORE banner (red panel + gold border), HI blocky gold text, segmented SPEED bar (10 segments, blue→yellow gradient), STAGE label moved to bottom-center (issue's explicit item #6), missile-icon row (capped at 10 + exact digit count), lives-icon row (small jet/delta silhouettes replacing `♦♦♦`).
+- hud.gd — now holds state only (score/stage/hi/missiles/lives/speed) and calls `canvas.queue_redraw()` on GameState signals; no more Label references.
+- hud.tscn — replaced VBoxContainer/Label tree with a single full-rect HudCanvas Control.
+**Testing**: `--check-only` clean (no parse errors). `test_block_font.gd` 6/6 passed. Ran full existing suite — no regressions (grep confirmed nothing else referenced old hud.gd Label/constants before rewrite). Captured 8 live gameplay screenshots (4.2s) confirming SCORE/HI/SPEED/STAGE/missiles/lives all render and update correctly; had to use a targeted debug crop to spot the small lives icons, which are legitimately rendering (initial wide crops missed them due to their small size).
+**Improvement Insights**:
+- [workflow]: `capture.sh --start-game` does `pkill -f Godot`, which kills every teammate's running Godot process/tests, not just the caller's. With multiple concurrent dev agents this is a real collision risk — coordinated via SendMessage before restarting, but the skill itself should target only its own spawned PID.
+- [game-video skill]: `capture-video.sh`'s frame capture over `nc` is racy — rapid successive screenshot requests intermittently fail with "Expecting value" JSON errors (also seen in `capture.sh` right after `--start-game`), and in this run only 1 of 12 requested frames survived to the encode step, causing ffmpeg to fail outright. Needs a retry-on-empty-response instead of one-shot per frame.
+- [CLAUDE.md]: Noted a pre-existing, unrelated `game_world.gd:90` "Invalid polygon data, triangulation failed" error firing every frame during gameplay — flagged directly to dev-ground-detail rather than filing a duplicate issue since it's in their active work area.
+
+---
 ### [2026-09-12 23:45] — developer — #102
 **Task**: Fix flame inner layers triangulation errors during banking
 **Result**: COMPLETED
@@ -2926,3 +3004,23 @@ Return to developer with feedback on all gaps. The most critical fix is player j
 **Improvement Insights**:
 - criteria.md: Replace "under 45 draw calls" with a performance target (e.g., "maintains 60fps") since ragged flame polygons inherently require more calls
 - architect.md: Specs for polygon geometry should note polygon convexity/winding risks -- developer had to fix self-intersecting polygons that architect did not anticipate
+
+---
+### [2026-09-13 01:10] — judge — #101 / #42 / #49 / #103 / #50 / #105
+**Gate type**: per-agent (combined visual state — 4 concurrent workstreams)
+**Verdict**: FAIL
+**Score**: 3/10 (threshold 9)
+**Key gaps**:
+1. Ground features regenerate per row-generation instead of translating — no coherent rush. Consecutive-frame band matching residual 52/255 in the near band; far band matched a LARGER shift (61px) than the near band (48px), i.e. no perspective velocity gradient. `scripts/game/game_world.gd:94-103`.
+2. HARD RULE 0 VIOLATED — player died at ~4.5s (frame run) and ~5.5s (video run), two independent captures. Lives 3 -> 1 within 20s.
+3. Explosion is a flat translucent beige disc filling ~75% of screen, no lobes/core/hot colors.
+4. Palette measured: ours mean saturation 0.513 / value 0.545 vs AB2 burst-a-03 0.896 / 0.773. 50% vs 93% of pixels above sat 0.5. Hard rule 6 fail.
+5. Player jet: needle nose, flat untextured wings, dead-black nozzles, flames as 3x-body parallel ribbons running off-screen.
+6. Enemies ~2x too small at closest approach (max 48px scale param / ~125px wingspan = 13% screen width vs AB2 25-30%), and drab green/blue against brown ground = near-zero contrast.
+7. HUD: score digits white (AB2 gold), "HI" label where AB2 shows "HIT <n>", no lock-on radar box top-right.
+8. Player invisible for long stretches due to very long-duty respawn blink (absent in v020, v021, v025, v028, v038, v040, v047).
+**Screenshot honest assessment**: A field of identical brown/beige cartoon domes under a dull purple-to-tan gradient with no visible horizon line. A flat white paper-dart jet with a needle nose riding two long rocket-exhaust ribbons off the bottom of the screen. Two or three small dark-green jets nearly invisible against the brown ground. It does not read as After Burner II.
+**Improvement Insights**:
+- criteria.md: add a measurable ground-motion check (per-band frame-to-frame shift must increase monotonically with depth) — the current "stripe positions must differ" rule passes on pure noise regeneration.
+- criteria.md: add a measurable palette floor (mean HSV saturation >= 0.80) — "vivid colors" is being read subjectively and passing dull output.
+- workflow: game-capture/capture.sh and capture-video.sh both wipe /tmp/game-capture, destroying a prior capture. Make them use per-run subdirectories.
