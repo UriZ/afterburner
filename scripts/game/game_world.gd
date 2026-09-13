@@ -32,6 +32,19 @@ const GROUND_SCROLL_SPEED: float = 1.4
 # shimmering motion (features regenerated from scratch every frame instead of moving).
 var _ground_scroll: float = 0.0
 
+# --- Invincibility collision grace (#103) ---
+# Damage checks are skipped entirely while the player is invincible, but nothing
+# stops enemies/bullets from drifting into the player's collision radius during
+# that window. Without this, whatever is already overlapping at the exact instant
+# invincibility expires scores an instant, un-dodgeable hit. Standard arcade
+# convention treats invincibility as pass-through: a body present when
+# invincibility ends is exempted from damage until it clears the collision
+# radius and would have to genuinely re-enter (a fresh approach, not a
+# pre-loaded overlap). _collision_ignore holds instance IDs currently exempted;
+# an entry is dropped the moment that body separates from the player again.
+var _collision_ignore: Dictionary = {}
+var _was_vulnerable: bool = true
+
 
 func _process(delta: float) -> void:
 	_ground_scroll = fposmod(_ground_scroll + delta * GROUND_SCROLL_SPEED, 1.0)
@@ -195,9 +208,17 @@ func _check_collisions() -> void:
 	# Player-weapon collisions always run regardless of player vulnerability
 	_check_player_weapons_vs_enemies()
 
-	# Player-damage collisions only run when player is vulnerable
 	var player: Node = _get_player()
-	if player == null or not player.is_vulnerable():
+	if player == null:
+		return
+
+	var vulnerable: bool = player.is_vulnerable()
+	if vulnerable and not _was_vulnerable:
+		_arm_invincibility_grace(player)
+	_was_vulnerable = vulnerable
+
+	# Player-damage collisions only run when player is vulnerable
+	if not vulnerable:
 		return
 
 	var player_pos: Vector2 = player.get_screen_position()
@@ -208,7 +229,10 @@ func _check_collisions() -> void:
 			continue
 		var enemy_pos: Vector2 = enemy.get_screen_position()
 		var enemy_r: float = enemy.get_collision_radius()
-		if player_pos.distance_to(enemy_pos) < player_r + enemy_r:
+		var overlapping: bool = player_pos.distance_to(enemy_pos) < player_r + enemy_r
+		if _consume_ignore(enemy, overlapping):
+			continue
+		if overlapping:
 			player.hit()
 			enemy.take_damage(1)
 			break
@@ -218,10 +242,41 @@ func _check_collisions() -> void:
 			continue
 		var bullet_pos: Vector2 = bullet.get_screen_position()
 		var bullet_r: float = bullet.get_collision_radius()
-		if player_pos.distance_to(bullet_pos) < player_r + bullet_r:
+		var overlapping: bool = player_pos.distance_to(bullet_pos) < player_r + bullet_r
+		if _consume_ignore(bullet, overlapping):
+			continue
+		if overlapping:
 			player.hit()
 			bullet.queue_free()
 			break
+
+
+# Snapshot every enemy/bullet already overlapping the player's collision radius
+# right as invincibility lifts, and exempt them from damage. Called once on the
+# invincible -> vulnerable transition.
+func _arm_invincibility_grace(player: Node) -> void:
+	_collision_ignore.clear()
+	var player_pos: Vector2 = player.get_screen_position()
+	var player_r: float = player.get_collision_radius()
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(enemy) and player_pos.distance_to(enemy.get_screen_position()) < player_r + enemy.get_collision_radius():
+			_collision_ignore[enemy.get_instance_id()] = true
+	for bullet in get_tree().get_nodes_in_group("enemy_bullets"):
+		if is_instance_valid(bullet) and player_pos.distance_to(bullet.get_screen_position()) < player_r + bullet.get_collision_radius():
+			_collision_ignore[bullet.get_instance_id()] = true
+
+
+# Returns true (and keeps the exemption) if `obj` is still an exempted body that
+# is still overlapping the player. Drops the exemption the moment it separates,
+# re-arming it for a genuine future collision.
+func _consume_ignore(obj: Object, overlapping: bool) -> bool:
+	var id: int = obj.get_instance_id()
+	if not _collision_ignore.has(id):
+		return false
+	if not overlapping:
+		_collision_ignore.erase(id)
+		return false
+	return true
 
 
 func _check_player_weapons_vs_enemies() -> void:
