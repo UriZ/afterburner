@@ -5,7 +5,10 @@ extends RefCounted
 
 const SCREEN_W: float = 960.0
 const SCREEN_H: float = 672.0
-const HORIZON_Y: float = 268.8
+# 62.5% from top (#108) — measured from reference burst-a-02/burst-b-03: the
+# original has notably more sky than ground, horizon sits at 60-65% from top.
+# Was 268.8 (40%), which read as far too much ground and no visible horizon.
+const HORIZON_Y: float = 420.0
 
 
 static func depth_to_scale(d: float) -> float:

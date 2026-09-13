@@ -6,7 +6,7 @@ extends Node2D
 
 const SCREEN_W := 960.0
 const SCREEN_H := 672.0
-const HORIZON_Y := 268.8
+const HORIZON_Y := 420.0  # mirrors DepthUtil.HORIZON_Y (#108)
 
 # Inline depth math (mirrors DepthUtil — avoids class_name dependency in test)
 static func to_screen(x_offset: float, d: float) -> Vector2:

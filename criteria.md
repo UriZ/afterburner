@@ -143,7 +143,9 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 5. **Horizon at 60-65% from top.** Measured from reference burst-a-02 and burst-b-03 — the original has MORE sky than ground. The jet sits in the bottom 25%.
 
-6. **Colors must match the reference stage-for-stage.** Measure mean HSV saturation against the equivalent reference stage — do NOT apply a flat floor. Desert measures S~0.87-0.90; snow measures S~0.14. A flat threshold wrongly fails a correct snow stage. Muted output on a stage whose reference is vivid = FAIL.
+6. **Gradient endpoints must share a hue.** sky_top and sky_horizon (and any other lerped pair) must derive from one hue. RGB-lerping between distant hues passes through a desaturated grey band mid-gradient, which tanks measured saturation even when both endpoints measure fine individually. Every reference sky is a single-hue gradient.
+
+7. **Colors must match the reference stage-for-stage.** Measure mean HSV saturation against the equivalent reference stage — do NOT apply a flat floor. Desert measures S~0.87-0.90; snow measures S~0.14. A flat threshold wrongly fails a correct snow stage. Muted output on a stage whose reference is vivid = FAIL.
 
 7. **No rendering artifacts.** Seams, tearing, Z-fighting, flickering, or visual glitches of any kind = FAIL.
 

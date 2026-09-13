@@ -10,10 +10,7 @@ const TRAIL_MAX := 40
 const HOMING_DELAY := 0.3
 const MAX_LIFETIME := 5.0
 
-# Depth coordinate constants (mirrors DepthUtil)
-const _SCREEN_W := 960.0
-const _SCREEN_H := 672.0
-const _HORIZON_Y := 268.8
+const _DepthUtil := preload("res://scripts/game/depth_util.gd")
 
 # Launch state
 var logical_x: float = 0.0
@@ -41,23 +38,12 @@ func _ready() -> void:
 		_trail[i] = Vector2.ZERO
 
 
-func _to_screen(x_offset: float, d: float) -> Vector2:
-	var cx := _SCREEN_W / 2.0
-	var sx := cx + x_offset * (_SCREEN_W * 0.47) * (0.1 + d * 0.9)
-	var sy := _HORIZON_Y + d * d * (_SCREEN_H - _HORIZON_Y) * 0.95
-	return Vector2(sx, sy)
-
-
-func _depth_to_scale(d: float) -> float:
-	return 0.03 + d * d * 3.0
-
-
 func get_screen_position() -> Vector2:
-	return _to_screen(logical_x, logical_depth)
+	return _DepthUtil.to_screen(logical_x, logical_depth)
 
 
 func get_collision_radius() -> float:
-	return _depth_to_scale(logical_depth) * 15.0
+	return _DepthUtil.depth_to_scale(logical_depth) * 15.0
 
 
 func explode() -> void:
@@ -145,6 +131,6 @@ func _spawn_explosion() -> void:
 	var explosion := Node2D.new()
 	explosion.set_script(explosion_script)
 	explosion.position = get_screen_position()
-	var base_r: float = _depth_to_scale(logical_depth) * 80.0
+	var base_r: float = _DepthUtil.depth_to_scale(logical_depth) * 80.0
 	explosion.set("base_radius", maxf(base_r, 30.0))
 	get_parent().add_child(explosion)

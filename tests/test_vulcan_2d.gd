@@ -3,6 +3,8 @@ extends SceneTree
 ## Unit tests for vulcan_bullet_2d.gd, weapon_manager_2d.gd, reticle_2d.gd
 ## Run with: godot --headless --script res://tests/test_vulcan_2d.gd
 
+const _DepthUtil := preload("res://scripts/game/depth_util.gd")
+
 var _pass_count: int = 0
 var _fail_count: int = 0
 
@@ -61,12 +63,12 @@ func test_bullet_screen_position() -> void:
 	b.logical_depth = 0.9
 	var pos: Vector2 = b.get_screen_position()
 	assert_approx(pos.x, 480.0, "center x at logical 0.0", 5.0)
-	assert_true(pos.y > 268.8, "bullet below horizon at depth 0.9")
+	assert_true(pos.y > _DepthUtil.HORIZON_Y, "bullet below horizon at depth 0.9")
 
-	# At depth=0.0 should be at horizon y=268.8
+	# At depth=0.0 should be at horizon y
 	b.logical_depth = 0.0
 	var horizon_pos: Vector2 = b.get_screen_position()
-	assert_approx(horizon_pos.y, 268.8, "depth=0 maps to horizon y", 2.0)
+	assert_approx(horizon_pos.y, _DepthUtil.HORIZON_Y, "depth=0 maps to horizon y", 2.0)
 
 	# Lateral offset: positive x should be right of center
 	b.logical_depth = 0.5

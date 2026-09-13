@@ -9,7 +9,11 @@ const _EnemyRenderer := preload("res://scripts/enemies/enemy_sprite_renderer.gd"
 
 const SCREEN_W: float = 960.0
 const SCREEN_H: float = 672.0
-const HORIZON_Y: float = 268.8
+# Single source of truth is DepthUtil.HORIZON_Y (#108) — this used to be a
+# second hardcoded 268.8 that had to be kept manually in sync with
+# depth_util.gd, which is exactly the kind of duplication that lets the sky
+# and ground bands drift apart into a visible seam.
+const HORIZON_Y: float = _DepthUtil.HORIZON_Y
 
 var sky_top_color: Color = Color(0.08, 0.04, 0.28)
 var sky_horizon_color: Color = Color(1.00, 0.72, 0.10)
@@ -67,6 +71,17 @@ func _draw_sky() -> void:
 		var t: float = float(i) / float(bands)
 		var color: Color = sky_top_color.lerp(sky_horizon_color, t)
 		draw_rect(Rect2(0.0, float(i) * band_h, SCREEN_W, band_h + 1.0), color)
+	_draw_horizon_line()
+
+
+# A bright haze band right where sky meets ground (#108) — every reference
+# (ab2-arcade-desert.png, burst-a-02, burst-b-03) shows a visible glow line at
+# this join, not an abrupt sky-band-to-ground-band handoff. Drawn as the last
+# sky-space strip so the ground layer (drawn next, starting exactly at
+# HORIZON_Y) sits flush against it with no gap or overlap.
+func _draw_horizon_line() -> void:
+	var glow: Color = sky_horizon_color.lerp(ground_color_a, 0.5).lightened(0.2)
+	draw_rect(Rect2(0.0, HORIZON_Y - 4.0, SCREEN_W, 4.0), glow)
 
 
 # --- Ground ---

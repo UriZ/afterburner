@@ -2,7 +2,7 @@ extends Node2D
 
 ## 2D explosion effect — 4 phase animated explosion per UI designer spec.
 ## Phase 1 (0-0.08s): White flash expanding circle
-## Phase 2 (0.08-0.40s): Fire burst — jagged star polygon, orange/yellow/red
+## Phase 2 (0.08-0.40s): Fire burst — cluster of overlapping glow circles (puffy cloud lobes), orange/yellow/red
 ## Phase 3 (0.30-0.90s): Smoke cloud — overlapping fading circles
 ## Phase 4 (0.0-0.60s): Debris sparks flying outward
 ## Total duration: 1.0 second, then queue_free.
@@ -24,12 +24,14 @@ var base_radius: float = 60.0:  # set by spawner based on enemy depth
 var _lifetime: float = 0.0
 var _sparks: Array[Dictionary] = []
 var _smoke_puffs: Array[Dictionary] = []
+var _fire_lobes: Array[Dictionary] = []
 
 
 func _ready() -> void:
 	add_to_group("explosions")
 	_init_sparks()
 	_init_smoke()
+	_init_fire_lobes()
 
 
 func _init_sparks() -> void:
@@ -43,6 +45,19 @@ func _init_sparks() -> void:
 			"speed_frac": spd_frac,
 			"lifetime": randf_range(0.3, 0.6),
 			"color": Color(1.0, 0.8, 0.133) if i % 2 == 0 else Color(1.0, 0.4, 0.0),
+		})
+
+
+func _init_fire_lobes() -> void:
+	# Fixed layout of overlapping glow lobes, positioned once so the cloud
+	# shape doesn't reshuffle every frame (see _draw_fire).
+	var count := 10
+	for i in range(count):
+		var angle: float = (float(i) / float(count)) * TAU + randf_range(-0.22, 0.22)
+		_fire_lobes.append({
+			"dir": Vector2(cos(angle), sin(angle)),
+			"dist_frac": randf_range(0.28, 0.60),
+			"size_frac": randf_range(0.40, 0.62),
 		})
 
 
@@ -102,45 +117,25 @@ func _draw_fire(t: float) -> void:
 	var r_base: float = base_radius * (1.8 + growth * 1.0 - shrink * 1.0)
 	var alpha: float = 1.0 - smoothstep(0.6, 1.0, t)
 
-	# Outer starburst — 8 thick jagged spikes, dark orange-red
-	var r_outer: float = r_base * 1.0
-	var r_inner: float = r_outer * 0.48
-	var pts: int = 8
-	var verts_outer := PackedVector2Array()
-	for i in range(pts * 2):
-		var angle: float = float(i) / float(pts * 2) * TAU
-		# Alternate outer/inner, add slight random-looking wobble via sin
-		var wobble: float = 1.0 + sin(float(i) * 2.3 + t * 5.0) * 0.08
-		var r: float = r_outer * wobble if i % 2 == 0 else r_inner
-		verts_outer.append(Vector2(cos(angle) * r, sin(angle) * r))
-	draw_colored_polygon(verts_outer, Color(0.85, 0.18, 0.0, alpha))
+	# Puffy cloud of overlapping glow lobes — redesigned per #97 (a starburst
+	# with fewer spikes is still a starburst; the reference has no straight
+	# edges anywhere, per burst-c-05 / ab2-arcade-huge-explosion.jpg /
+	# ab2-arcade-desert-explosions.png). Each lobe is 3 concentric circles
+	# (dark red rim -> orange -> yellow core), matching the overlapping
+	# glowing-sphere look of the original.
+	for lobe in _fire_lobes:
+		var center: Vector2 = lobe["dir"] * lobe["dist_frac"] * r_base
+		var lr: float = lobe["size_frac"] * r_base * 0.6
+		draw_circle(center, lr, Color(0.80, 0.16, 0.0, alpha))
+		draw_circle(center, lr * 0.68, Color(1.0, 0.45, 0.0, alpha))
+		draw_circle(center, lr * 0.38, Color(1.0, 0.80, 0.15, alpha))
 
-	# Mid starburst — orange, slightly smaller
-	var r_mid: float = r_base * 0.75
-	var r_mid_in: float = r_mid * 0.52
-	var verts_mid := PackedVector2Array()
-	for i in range(pts * 2):
-		var angle: float = float(i) / float(pts * 2) * TAU + 0.2  # rotated offset
-		var wobble: float = 1.0 + sin(float(i) * 1.9 + t * 7.0) * 0.07
-		var r: float = r_mid * wobble if i % 2 == 0 else r_mid_in
-		verts_mid.append(Vector2(cos(angle) * r, sin(angle) * r))
-	draw_colored_polygon(verts_mid, Color(1.0, 0.45, 0.0, alpha))
+	# Central glow, fills the gaps between lobes
+	draw_circle(Vector2.ZERO, r_base * 0.55, Color(1.0, 0.72, 0.15, alpha))
+	draw_circle(Vector2.ZERO, r_base * 0.32, Color(1.0, 0.93, 0.5, alpha))
 
-	# Inner orange-yellow starburst
-	var r_in2: float = r_base * 0.52
-	var r_in2_in: float = r_in2 * 0.55
-	var verts_in2 := PackedVector2Array()
-	for i in range(pts * 2):
-		var angle: float = float(i) / float(pts * 2) * TAU + 0.4
-		var r: float = r_in2 if i % 2 == 0 else r_in2_in
-		verts_in2.append(Vector2(cos(angle) * r, sin(angle) * r))
-	draw_colored_polygon(verts_in2, Color(1.0, 0.72, 0.05, alpha))
-
-	# Large central glow circle — yellow-white, fills ~40% of burst
-	draw_circle(Vector2.ZERO, r_base * 0.40, Color(1.0, 0.93, 0.5, alpha))
-
-	# Bright white core
-	draw_circle(Vector2.ZERO, r_base * 0.20, Color(1.0, 1.0, 0.9, alpha))
+	# Bright white-hot core
+	draw_circle(Vector2.ZERO, r_base * 0.16, Color(1.0, 1.0, 0.9, alpha))
 
 
 func _draw_smoke(t: float) -> void:

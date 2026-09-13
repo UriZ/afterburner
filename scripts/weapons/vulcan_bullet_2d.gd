@@ -4,9 +4,11 @@ extends Node2D
 ## Starts near player (depth ~0.9), flies toward horizon (depth 0.0).
 ## Renders as a small bright dot that shrinks with depth.
 
+const _DepthUtil := preload("res://scripts/game/depth_util.gd")
+
 const BULLET_SPEED := 3.5  # depth units per second — reaches mid-screen in ~0.3s
 const MIN_DEPTH := 0.05    # despawn threshold
-const SCREEN_W := 960.0
+const SCREEN_W := _DepthUtil.SCREEN_W
 
 var logical_x: float = 0.0
 var logical_depth: float = 0.9
@@ -18,14 +20,11 @@ func _ready() -> void:
 
 
 func get_screen_position() -> Vector2:
-	var cx := SCREEN_W * 0.5
-	var sx := cx + logical_x * (SCREEN_W * 0.47) * (0.1 + logical_depth * 0.9)
-	var sy := 268.8 + logical_depth * logical_depth * (672.0 - 268.8) * 0.95
-	return Vector2(sx, sy)
+	return _DepthUtil.to_screen(logical_x, logical_depth)
 
 
 func get_collision_radius() -> float:
-	return (0.03 + logical_depth * logical_depth * 3.0) * 8.0
+	return _DepthUtil.depth_to_scale(logical_depth) * 8.0
 
 
 func _process(delta: float) -> void:

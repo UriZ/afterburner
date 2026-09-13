@@ -8,6 +8,8 @@ extends SceneTree
 ## the script's main loop if it extends SceneTree/MainLoop. A plain `Node`
 ## script is loaded but never ticked, so the process hangs until timeout.
 
+const _DepthUtil := preload("res://scripts/game/depth_util.gd")
+
 var _passed: int = 0
 var _failed: int = 0
 
@@ -96,12 +98,12 @@ func test_missile_screen_position() -> void:
 	m.logical_depth = 0.9
 	var pos: Vector2 = m.get_screen_position()
 	assert_approx(pos.x, 480.0, "center x at logical 0.0", 10.0)
-	assert_true(pos.y > 268.8, "missile below horizon")
+	assert_true(pos.y > _DepthUtil.HORIZON_Y, "missile below horizon")
 
 	# At horizon (depth=0) should be near horizon y
 	m.logical_depth = 0.0
 	var pos_horizon: Vector2 = m.get_screen_position()
-	assert_approx(pos_horizon.y, 268.8, "depth=0 near horizon", 5.0)
+	assert_approx(pos_horizon.y, _DepthUtil.HORIZON_Y, "depth=0 near horizon", 5.0)
 	m.queue_free()
 
 

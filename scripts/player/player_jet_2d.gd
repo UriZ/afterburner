@@ -430,53 +430,63 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	], Color(0.90, 0.20, 0.05, belly_alpha))
 
 	# --- Layer 6: Vertical tail fins (canted outward) ---
+	# Widened per #109: previous fin averaged ~3.0px wide over a ~74px span
+	# (area/length, shoelace) — read as a hairline whisker. Reference
+	# (ab2-arcade-reload-dorsal.jpg close-up) shows a solid triangular fin.
+	# Base widened from [-20,-16] to [-24,-12], new fin averages ~9.5px wide
+	# over ~82px (~3.2x wider, ~3.5x more area).
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-20.0,           s * 0.05),
-		Vector2(-25.0 - cant,   -s * 0.52),
+		Vector2(-24.0,           s * 0.18),
+		Vector2(-27.0 - cant,   -s * 0.54),
 		Vector2(-19.0 - cant,   -s * 0.42),
-		Vector2(-16.0,           s * 0.14),
+		Vector2(-12.0,           s * 0.10),
 	], Color(0.58, 0.62, 0.68))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-20.0,           s * 0.05),
-		Vector2(-25.0 - cant,   -s * 0.52),
-		Vector2(-23.0 - cant,   -s * 0.49),
-		Vector2(-19.0,           s * 0.04),
+		Vector2(-24.0,           s * 0.18),
+		Vector2(-27.0 - cant,   -s * 0.54),
+		Vector2(-24.0 - cant,   -s * 0.50),
+		Vector2(-21.0,           s * 0.16),
 	], Color(0.72, 0.75, 0.80, 0.55))
 	# Left fin tip accent
 	_draw_rotated_poly(pos, rad, [
-		Vector2(-25.0 - cant,  -s * 0.52),
-		Vector2(-23.0 - cant,  -s * 0.49),
-		Vector2(-24.0 - cant,  -s * 0.52),
+		Vector2(-27.0 - cant,  -s * 0.54),
+		Vector2(-24.0 - cant,  -s * 0.50),
+		Vector2(-26.0 - cant,  -s * 0.54),
 	], Color(0.85, 0.15, 0.05, 0.70))
 
 	_draw_rotated_poly(pos, rad, [
-		Vector2(20.0,            s * 0.05),
-		Vector2(25.0 + cant,    -s * 0.52),
+		Vector2(24.0,            s * 0.18),
+		Vector2(27.0 + cant,    -s * 0.54),
 		Vector2(19.0 + cant,    -s * 0.42),
-		Vector2(16.0,            s * 0.14),
+		Vector2(12.0,            s * 0.10),
 	], Color(0.58, 0.62, 0.68))
 	_draw_rotated_poly(pos, rad, [
-		Vector2(20.0,            s * 0.05),
-		Vector2(25.0 + cant,    -s * 0.52),
-		Vector2(23.0 + cant,    -s * 0.49),
-		Vector2(19.0,            s * 0.04),
+		Vector2(24.0,            s * 0.18),
+		Vector2(27.0 + cant,    -s * 0.54),
+		Vector2(24.0 + cant,    -s * 0.50),
+		Vector2(21.0,            s * 0.16),
 	], Color(0.72, 0.75, 0.80, 0.55))
 	# Right fin tip accent
 	_draw_rotated_poly(pos, rad, [
-		Vector2(25.0 + cant,   -s * 0.52),
-		Vector2(23.0 + cant,   -s * 0.49),
-		Vector2(24.0 + cant,   -s * 0.52),
+		Vector2(27.0 + cant,   -s * 0.54),
+		Vector2(24.0 + cant,   -s * 0.50),
+		Vector2(26.0 + cant,   -s * 0.54),
 	], Color(0.85, 0.15, 0.05, 0.70))
 
 	# --- Layer 7: Nozzle rings ---
-	# Glow/dark ratio inverted per #109: was 71% dark housing / 29% glow (read as
-	# "holes"). Now ~81% glow footprint, housing shrunk to match reference discs.
+	# Redesigned per #109 pixel sampling (burst-b-03, stage-05): the previous
+	# white top-layer circle (r=7, offset) was drawn last and covered nearly
+	# the whole core, so it read as "white disc with an orange ring" — the
+	# inverse of the reference. The original has NO white in the nozzle at
+	# all; the brightest sampled pixels are amber-orange (255,184,126) /
+	# (255,153,57), never near-equal RGB. Dark rim samples near-black to dark
+	# maroon (15,0,0)-(90,0,0). Rim vs core split ~50/50 by area (core radius
+	# ~0.7x outer radius). White layer removed entirely.
 	for nox_r in [-20.0, 20.0]:
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny), 10.0, Color(0.14, 0.15, 0.18))
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  8.0, Color(0.25, 0.26, 0.30))
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  9.0, Color(0.90, 0.45, 0.0))
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  6.0, Color(0.96, 0.60, 0.0))
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny + 3.0), 7.0, Color(1.0, 1.0, 1.0, 1.0))
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny), 10.0, Color(0.06, 0.03, 0.03))  # dark housing rim
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  7.0, Color(0.45, 0.05, 0.0))   # red transition
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  5.0, Color(0.95, 0.40, 0.05))  # orange core
+		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  3.0, Color(1.0, 0.65, 0.25))   # amber hotspot
 
 	# --- Layer 8: Canopy ---
 	_draw_rotated_poly(pos, rad, [

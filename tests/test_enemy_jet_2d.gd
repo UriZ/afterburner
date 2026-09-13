@@ -170,7 +170,7 @@ func test_get_screen_position_at_horizon() -> void:
 	var pos: Vector2 = e.get_screen_position()
 	# At d=0, x_offset=0: should be exactly (SCREEN_W/2, HORIZON_Y)
 	assert_approx(pos.x, 480.0, 1.0, "At depth=0, center x is 480")
-	assert_approx(pos.y, 268.8, 1.0, "At depth=0, y is at horizon 268.8")
+	assert_approx(pos.y, 420.0, 1.0, "At depth=0, y is at horizon 420.0")
 	e.free()
 
 
@@ -180,8 +180,8 @@ func test_get_screen_position_at_depth_one() -> void:
 	var pos: Vector2 = e.get_screen_position()
 	# At d=1, x_offset=0: x should still be 480, y should be near bottom
 	assert_approx(pos.x, 480.0, 1.0, "At depth=1, center x is still 480")
-	# sy = 268.8 + 1.0 * (672 - 268.8) * 0.95 = 268.8 + 382.96 = 651.76
-	assert_approx(pos.y, 651.76, 2.0, "At depth=1, y is near bottom (651.76)")
+	# sy = 420.0 + 1.0 * (672 - 420.0) * 0.95 = 420.0 + 239.4 = 659.4
+	assert_approx(pos.y, 659.4, 2.0, "At depth=1, y is near bottom (659.4)")
 	e.free()
 
 

@@ -6,7 +6,7 @@ extends Node2D
 
 const SCREEN_W := 960.0
 const SCREEN_H := 672.0
-const HORIZON_Y := 268.8
+const HORIZON_Y := 420.0  # mirrors DepthUtil.HORIZON_Y (#108)
 
 # Fake enemies that weapon_manager_2d can lock onto
 class FakeEnemy extends Node:
@@ -19,9 +19,10 @@ class FakeEnemy extends Node:
 
 	func get_screen_position() -> Vector2:
 		# Inline DepthUtil.to_screen to avoid class_name scoping in inner class
+		# (mirrors DepthUtil.HORIZON_Y = 420.0, #108)
 		var cx := 480.0
 		var sx := cx + logical_x * (960.0 * 0.47) * (0.1 + logical_depth * 0.9)
-		var sy := 268.8 + logical_depth * logical_depth * (672.0 - 268.8) * 0.95
+		var sy := 420.0 + logical_depth * logical_depth * (672.0 - 420.0) * 0.95
 		return Vector2(sx, sy)
 
 var _fake_enemies: Array = []
