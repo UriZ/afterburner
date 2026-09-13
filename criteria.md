@@ -36,10 +36,10 @@ The judge and QA MUST view ALL reference images and videos (Read tool) before ev
 |------|-------|-------------|
 | `assets/reference/ab2-arcade-desert.png` | Desert stage, standard gameplay | Ground colors, horizon position, jet size, HUD layout |
 | `assets/reference/ab2-arcade-desert-explosions.png` | Desert stage with multiple explosions | HUGE puffy white/yellow explosion clouds, chaotic screen, multiple enemies |
-| `assets/reference/ab2-arcade-night-banking.png` | Night stage, F-14 banking with fire | Massive afterburner flames, dark ground with city lights, dramatic fire effect |
+| `assets/reference/ab2-arcade-night-banking.png` | Night stage, F-14 banking | Dark ground with city lights. NOTE: the large fireball here is a flak burst the jet is flying through, NOT afterburner. Do not cite it as flame reference. |
 | `assets/reference/ab2-arcade-closeup-enemies.jpg` | Close-up with enemy jets | Large dark-green enemy jets with detail, massive explosion filling half the screen, F-14 dorsal view with shading |
 | `assets/reference/ab2-arcade-coastal-banking.jpg` | Coastal stage, F-14 banking | Rocky terrain, ocean, blue enemy jets, green ground — shows terrain variety and banking |
-| `assets/reference/ab2-arcade-night-missiles.jpg` | Night stage with missile trails | F-14 with massive flames, missile smoke trails, enemy approaching — shows combat feel |
+| `assets/reference/ab2-arcade-night-missiles.jpg` | Night stage with missile trails | Missile smoke trails, enemy approaching. NOTE: the long streak is a missile exhaust trail from a wingtip pylon, NOT engine flame. Do not cite it as flame reference. |
 | `assets/reference/ab2-arcade-city-stage.jpg` | City/forest stage with explosions | Buildings below, green terrain, blue enemies, mid-air explosions — shows stage variety |
 | `assets/reference/ab2-arcade-reload-dorsal.jpg` | Reload screen, F-14 dorsal close-up | Best reference for F-14 shape from behind — wing sweep, tail fins, canopy, panel lines |
 | `assets/reference/ab2-arcade-huge-explosion.jpg` | Massive explosion filling screen | Orange/yellow puffy cloud covering 80%+ of screen — THIS is how big explosions should be |
@@ -56,7 +56,7 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 
 ## Hard Rules (automatic FAIL if violated)
 
-1. **Player must survive 15+ seconds without input in Stage 1** — if the player dies sooner, the game is too lethal
+1. **No un-dodgeable deaths** — every death preceded by a visible threat with a >=0.5s avoidance window. Idle-survival time is not itself a criterion.
 2. **Ground stripe positions must differ between consecutive 500ms captures** — if static, ground scroll is broken
 3. **Reference screenshots are the primary truth source** — written descriptions can be wrong. Always look at actual images.
 
@@ -90,7 +90,7 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 - **Cockpit canopy** visible as a dark bubble on top of the fuselage
 - **Nose/radome** must be a WIDE, SMOOTH, bullet-shaped taper — like a real F-14 (it houses a 36-inch AWG-9 radar dish). NOT a needle, NOT a spike, NOT a thin antenna, NOT a blunt cone. It has substantial width at the base (nearly fuselage width) and tapers gradually to a slightly rounded tip over ~25% of total aircraft length. A needle/spike nose = FAIL. A stubby cone = FAIL. Compare against real F-14 photos.
 - **Every major component must be shaped AND proportionally correct.** Nose, canopy, wings, intakes, nacelles, tail fins, nozzles — each needs correct proportions relative to the whole aircraft, verified against real aircraft photos AND arcade references. A mesh with good wings but a wrong-proportioned nose is half-finished = FAIL.
-- **Afterburner flames are MASSIVE** — bright yellow/white core, orange outer, nearly as long as the jet body itself. They are the most eye-catching element. If the flames aren't dramatic and large, FAIL.
+- **Engine nozzles read as large hot-cored glowing discs** — dark rim with a hot orange/red/yellow centre. There is NO exhaust plume or ribbon. Verified across every motion burst and all 9 statics: the original has no engine flame trail. A long flame plume = FAIL.
 - The jet fills **25-30% of screen height** and dominates the bottom quarter
 - The jet has **visual detail and shading** — it is NOT a flat-colored 3D shape. It has highlights, shadows, panel lines, color variation across the surface
 
@@ -115,7 +115,7 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 ### Screen Composition
 - **The screen is NEVER empty.** Every frame has enemies, explosions, missiles, or projectiles
-- **Horizon at ~50% from top** — sky and ground roughly equal
+- **Horizon at 60-65% from top** — more sky than ground
 - **Colors are saturated and bold** — deep blues, hot oranges, bright reds, vivid greens
 - The overall feel is CHAOTIC, FAST, EXCITING
 
@@ -131,19 +131,19 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 ## HARD RULES — Automatic FAIL if violated
 
-0. **Game must be playable for evaluation.** The player must survive at least 15 seconds without input on Stage 01. All GAME OVER frames = automatic FAIL.
+0. **No un-dodgeable deaths.** Every death must be preceded by a visible approaching threat with a >=0.5s reachable avoidance window. Idle-survival duration is NOT a criterion — an arcade game may legitimately kill a player who never moves. For visual evaluation, use a capture mode so lethality never truncates a review.
 
 1. **Jets must look like aircraft with visual detail.** A flat-shaded cylinder with box wings is NOT acceptable even if it's "recognizable." The jet must have visible surface detail: color variation across the body, highlight/shadow areas, panel-line-like color breaks. Compare to the reference screenshot — the original sprites had shading and detail despite being 320x224 pixels. Our 3D meshes at modern resolution should look AT LEAST as detailed.
 
-2. **Afterburner flames must be dramatic.** In the reference, flames are nearly as long as the jet body and are the brightest element on screen. Tiny orange nubs = FAIL. The flames should be eye-catching from across the room.
+2. **Engine nozzles must read as hot-cored glowing discs.** Dark rim, hot orange/red/yellow core — NOT a white disc with an orange ring (that is inverted). There is no exhaust plume in the original; drawing one = FAIL.
 
 3. **The ground must create speed.** If the ground looks static or slowly drifting, FAIL. The original made players feel "nauseated" from speed.
 
 4. **Screen must be busy.** At any point during gameplay, the screen should feel chaotic with enemies, projectiles, or explosions. Empty sky with just one jet = FAIL.
 
-5. **Horizon at 40-55% from top.** Ground fills the bottom half. The jet sits in the bottom 25%.
+5. **Horizon at 60-65% from top.** Measured from reference burst-a-02 and burst-b-03 — the original has MORE sky than ground. The jet sits in the bottom 25%.
 
-6. **Colors must be vivid and saturated.** Muted greys, washed-out pastels, or low-contrast color schemes = FAIL. Compare to the reference: hot oranges, deep blues, bright reds.
+6. **Colors must match the reference stage-for-stage.** Measure mean HSV saturation against the equivalent reference stage — do NOT apply a flat floor. Desert measures S~0.87-0.90; snow measures S~0.14. A flat threshold wrongly fails a correct snow stage. Muted output on a stage whose reference is vivid = FAIL.
 
 7. **No rendering artifacts.** Seams, tearing, Z-fighting, flickering, or visual glitches of any kind = FAIL.
 
@@ -157,12 +157,12 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 |---|-----------|-------------|
 | 1 | Player jet has visual detail | Must have color variation, shading, highlights — NOT a single flat color. Multiple material colors on the fuselage (light top, darker sides). Canopy must be a distinct color. Wing undersides slightly different from tops. |
 | 2 | Player jet is large | Occupies 25-30% screen height. Dominates bottom quarter. |
-| 3 | Afterburner flames are dramatic | Flames extend at least 50% of jet body length. White/yellow core, orange outer. Bright enough to be the most eye-catching element. |
+| 3 | Engine nozzles correct | Dark rim, hot orange/red/yellow core. No exhaust plume or ribbon of any length. |
 | 4 | Enemy jets are vivid | Saturated colors that POP against any background. Red fighters should be BRIGHT red (not dark red). At close range, clearly aircraft shapes. |
 | 5 | Ground creates speed | Strong perspective compression. Dense pattern. Fast scrolling. "Nauseating" speed sensation. |
 | 6 | Explosions are dramatic | Each explosion fills 15-25% screen height. Puffy white/yellow clouds. Multiple visible simultaneously. |
 | 7 | Bold arcade colors | Compare to reference. Vivid saturated colors throughout. No grey, muted, or washed-out areas. |
-| 8 | Composition matches AB2 | Horizon ~50% from top. Ground fills bottom. Jet in bottom 25%. Sky above. |
+| 8 | Composition matches AB2 | Horizon 60-65% from top (more sky than ground). Jet in bottom 25%. |
 | 9 | Super Scaler scaling | Enemies scale from dots at horizon to large aircraft. Smooth, dramatic. |
 | 10 | Screen is chaotic | Never calm. Multiple visual elements competing for attention. Arcade energy. |
 
