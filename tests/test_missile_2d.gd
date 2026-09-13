@@ -1,14 +1,18 @@
-extends Node
+extends SceneTree
 
 ## Unit tests for missile_2d.gd and explosion_2d.gd
 ## Tests missile data model, trail buffer, and explosion phases.
-## Run via Godot's headless test runner.
+## Run with: godot --headless --script res://tests/test_missile_2d.gd
+##
+## NOTE: must extend SceneTree, not Node — `--headless --script` only runs
+## the script's main loop if it extends SceneTree/MainLoop. A plain `Node`
+## script is loaded but never ticked, so the process hangs until timeout.
 
 var _passed: int = 0
 var _failed: int = 0
 
 
-func _ready() -> void:
+func _initialize() -> void:
 	print("=== test_missile_2d ===")
 	test_missile_initial_state()
 	test_missile_trail_buffer()
@@ -17,8 +21,7 @@ func _ready() -> void:
 	test_missile_screen_position()
 	test_explosion_radius_clamped()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
-	if _failed > 0:
-		push_error("TESTS FAILED: %d" % _failed)
+	quit(1 if _failed > 0 else 0)
 
 
 func assert_true(condition: bool, label: String) -> void:
@@ -38,7 +41,11 @@ func _make_missile() -> Node2D:
 	var script: GDScript = preload("res://scripts/weapons/missile_2d.gd")
 	var m := Node2D.new()
 	m.set_script(script)
-	add_child(m)
+	get_root().add_child(m)
+	# NOTIFICATION_READY isn't propagated synchronously here (no frame loop
+	# pumps it during _initialize()), so call _ready() directly — same code
+	# the engine would run, just not deferred to a tick that never happens.
+	m._ready()
 	return m
 
 
@@ -46,7 +53,8 @@ func _make_explosion() -> Node2D:
 	var script: GDScript = preload("res://scripts/effects/explosion_2d.gd")
 	var e := Node2D.new()
 	e.set_script(script)
-	add_child(e)
+	get_root().add_child(e)
+	e._ready()
 	return e
 
 

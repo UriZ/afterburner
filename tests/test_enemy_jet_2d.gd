@@ -30,6 +30,7 @@ func _init() -> void:
 	test_enemy_renderer_colors_count()
 	test_get_screen_scale_strictly_increasing_across_depths()
 	test_get_screen_scale_bounded_below_saturation()
+	test_get_screen_scale_peak_wingspan_in_ab2_band()
 	test_get_screen_scale_near_raw_at_far_depth()
 	test_min_fire_depth_value()
 	test_enemy_does_not_fire_before_min_depth()
@@ -232,13 +233,32 @@ func test_get_screen_scale_strictly_increasing_across_depths() -> void:
 
 func test_get_screen_scale_bounded_below_saturation() -> void:
 	print("\ntest_get_screen_scale_bounded_below_saturation:")
-	# Never reaches SCALE_SATURATION (asymptotic), and stays well under the
-	# raw quadratic's ~2.57 at despawn so enemies don't regress to
-	# screen-filling (#95).
+	# Never reaches SCALE_SATURATION (asymptotic) or the raw quadratic value
+	# it's derived from — both are hard mathematical guarantees of the
+	# raw*K/(K+raw) form, not tunable behavior, so this is a regression guard
+	# against a future edit reintroducing a value that can exceed either.
 	var e := _make_enemy(0, 0.0, 0.92)
 	var capped: float = e.get_screen_scale()
+	var raw_at_despawn: float = DepthUtil.depth_to_scale(0.92)
 	assert_true(capped < e.SCALE_SATURATION, "scale at despawn stays below the asymptote (%.3f < %.3f)" % [capped, e.SCALE_SATURATION])
-	assert_true(capped < 1.5, "scale at despawn does not regress past the old #95 cap (%.3f < 1.5)" % capped)
+	assert_true(capped < raw_at_despawn, "scale at despawn stays below the unsaturated raw value (%.3f < %.3f)" % [capped, raw_at_despawn])
+	e.free()
+
+
+func test_get_screen_scale_peak_wingspan_in_ab2_band() -> void:
+	print("\ntest_get_screen_scale_peak_wingspan_in_ab2_band:")
+	# #105 reopen: enemy at closest approach (DESPAWN_DEPTH) must read as
+	# 25-30% of screen width, matching AB2 reference frames — not a
+	# far-off speck (13%, the K=3 undershoot) and not screen-filling (#95).
+	# Mirrors the renderer's actual draw pipeline: game_world.gd's
+	# _draw_enemy_obj() passes s = get_screen_scale()*35.0 into
+	# EnemySpriteRenderer.draw_enemy(), whose widest vertex is at
+	# pos.x +- s*1.55 (the wing-underside layer), so full wingspan = 3.1*s.
+	var e := _make_enemy(0, 0.0, EnemyJet2D.DESPAWN_DEPTH)
+	var s: float = e.get_screen_scale() * 35.0
+	var wingspan_px: float = 3.1 * s
+	var pct: float = wingspan_px / DepthUtil.SCREEN_W * 100.0
+	assert_true(pct >= 25.0 and pct <= 30.0, "peak wingspan is 25-30%% of screen width (%.1f%%, %.1fpx)" % [pct, wingspan_px])
 	e.free()
 
 

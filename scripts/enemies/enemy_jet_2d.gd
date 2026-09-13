@@ -37,9 +37,14 @@ const DESPAWN_DEPTH: float = 0.92
 # Asymptote for the saturating scale curve (see get_screen_scale()). A hard
 # minf() clamp here would create a plateau — the curve below approaches this
 # value but never reaches it, so size keeps growing (just decelerating) all
-# the way to despawn instead of freezing at a fixed size (#105), while still
-# staying well under the raw quadratic's ~2.57 at DESPAWN_DEPTH (#95).
-const SCALE_SATURATION: float = 3.0
+# the way to despawn instead of freezing at a fixed size (#105).
+# K=25 puts the peak (at DESPAWN_DEPTH, raw=2.5692) at scale~2.330, which
+# through the renderer's fixed pipeline (get_screen_scale()*35.0 draw scale,
+# wingtip at +-1.55*s) reads as a ~253px wingspan on the 960px-wide screen —
+# 26.3%, inside the 25-30% AB2-reference band from #105's reopen. K=3 (the
+# first #105 fix) undershot at ~1.38 (13% wingspan) because it saturated too
+# aggressively relative to raw's own ~2.57 ceiling at despawn.
+const SCALE_SATURATION: float = 25.0
 const BULLET_SPEED: float = 0.6
 # Enemy must be visibly close before it's allowed to open fire — gives the
 # player an approach window instead of getting shot at while still a distant dot.
