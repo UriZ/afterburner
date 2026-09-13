@@ -57,7 +57,7 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 ## Hard Rules (automatic FAIL if violated)
 
 1. **No un-dodgeable deaths** — every death preceded by a visible threat with a >=0.5s avoidance window. Idle-survival time is not itself a criterion.
-2. **Ground stripe positions must differ between consecutive 500ms captures** — if static, ground scroll is broken
+2. **Ground per-band frame-to-frame shift must increase monotonically with depth** — near bands move more than far bands. The old 'stripe positions must differ' rule passed on pure noise regeneration and must not be reinstated.
 3. **Reference screenshots are the primary truth source** — written descriptions can be wrong. Always look at actual images.
 
 ## Judge Mandatory Procedure
@@ -91,7 +91,7 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 - **Nose/radome** must be a WIDE, SMOOTH, bullet-shaped taper — like a real F-14 (it houses a 36-inch AWG-9 radar dish). NOT a needle, NOT a spike, NOT a thin antenna, NOT a blunt cone. It has substantial width at the base (nearly fuselage width) and tapers gradually to a slightly rounded tip over ~25% of total aircraft length. A needle/spike nose = FAIL. A stubby cone = FAIL. Compare against real F-14 photos.
 - **Every major component must be shaped AND proportionally correct.** Nose, canopy, wings, intakes, nacelles, tail fins, nozzles — each needs correct proportions relative to the whole aircraft, verified against real aircraft photos AND arcade references. A mesh with good wings but a wrong-proportioned nose is half-finished = FAIL.
 - **Engine nozzles read as large hot-cored glowing discs** — dark rim with a hot orange/red/yellow centre. There is NO exhaust plume or ribbon. Verified across every motion burst and all 9 statics: the original has no engine flame trail. A long flame plume = FAIL.
-- The jet fills **25-30% of screen height** and dominates the bottom quarter
+- The jet is **WIDE and FLAT** — roughly 50-55% of screen WIDTH by 15-20% of screen HEIGHT. Measured: burst-c-02 is 55%W x 17%H; burst-a-02 ~11%H. Do NOT use a height-only rule; a 25-30%-height jet is far too tall and reads as a paper dart.
 - The jet has **visual detail and shading** — it is NOT a flat-colored 3D shape. It has highlights, shadows, panel lines, color variation across the surface
 
 ### Enemy Jets
@@ -147,7 +147,11 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 7. **Colors must match the reference stage-for-stage.** Measure mean HSV saturation against the equivalent reference stage — do NOT apply a flat floor. Desert measures S~0.87-0.90; snow measures S~0.14. A flat threshold wrongly fails a correct snow stage. Muted output on a stage whose reference is vivid = FAIL.
 
-7. **No rendering artifacts.** Seams, tearing, Z-fighting, flickering, or visual glitches of any kind = FAIL.
+9. **No rendering artifacts.** Seams, tearing, Z-fighting, flickering, or visual glitches of any kind = FAIL.
+
+8. **Enemies must occupy the SKY.** They appear at the horizon and scale up through the sky above it. A sustained stretch of capture with zero enemy pixels above the horizon line = FAIL. Measure it: count enemy pixels above the horizon across a capture. The original's action happens in the sky, not along the ground.
+
+10. **Explosion type must match the target.** Aircraft kills are pale cream/near-white cauliflower puffs at ~10-12% screen height with NO orange or red (desert-explosions.png, closeup-enemies.jpg). Orange/red fireballs are for ground and large impacts ONLY (huge-explosion.jpg, burst-c-10). Using a fireball for every kill = FAIL.
 
 8. **Player jet must move freely across the screen.** The jet must be able to reach all areas of the viewport, not be stuck at the bottom. Compare to AB2 — the jet roams the full screen.
 
