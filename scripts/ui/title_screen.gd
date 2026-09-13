@@ -3,6 +3,8 @@ extends Control
 ## Title screen for After Burner.
 ## Shows game title, blinking "PRESS START", and music selection menu.
 
+const ConfirmInput := preload("res://scripts/ui/confirm_input.gd")
+
 enum State { ATTRACT, MUSIC_SELECT }
 
 const BLINK_INTERVAL := 0.5
@@ -71,17 +73,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _is_start_pressed(event: InputEvent) -> bool:
-	if event.is_action("start"):
-		return true
-	if event is InputEventKey:
-		var key_event := event as InputEventKey
-		# Check both keycode and physical_keycode since the input map may use either.
-		# Accept Enter and Space as common arcade start keys.
-		if key_event.keycode in [KEY_ENTER, KEY_SPACE]:
-			return true
-		if key_event.physical_keycode in [KEY_ENTER, KEY_SPACE]:
-			return true
-	return false
+	return ConfirmInput.is_pressed(event)
 
 
 func _enter_music_select() -> void:

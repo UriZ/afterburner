@@ -9,12 +9,14 @@ signal hit_target
 const TRAIL_MAX := 40
 const HOMING_DELAY := 0.3
 const MAX_LIFETIME := 5.0
+const LAUNCH_DEPTH := 0.9
 
 const _DepthUtil := preload("res://scripts/game/depth_util.gd")
 
 # Launch state
 var logical_x: float = 0.0
-var logical_depth: float = 0.9
+var logical_depth: float = LAUNCH_DEPTH
+var logical_altitude: float = 0.0  # player/ground baseline; homes toward target's altitude below
 var speed: float = 0.8
 
 # Target
@@ -39,7 +41,7 @@ func _ready() -> void:
 
 
 func get_screen_position() -> Vector2:
-	return _DepthUtil.to_screen(logical_x, logical_depth)
+	return _DepthUtil.to_screen(logical_x, logical_depth, logical_altitude)
 
 
 func get_collision_radius() -> float:
@@ -65,10 +67,21 @@ func _process(delta: float) -> void:
 		_trail_write = (_trail_write + 1) % TRAIL_MAX
 		_trail_count = mini(_trail_count + 1, TRAIL_MAX)
 
-	# Homing toward target
+	# Homing toward target — enemies live at altitude, not the ground plane
+	# (#100). X still homes with a time-based lerp (the target drifts
+	# laterally, so continuously re-aiming makes sense). Altitude uses
+	# depth-progress instead: a time-based lerp can't reach a close target
+	# in time (its depth is reached almost immediately after launch), so
+	# convergence is tied to how much of the launch-to-target depth span has
+	# been closed — that reaches the target's exact altitude precisely when
+	# logical_depth reaches the target's depth, however little time that took.
 	if is_instance_valid(target) and _lifetime > HOMING_DELAY:
 		var target_x: float = target.logical_x if "logical_x" in target else 0.0
 		logical_x = lerp(logical_x, target_x, 4.0 * delta)
+		if "logical_altitude" in target and "logical_depth" in target:
+			var span: float = maxf(LAUNCH_DEPTH - target.logical_depth, 0.001)
+			var progress: float = clampf((LAUNCH_DEPTH - logical_depth) / span, 0.0, 1.0)
+			logical_altitude = lerp(0.0, target.logical_altitude, progress)
 
 	logical_depth -= speed * delta
 	position = get_screen_position()

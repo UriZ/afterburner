@@ -10,15 +10,23 @@ const SCREEN_H: float = 672.0
 # Was 268.8 (40%), which read as far too much ground and no visible horizon.
 const HORIZON_Y: float = 420.0
 
+# Pixel lift applied per unit of `altitude` at the same d^2 growth rate as the
+# ground descent term below (#100). A flying object (enemy jet, weapon homing
+# on one) is not on the ground plane, so it needs to rise above the horizon
+# as it approaches instead of descending below it. altitude=0 (the default)
+# reproduces the exact old ground-only formula for every existing caller —
+# only callers that pass a nonzero altitude opt into the sky-rise behavior.
+const ALTITUDE_LIFT_PIXELS: float = 580.0
+
 
 static func depth_to_scale(d: float) -> float:
 	return 0.03 + d * d * 3.0
 
 
-static func to_screen(x_offset: float, d: float) -> Vector2:
+static func to_screen(x_offset: float, d: float, altitude: float = 0.0) -> Vector2:
 	var cx: float = SCREEN_W / 2.0
 	var sx: float = cx + x_offset * (SCREEN_W * 0.47) * (0.1 + d * 0.9)
-	var sy: float = HORIZON_Y + d * d * (SCREEN_H - HORIZON_Y) * 0.95
+	var sy: float = HORIZON_Y + d * d * ((SCREEN_H - HORIZON_Y) * 0.95 - altitude * ALTITUDE_LIFT_PIXELS)
 	return Vector2(sx, sy)
 
 

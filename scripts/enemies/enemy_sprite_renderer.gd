@@ -104,13 +104,15 @@ static func draw_enemy(canvas: CanvasItem, type: int, pos: Vector2, s: float) ->
 		Vector2(pos.x - s * 0.10, pos.y + s * 0.45),
 	]), [c["panel_accent"]])
 
-	# Layer 5: Engine intake ring (red disc — key visual)
+	# Layer 5: Engine intake ring (red disc accent — was s*0.24, wider than the
+	# fuselage itself and read as an oversized bullseye; reference shows a
+	# modest marking, not a dominant roundel)
 	var intake_center := Vector2(pos.x, pos.y - s * 0.05)
-	canvas.draw_circle(intake_center, s * 0.24, c["engine_intake"])
+	canvas.draw_circle(intake_center, s * 0.13, c["engine_intake"])
 	if s >= 4.0:
-		canvas.draw_circle(intake_center, s * 0.16, c["engine_interior"])
+		canvas.draw_circle(intake_center, s * 0.087, c["engine_interior"])
 		if s > 6.0:
-			canvas.draw_circle(intake_center, s * 0.06, c["engine_glow"])
+			canvas.draw_circle(intake_center, s * 0.033, c["engine_glow"])
 
 	# Layer 6: Canopy (only at s >= 8)
 	if s >= 8.0:

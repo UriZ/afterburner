@@ -172,20 +172,17 @@ func _game_over() -> void:
 	var spawner: Node = get_parent().get_node_or_null("EnemySpawner")
 	if spawner and spawner.has_method("set"):
 		spawner.set("enabled", false)
-	_show_game_over_label()
+	_show_game_over_screen()
 
 
-func _show_game_over_label() -> void:
-	var label: Label = Label.new()
-	label.text = "GAME OVER"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 64)
-	label.add_theme_color_override("font_color", Color(1, 0.2, 0.2))
-	label.anchors_preset = Control.PRESET_FULL_RECT
+func _show_game_over_screen() -> void:
+	if not get_tree():
+		return
+	var screen := Control.new()
+	screen.set_script(preload("res://scripts/ui/game_over_screen.gd"))
 	var canvas: CanvasLayer = CanvasLayer.new()
 	canvas.layer = 20
-	canvas.add_child(label)
+	canvas.add_child(screen)
 	get_tree().root.add_child(canvas)
 
 

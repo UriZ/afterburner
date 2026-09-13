@@ -49,10 +49,19 @@ const BULLET_SPEED: float = 0.6
 # Enemy must be visibly close before it's allowed to open fire — gives the
 # player an approach window instead of getting shot at while still a distant dot.
 const MIN_FIRE_DEPTH: float = 0.3
+# Enemies fly at altitude, not on the ground plane — DepthUtil.to_screen()'s
+# altitude param lifts them above the horizon as they approach instead of
+# descending below it (#100). Per-instance jitter within this band spreads
+# a formation across varied sky heights instead of one vertical column, and
+# stays comfortably above the 0.4128 threshold where the lift term would
+# stop being negative (see depth_util.gd), so the rise is always monotonic.
+const ALTITUDE_MIN: float = 0.75
+const ALTITUDE_MAX: float = 1.2
 
 var enemy_type: int = 0  # EnemyType.FIGHTER
 var logical_x: float = 0.0
 var logical_depth: float = 0.0
+var logical_altitude: float = 1.0
 var speed: float = 0.35
 var health: int = 1
 var fire_interval: float = 4.0
@@ -80,6 +89,7 @@ func configure(type: int, start_logical_x: float, start_logical_depth: float, x_
 	logical_x = start_logical_x
 	logical_depth = start_logical_depth
 	_x_drift = x_drift_amount
+	logical_altitude = randf_range(ALTITUDE_MIN, ALTITUDE_MAX)
 	_apply_type_data()
 
 
@@ -106,7 +116,7 @@ func _process(delta: float) -> void:
 
 
 func get_screen_position() -> Vector2:
-	return _DepthUtil.to_screen(logical_x, logical_depth)
+	return _DepthUtil.to_screen(logical_x, logical_depth, logical_altitude)
 
 
 func get_screen_scale() -> float:
@@ -163,6 +173,7 @@ func _fire_bullet() -> void:
 	bullet.set_script(preload("res://scripts/enemies/enemy_bullet_2d.gd"))
 	bullet.set("logical_x", logical_x)
 	bullet.set("logical_depth", logical_depth)
+	bullet.set("logical_altitude", logical_altitude)
 	bullet.set("speed", BULLET_SPEED)
 	bullet.set("target_screen_pos", player.get_screen_position())
 	get_parent().add_child(bullet)

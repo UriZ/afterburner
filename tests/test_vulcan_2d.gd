@@ -16,6 +16,7 @@ func _initialize() -> void:
 	test_bullet_screen_position()
 	test_bullet_collision_radius_scales()
 	test_bullet_min_depth()
+	test_bullet_altitude_ramps_toward_aim_and_lifts_above_horizon()
 	test_weapon_manager_constants()
 	test_reticle_blink_defaults()
 
@@ -95,6 +96,21 @@ func test_bullet_min_depth() -> void:
 	var b := _make_bullet()
 	assert_true(b.MIN_DEPTH == 0.05, "bullets despawn at MIN_DEPTH 0.05")
 	assert_true(b.MIN_DEPTH < b.logical_depth, "MIN_DEPTH < starting depth")
+	b.queue_free()
+
+
+func test_bullet_altitude_ramps_toward_aim_and_lifts_above_horizon() -> void:
+	print("\ntest_bullet_altitude_ramps_toward_aim_and_lifts_above_horizon:")
+	# Vulcan has no locked target, so it can't home in Y like missile_2d.gd —
+	# it ramps toward a fixed sky-band altitude instead (#100), so sustained
+	# fire can still reach enemies that now live above the horizon.
+	var b := _make_bullet()
+	assert_true(b.logical_altitude == 0.0, "bullet starts at ground-plane altitude 0 (matches player, no visual jump)")
+	assert_true(b.aim_altitude == b.DEFAULT_AIM_ALTITUDE, "aim_altitude defaults to DEFAULT_AIM_ALTITUDE")
+	for i in range(10):
+		b._process(1.0 / 60.0)
+	assert_true(b.logical_altitude > 0.5, "altitude has ramped substantially toward aim_altitude after ~0.17s (%.3f)" % b.logical_altitude)
+	assert_true(b.get_screen_position().y < _DepthUtil.HORIZON_Y, "ramped bullet now sits above the horizon")
 	b.queue_free()
 
 

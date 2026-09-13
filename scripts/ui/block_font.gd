@@ -5,7 +5,8 @@ extends RefCounted
 ## Godot has no bundled pixel font (assets/fonts/ is empty), so glyphs are
 ## drawn as filled squares via draw_rect, matching the project's existing
 ## _draw()-based rendering convention (see player_jet_2d.gd).
-## Covers only the HUD's fixed vocabulary: SCORE, HI, STAGE, SPEED, digits.
+## Covers only the fixed vocabulary used by the HUD (SCORE, HI, STAGE, SPEED,
+## digits) and the game-over screen (GAME OVER, PRESS ENTER).
 
 const ROWS := 7
 const COLS := 5
@@ -29,11 +30,14 @@ const GLYPHS: Dictionary = {
 	"G": ["01110", "10001", "10000", "10111", "10001", "10001", "01111"],
 	"H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
 	"I": ["01110", "00100", "00100", "00100", "00100", "00100", "01110"],
+	"M": ["10001", "11011", "10101", "10101", "10001", "10001", "10001"],
+	"N": ["10001", "11001", "10101", "10101", "10011", "10001", "10001"],
 	"O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
 	"P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
 	"R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
 	"S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
 	"T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+	"V": ["10001", "10001", "10001", "10001", "10001", "01010", "00100"],
 }
 
 

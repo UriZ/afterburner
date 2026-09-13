@@ -21,6 +21,7 @@ func _initialize() -> void:
 	test_get_bank_angle_starts_zero(jet_scene)
 	test_is_vulnerable_states(jet_scene)
 	test_player_in_group(jet_scene)
+	test_game_over_sets_phase(jet_scene)
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -133,3 +134,21 @@ func test_player_in_group(scene: PackedScene) -> void:
 		jet._ready()
 	assert_true(jet.is_in_group("player"), "PlayerJet2D self-registers in 'player' group")
 	jet.queue_free()
+
+
+func test_game_over_sets_phase(scene: PackedScene) -> void:
+	print("\ntest_game_over_sets_phase:")
+	# GameState is fetched via /root, not by bare name: this script is the
+	# SceneTree entry point under `--script`, so it can't reference the
+	# autoload's global identifier itself (see test_game_manager_2d.gd).
+	var gs := get_root().get_node("GameState")
+	var jet: Node2D = _make_jet(scene)
+	jet._is_invincible = false
+	jet._is_dying = false
+	gs.lives = 0  # next hit exhausts lives (#111)
+	jet.hit()
+	assert_true(gs.phase == 2,  # Phase.GAME_OVER (see game_state.gd)
+		"Phase transitions to GAME_OVER once lives are exhausted")
+	assert_true(jet._is_dying == true, "Jet enters dying state on the fatal hit")
+	jet.queue_free()
+	gs.reset()

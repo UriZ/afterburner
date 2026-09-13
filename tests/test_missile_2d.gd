@@ -10,6 +10,15 @@ extends SceneTree
 
 const _DepthUtil := preload("res://scripts/game/depth_util.gd")
 
+## Minimal stand-in for enemy_jet_2d.gd's public homing contract (logical_x,
+## logical_altitude) — missile_2d.gd checks `"logical_altitude" in target`
+## duck-typed, so a bare scriptless Node won't expose these as readable
+## properties the way a real enemy does.
+class FakeTarget extends Node:
+	var logical_x: float = 0.0
+	var logical_depth: float = 0.0
+	var logical_altitude: float = 0.0
+
 var _passed: int = 0
 var _failed: int = 0
 
@@ -22,6 +31,7 @@ func _initialize() -> void:
 	test_explosion_phases()
 	test_missile_screen_position()
 	test_explosion_radius_clamped()
+	test_missile_homes_toward_target_altitude()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -116,6 +126,24 @@ func test_explosion_phases() -> void:
 	# Lifetime starts at 0
 	assert_true(e._lifetime == 0.0, "lifetime starts at 0")
 	e.queue_free()
+
+
+func test_missile_homes_toward_target_altitude() -> void:
+	# Enemies live at altitude, not the ground plane (#100). Missile Y-homing
+	# must mirror the existing X-homing onto the target's actual position.
+	var m := _make_missile()
+	var target := FakeTarget.new()
+	target.logical_x = 0.3
+	target.logical_depth = 0.2
+	target.logical_altitude = 1.0
+	m.target = target
+	m.logical_altitude = 0.0
+	for i in range(30):  # past HOMING_DELAY (0.3s) at 1/60s steps
+		m._process(1.0 / 60.0)
+	assert_true(m.logical_altitude > 0.0, "missile altitude homes toward the target's nonzero altitude (%.3f)" % m.logical_altitude)
+	assert_true(m.get_screen_position().y < _DepthUtil.HORIZON_Y, "homed missile has risen above the horizon toward the airborne target")
+	m.queue_free()
+	target.queue_free()
 
 
 func test_explosion_radius_clamped() -> void:

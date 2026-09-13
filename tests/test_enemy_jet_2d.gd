@@ -35,6 +35,10 @@ func _init() -> void:
 	test_min_fire_depth_value()
 	test_enemy_does_not_fire_before_min_depth()
 	test_enemy_fires_once_past_min_depth()
+	test_configure_randomizes_altitude_within_band()
+	test_enemy_never_dips_below_horizon()
+	test_enemy_y_rises_monotonically_with_depth()
+	test_depth_util_altitude_default_matches_ground_formula()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -177,12 +181,67 @@ func test_get_screen_position_at_horizon() -> void:
 func test_get_screen_position_at_depth_one() -> void:
 	print("\ntest_get_screen_position_at_depth_one:")
 	var e := _make_enemy(0, 0.0, 1.0)
+	e.logical_altitude = 1.0  # deterministic — configure() randomizes this (#100)
 	var pos: Vector2 = e.get_screen_position()
-	# At d=1, x_offset=0: x should still be 480, y should be near bottom
+	# At d=1, x_offset=0: x should still be 480
 	assert_approx(pos.x, 480.0, 1.0, "At depth=1, center x is still 480")
-	# sy = 420.0 + 1.0 * (672 - 420.0) * 0.95 = 420.0 + 239.4 = 659.4
-	assert_approx(pos.y, 659.4, 2.0, "At depth=1, y is near bottom (659.4)")
+	# sy = 420 + 1.0 * (239.4 - 1.0*580) = 420 - 340.6 = 79.4 — well ABOVE the
+	# horizon (#100), not near the bottom like the old ground-only formula.
+	assert_approx(pos.y, 79.4, 2.0, "At depth=1 with altitude=1.0, y is high in the sky (79.4), not near the bottom")
+	assert_true(pos.y < DepthUtil.HORIZON_Y, "enemy sits above the horizon, not below it")
 	e.free()
+
+
+func test_configure_randomizes_altitude_within_band() -> void:
+	print("\ntest_configure_randomizes_altitude_within_band:")
+	for i in range(20):
+		var e := _make_enemy(0, 0.0, 0.0)
+		assert_true(e.logical_altitude >= EnemyJet2D.ALTITUDE_MIN and e.logical_altitude <= EnemyJet2D.ALTITUDE_MAX,
+			"logical_altitude %.3f within [%.2f, %.2f]" % [e.logical_altitude, EnemyJet2D.ALTITUDE_MIN, EnemyJet2D.ALTITUDE_MAX])
+		e.free()
+
+
+func test_enemy_never_dips_below_horizon() -> void:
+	print("\ntest_enemy_never_dips_below_horizon:")
+	# Hard rule #100/#8 in criteria.md: enemies occupy the sky, never the
+	# ground zone below the horizon, across their whole approach.
+	var depths: Array[float] = [0.0, 0.1, 0.3, 0.5, 0.7, EnemyJet2D.DESPAWN_DEPTH]
+	var all_above := true
+	for d in depths:
+		for altitude in [EnemyJet2D.ALTITUDE_MIN, EnemyJet2D.ALTITUDE_MAX]:
+			var e := _make_enemy(0, 0.0, d)
+			e.logical_altitude = altitude
+			if e.get_screen_position().y > DepthUtil.HORIZON_Y + 0.01:
+				all_above = false
+			e.free()
+	assert_true(all_above, "enemy y never exceeds HORIZON_Y across sampled depths and altitude band")
+
+
+func test_enemy_y_rises_monotonically_with_depth() -> void:
+	print("\ntest_enemy_y_rises_monotonically_with_depth:")
+	var depths: Array[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, EnemyJet2D.DESPAWN_DEPTH]
+	var prev_y: float = INF
+	var strictly_rising := true
+	for d in depths:
+		var e := _make_enemy(0, 0.0, d)
+		e.logical_altitude = 1.0
+		var y: float = e.get_screen_position().y
+		if y >= prev_y:
+			strictly_rising = false
+		prev_y = y
+		e.free()
+	assert_true(strictly_rising, "enemy y strictly decreases (rises on screen) as depth increases toward the player")
+
+
+func test_depth_util_altitude_default_matches_ground_formula() -> void:
+	print("\ntest_depth_util_altitude_default_matches_ground_formula:")
+	# altitude=0 (the default, used by every pre-existing caller) must
+	# reproduce the exact old ground-only result — no regression for ground,
+	# player weapons at rest, etc.
+	for d in [0.0, 0.3, 0.6, 0.92, 1.0]:
+		var with_default: Vector2 = DepthUtil.to_screen(0.2, d)
+		var with_explicit_zero: Vector2 = DepthUtil.to_screen(0.2, d, 0.0)
+		assert_true(with_default == with_explicit_zero, "to_screen(x, d) == to_screen(x, d, 0.0) at d=%.2f" % d)
 
 
 # --- Collision ---
