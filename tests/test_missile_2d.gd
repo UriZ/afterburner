@@ -15,6 +15,7 @@ func _ready() -> void:
 	test_missile_collision_radius_scales_with_depth()
 	test_explosion_phases()
 	test_missile_screen_position()
+	test_explosion_radius_clamped()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
 	if _failed > 0:
 		push_error("TESTS FAILED: %d" % _failed)
@@ -104,4 +105,19 @@ func test_explosion_phases() -> void:
 	assert_true(e._smoke_puffs.size() == 8, "8 smoke puffs generated")
 	# Lifetime starts at 0
 	assert_true(e._lifetime == 0.0, "lifetime starts at 0")
+	e.queue_free()
+
+
+func test_explosion_radius_clamped() -> void:
+	# Bug #97: close-range enemy kills pass depth_to_scale(d)*240, which peaks
+	# near 727 (depth_to_scale maxes at ~3.03) — this used to blow the fire
+	# and smoke layers up far past the 960px viewport, leaving only a giant
+	# flat glow/smoke circle visible. base_radius must clamp to a sane range.
+	var e := _make_explosion()
+	e.base_radius = 727.0
+	assert_true(e.base_radius <= e.MAX_BASE_RADIUS, "oversized base_radius is clamped down")
+	e.base_radius = 1.0
+	assert_true(e.base_radius >= e.MIN_BASE_RADIUS, "undersized base_radius is clamped up")
+	e.base_radius = 90.0
+	assert_true(e.base_radius == 90.0, "in-range base_radius passes through unchanged")
 	e.queue_free()

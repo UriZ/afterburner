@@ -46,8 +46,8 @@ func test_constants(scene: PackedScene) -> void:
 	var jet: Node2D = _make_jet(scene)
 	assert_true(jet.SCREEN_W == 960.0, "SCREEN_W is 960")
 	assert_true(jet.SCREEN_H == 672.0, "SCREEN_H is 672")
-	assert_true(jet.PLAYER_SCALE == 75.0, "PLAYER_SCALE is 75")
-	assert_true(jet.MAX_BANK_ANGLE == 45.0, "MAX_BANK_ANGLE is 45 degrees")
+	assert_true(jet.PLAYER_SCALE == 130.0, "PLAYER_SCALE is 130")
+	assert_true(jet.MAX_BANK_ANGLE == 57.0, "MAX_BANK_ANGLE is 57 degrees")
 	jet.queue_free()
 
 

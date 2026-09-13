@@ -1,6 +1,39 @@
 # Session Log
 
+### [2026-09-13 02:45] — developer — #109
+**Task**: Implement the F-14 jet design spec from #109 — delete flame ribbon system, reduce wingspan, widen nose, invert nozzle glow ratio, add wing panel-line detail
+**Result**: COMPLETED
+**Files changed**: `scripts/player/player_jet_2d.gd`, `tests/test_player_jet_2d.gd`
+**Key changes**:
+- player_jet_2d.gd — deleted the entire per-nozzle flame loop (layers 0a-0e, ~90 lines: ragged outer/mid/inner/core/hot polygons) plus `FLAME_SPEED_OUTER/MID/INNER`, `FLAME_JITTER_POINTS` constants and `flame_lean` var. Kept layer 0f ambient glow rect and Layer 7 nozzle rings.
+- player_jet_2d.gd — wing-tip multipliers `1.85→1.27`, `1.55→1.06`, `1.78→1.22` on both wings (mirrored); root/Y-coords unchanged per spec.
+- player_jet_2d.gd — nose tip points `±6→±9`; also updated the left-fuselage-shadow triangle's shared nose vertex (`-6→-9`) to stay flush — not explicitly in the spec table but follows directly from the shared vertex.
+- player_jet_2d.gd — nozzle ring radii per spec table: 13→10, 10→8, 7→9, 4→6, 5.5→7 (glow now 81% of footprint by construction, was 29%).
+- player_jet_2d.gd — added one diagonal panel-line stroke per wing (40-75% of span, offset toward trailing edge via edge-lerp math, not free-handed), reusing existing `Color(0.60, 0.63, 0.70, 0.40)`.
+- test_player_jet_2d.gd — fixed 2 pre-existing stale assertions (`PLAYER_SCALE == 75.0`, `MAX_BANK_ANGLE == 45.0`) that predated a prior redesign; updated to match current code (`130.0`/`57.0`) since #109 explicitly marks those constants out of scope.
+**Testing**: `test_player_jet_2d.gd` 19/19 pass (was 17/19 before test fix). `grep` confirmed no leftover references to deleted flame vars/constants.
+**Visual verification**: Watched all 3 motion bursts + 14-frame stage spread + `stage-07.jpg` before implementing, independently confirming the spec's headline finding (nozzle discs only, no flame plume in any reference frame). Captured 8 frames via game-capture skill to a private scratchpad dir (not shared `/tmp/game-capture`). Measured via Python/PIL bounding-box (cropped to jet region to exclude HUD/background false-positives): wingspan 329px on 960px-wide capture = 34.3%, within spec's 31-36% target band. Zoomed crop (`wing_zoom.png`) confirmed nozzles read as solid bright discs (no dark "holes") and the new wing panel-line is visible. No flame ribbons visible in any of the 8 frames. Nose width could not be independently visually verified — every captured frame is level flight (idle capture, no banking triggered) and the spec itself notes the nose is occluded in every rear-chase reference frame too.
+**Improvement Insights**:
+- **workflow**: The game-capture skill's `--start-game` flag does a global `pkill -f Godot` — when multiple visual agents run concurrently, this kills every other agent's live game instance mid-verification. Worked fine here since capture completed before/after collisions, but this is a race condition waiting to bite; a future improvement would be a `--pid`-scoped restart or a lock file so concurrent visual agents don't stomp each other's Godot process.
+
 ---
+
+### [2026-09-13 02:15] — ui-designer — #109
+**Task**: Design spec for F-14 player jet, measured from real AB2 motion reference (not guessed)
+**Result**: COMPLETED
+**Elements designed**: Afterburner flame system (deleted the ribbon layers), wingspan proportions, nose width, nozzle glow ring ratios, wing panel-line detail
+**Key design decisions**:
+- Headline finding: the #101 spec's `s * 3.0` flame length was sourced from two images that on close gridded inspection are NOT engine flame — `ab2-arcade-night-missiles.jpg`'s streak is a missile exhaust trail, `ab2-arcade-night-banking.png`'s fireball is a flak explosion cloud the jet is flying through. Checked every clean frame across 50 motion-reference frames plus all static screenshots including the reload-weapons close-up hero shot: zero frames show an extended engine flame plume. Spec deletes the ribbon system entirely, keeps only the existing nozzle-glow rings.
+- Wingspan measured directly (grid-overlay + pixel reading) at 31-36% of screen width in open-sky cruise frames vs current 50% — reduced wing-tip multipliers by a measured scale factor (0.686x).
+- Nozzle "reads as holes" complaint addressed via area-ratio math: current dark ring occupies ~71% of nozzle footprint vs ~29% glow; rebalanced radii to invert that ratio.
+- Nose width and wing panel-line placement flagged as medium/lower confidence (occluded in rear-chase view / unresolvable at sprite resolution) rather than presented as measured — explicit "could not measure" section per the ticket's ask.
+- Confirmed no conflict with #108 (palette saturation) — jet's white fuselage is deliberately desaturated by design, accents already saturated.
+**Improvement Insights**:
+- **workflow**: A Python+Pillow grid-overlay script (crop, upscale with NEAREST, draw labeled gridlines, then Read the PNG) is a reusable technique for pixel-accurate measurement from motion-reference frames — far more reliable than eyeballing scaled screenshots. Worth documenting as a standard step for any future measurement-based design spec.
+- **CLAUDE.md / architect-spec pattern**: The #101 failure mode (a vivid, dramatic-looking reference image gets misread as "the jet's own flame" when it's actually a missile trail or explosion) is a specific, recurring risk whenever a static screenshot is used as an isolated reference without checking adjacent frames for context. Motion-burst frames make this checkable; a single screenshot does not. Recommend: any spec citing a screenshot for a dramatic effect should also check the motion-burst sequence it came from (if available) to confirm the effect is actually attached to and caused by the subject, not an unrelated nearby event.
+
+---
+
 ### [2026-09-13 01:30] — developer — #105
 **Task**: Fix enemy scale plateau — enemies stop growing for the entire near 30% of approach (d>=0.7)
 **Result**: COMPLETED
@@ -3024,3 +3057,28 @@ Return to developer with feedback on all gaps. The most critical fix is player j
 - criteria.md: add a measurable ground-motion check (per-band frame-to-frame shift must increase monotonically with depth) — the current "stripe positions must differ" rule passes on pure noise regeneration.
 - criteria.md: add a measurable palette floor (mean HSV saturation >= 0.80) — "vivid colors" is being read subjectively and passing dull output.
 - workflow: game-capture/capture.sh and capture-video.sh both wipe /tmp/game-capture, destroying a prior capture. Make them use per-run subdirectories.
+
+---
+### [2026-09-13 22:50] — developer — #42
+**Task**: Rebuild ground motion model (3rd attempt) — terrain features regenerated from a frame-varying hash instead of translating, causing inverted/shimmering motion (far band 61px/frame > near band 48px/frame per judge measurement).
+**Result**: COMPLETED
+**Files changed**: `scripts/game/game_world.gd`, `tests/test_ground_grid.gd`
+**Key changes**:
+- game_world.gd:19-33 — replaced `GROUND_ROWS`/`FEATURE_SLOTS_PER_ROW` row-hash model with `FEATURE_COUNT=150` persistent-identity feature slots and a single `_ground_scroll` phase in `[0,1)`, advanced via `fposmod` each frame
+- game_world.gd:125-128 — new `_feature_depth(slot)`: `d = 1 - fposmod(hash(slot) - _ground_scroll, 1.0)`. Depth is a continuous function of the shared scroll phase; a feature's lateral offset/size/tint (game_world.gd:131-137) are hashed on `slot` only, never on scroll — so a feature translates smoothly frame to frame and never re-rolls its appearance. On completing a horizon-to-camera pass it wraps back to the horizon deterministically (not randomly)
+- game_world.gd:74-87 — ground base layer simplified to a static horizon→camera gradient with zero scroll/hash dependence (no identity to carry, so no shimmer risk); all texture now comes from the persistent-identity clusters
+- tests/test_ground_grid.gd — added `test_feature_depth_translates_continuously`, `test_feature_depth_advances_toward_camera`, `test_feature_depth_wraps_to_horizon`, `test_feature_identity_independent_of_scroll` (28/28 pass), directly exercising the production `_feature_depth`/`_hash2` functions to prove the persistence property the bug lacked
+**Testing**:
+- Unit: 28/28 pass in `tests/test_ground_grid.gd`. Grepped for old `GROUND_ROWS`/`FEATURE_SLOTS_PER_ROW`/`_draw_row_features` references elsewhere — none found. Full existing suite re-run: no regressions from this change (pre-existing unrelated failures in test_jet_mesh_builder/test_lock_on/test_player_jet_2d noted in prior #42 comments persist, untouched; test_missile_2d.gd hangs indefinitely — caused by another agent's uncommitted changes to explosion_2d.gd, out of scope, not touched by me).
+- `--check-only` on game_world.gd: clean (only the expected MCP-port-in-use error since the live game was already running).
+- Live capture (real game, stage 1, stationary): screenshots show clusters growing/shifting smoothly frame to frame with no random reshuffling. Attempted 3-stage live capture via scripted dodge input; player died before reaching stage 2 in every attempt (pre-existing spawn/difficulty balance issue, out of scope for #42, not touched).
+- **Composite-render verification** (deterministic, real production code, no touch to any repo file): a scratch Godot script instantiated the real `GameWorld` node in-process and captured its actual rendered viewport every engine frame (avoids ~300ms MCP-screenshot round-trip latency, which was too coarse for correspondence measurement) across three real stage palettes from `stage_data.gd` (desert/ocean/night). Block cross-correlation per depth band, mean shift across 13 consecutive-frame pairs per stage:
+  - stage1_desert: far +1.5px, mid-far +9.1px, mid-near +19.1px, near +83.5px
+  - stage6_ocean: far +0.0px, mid-far +6.4px, mid-near +15.2px, near +78.2px
+  - stage11_night: far +0.0px, mid-far +5.5px, mid-near +14.0px, near +68.3px
+  Monotonically increasing with depth in all three, near >> far every time (vs. the bug's far 61px > near 48px), holding across all three tested palettes. Direct visual crop comparison (frame_001→002→003) shows one distinctive dark/light cluster pair recognizably translating and growing across all 3 frames — same feature, not regenerated. Code inspection confirms stage transitions only ever touch `ground_color_a/b`/sky colors (`game_manager_2d.gd:88-94`) — nothing in the motion path is stage-conditional, so the 3-palette composite result generalizes to all 23 stages by construction.
+- No grid/lattice/row alternation: base layer is a single unbroken gradient, clusters are placed at continuous hash-derived lateral positions, not grid cells.
+**Improvement Insights**:
+- workflow: MCP screenshot round-trip (~300ms/frame) is too coarse to measure sub-frame ground-scroll motion directly — at GROUND_SCROLL_SPEED-class rates, consecutive screenshots are already 40%+ of a full depth traversal apart, breaking block-matching correspondence. For motion verification, prefer an in-process composite-render script (drives the real node, captures every engine frame, ~16ms apart) over live screenshot polling; reserve live capture for qualitative/regression checks only.
+- criteria.md: the acceptance-criteria template for motion features should default to requesting a composite-render measurement (in-process capture) rather than implying live screenshot capture is sufficient — this would have saved two failed measurement attempts here.
+- developer.md: when a task requires "holds across N stages" and stage variation is provably confined to a couple of data fields (colors), a deterministic composite render sweeping those exact fields via the real production code is stronger evidence than chasing live stage transitions through unrelated gameplay-difficulty RNG — worth stating explicitly as the preferred method for this class of claim.

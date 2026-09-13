@@ -16,18 +16,25 @@ var sky_horizon_color: Color = Color(1.00, 0.72, 0.10)
 var ground_color_a: Color = Color(0.88, 0.65, 0.30)
 var ground_color_b: Color = Color(0.50, 0.30, 0.12)
 
-const GROUND_ROWS: int = 40
-const FEATURE_SLOTS_PER_ROW: int = 6
-const FEATURE_MIN_DEPTH: float = 0.15  # skip attempts too far to read as detail
-# Depth units/sec. Constant rate + the quadratic depth->screen mapping (see DepthUtil)
-# is what makes near rows rush past fast while far rows crawl — the core speed cue.
+const FEATURE_COUNT: int = 150
+const FEATURE_MIN_DEPTH: float = 0.12  # skip features too far to read as detail
+# Depth units/sec a feature approaches the camera. Constant rate + the quadratic
+# depth->screen mapping (see DepthUtil) is what makes near features rush past fast
+# while far ones crawl — the core speed cue. A feature completes one full horizon-
+# to-camera pass every 1/GROUND_SCROLL_SPEED seconds, then wraps back to the horizon.
 const GROUND_SCROLL_SPEED: float = 1.4
 
+# World-scroll phase in [0, 1). Every terrain feature has a fixed identity (its slot
+# index) and a fixed base position in this cycle; only this single offset advances
+# per frame. A feature's screen position/size is a continuous function of
+# (slot, _ground_scroll) — it translates smoothly frame to frame instead of being
+# re-rolled from a frame-varying hash, which was the root cause of #42's inverted/
+# shimmering motion (features regenerated from scratch every frame instead of moving).
 var _ground_scroll: float = 0.0
 
 
 func _process(delta: float) -> void:
-	_ground_scroll += delta * GROUND_SCROLL_SPEED
+	_ground_scroll = fposmod(_ground_scroll + delta * GROUND_SCROLL_SPEED, 1.0)
 	_check_collisions()
 	queue_redraw()
 
@@ -50,37 +57,34 @@ func _draw_sky() -> void:
 
 
 # --- Ground ---
-# No grid, no checkerboard: a smooth horizon->camera gradient base (atmospheric haze
-# far away, richer tone up close — see ab2-arcade-desert.png) with organic rock/
-# vegetation clusters scattered at continuous, non-gridded lateral positions. Density
-# and size grow with depth via DepthUtil, so the scroll (a plain unbounded depth
-# accumulator) is what sells speed: near clusters rush past while far ones crawl.
+# Base layer: a static horizon->camera gradient (atmospheric haze far away, richer
+# tone up close — see ab2-arcade-desert.png). It carries no identity and never needs
+# to move, so it's a pure function of screen depth with no scroll/hash input at all —
+# zero risk of the shimmer bug below.
+#
+# Detail layer: organic rock/vegetation clusters, each a persistent world-space
+# feature (fixed slot index -> fixed lateral offset/size/tint, hashed once). Only
+# the feature's depth advances every frame via the shared _ground_scroll phase, then
+# is projected to screen through the same DepthUtil math everything else uses. The
+# same feature is identifiable at a new screen position in the next frame — it
+# translates, it does not regenerate. (#42: hashing by frame-varying row index instead
+# of by a persistent feature identity was the root cause of the inverted/shimmering
+# motion the judge measured.)
 
 func _draw_ground() -> void:
-	var row_depth: float = 1.0 / float(GROUND_ROWS)
-	var local_offset: float = fmod(_ground_scroll, row_depth)
-	var row_gen_base: int = int(floor(_ground_scroll / row_depth))
-	var lateral: float = _player_lateral_offset()
+	_draw_ground_base()
+	_draw_terrain_features()
 
-	for i in range(-1, GROUND_ROWS):
-		var d0: float = clampf(float(i) * row_depth + local_offset, 0.0, 1.0)
-		var d1: float = clampf(float(i + 1) * row_depth + local_offset, 0.0, 1.0)
-		if d1 <= d0:
-			continue
 
-		var row_gen: int = row_gen_base + i
+func _draw_ground_base() -> void:
+	var bands: int = 24
+	for i in range(bands):
+		var d0: float = float(i) / float(bands)
+		var d1: float = float(i + 1) / float(bands)
 		var y0: float = _DepthUtil.to_screen(0.0, d0).y
 		var y1: float = _DepthUtil.to_screen(0.0, d1).y
-		var d_mid: float = (d0 + d1) * 0.5
-
-		# Smooth base gradient with a faint per-row jitter — no hard row-to-row flip.
-		var base: Color = ground_color_a.lerp(ground_color_b, d_mid)
-		var jitter: float = lerp(-0.05, 0.05, _hash2(row_gen, 91))
-		base = Color(base.r + jitter, base.g + jitter, base.b + jitter).clamp()
-		draw_rect(Rect2(0.0, y0, SCREEN_W, maxf(y1 - y0 + 1.0, 1.0)), base)
-
-		if d_mid > FEATURE_MIN_DEPTH:
-			_draw_row_features(row_gen, d_mid, lateral)
+		var color: Color = ground_color_a.lerp(ground_color_b, (d0 + d1) * 0.5)
+		draw_rect(Rect2(0.0, y0, SCREEN_W, maxf(y1 - y0 + 1.0, 1.0)), color)
 
 
 func _player_lateral_offset() -> float:
@@ -91,16 +95,46 @@ func _player_lateral_offset() -> float:
 	return clampf((px - SCREEN_W * 0.5) / (SCREEN_W * 0.45), -1.0, 1.0) * 0.6
 
 
-func _draw_row_features(row_gen: int, d_mid: float, lateral: float) -> void:
-	for slot in range(FEATURE_SLOTS_PER_ROW):
-		if _hash2(row_gen * 17 + slot * 131, 7) > lerp(0.45, 0.97, d_mid):
+func _draw_terrain_features() -> void:
+	var lateral: float = _player_lateral_offset()
+	var visible: Array = []
+	for slot in range(FEATURE_COUNT):
+		var d: float = _feature_depth(slot)
+		if d < FEATURE_MIN_DEPTH:
 			continue
-		var off: float = lerp(-1.1, 1.1, _hash2(row_gen * 53 + slot * 7, 3)) - lateral
-		var pos: Vector2 = _DepthUtil.to_screen(off, d_mid)
-		var base_r: float = _DepthUtil.depth_to_scale(d_mid) * lerp(9.0, 20.0, _hash2(row_gen, slot * 29 + 5))
-		var tint: Color = ground_color_b.darkened(0.25) if _hash2(row_gen * 71 + slot, 41) > 0.5 \
-			else ground_color_a.darkened(0.05)
-		_draw_cluster(pos, base_r, tint, row_gen * 97 + slot * 13)
+		# Visibility is a threshold test on the feature's own fixed hash against a
+		# depth-increasing bar, so each feature has exactly one appear point per
+		# approach (far = sparse, near = dense) and never flickers on/off frame to
+		# frame the way a frame-varying hash would.
+		if _hash2(slot, 7) > lerp(0.45, 0.97, d):
+			continue
+		visible.append({"slot": slot, "d": d})
+
+	# Painter's algorithm: far features drawn first so near ones correctly overlap them.
+	visible.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["d"] < b["d"])
+
+	for entry in visible:
+		_draw_feature(entry["slot"], entry["d"], lateral)
+
+
+# A feature's depth is the only thing that changes over time: its base position in
+# the [0,1) approach cycle is fixed by its slot, and _ground_scroll (shared, advanced
+# once per frame in _process) shifts every feature's depth by the same small amount
+# each frame. When a feature reaches the camera (d=1) it wraps back to the horizon
+# (d=0) and starts its next approach — a plain, deterministic cycle, not a re-roll.
+func _feature_depth(slot: int) -> float:
+	var base: float = _hash2(slot, 5)
+	var wz: float = fposmod(base - _ground_scroll, 1.0)
+	return 1.0 - wz
+
+
+func _draw_feature(slot: int, d: float, lateral: float) -> void:
+	var off: float = lerp(-1.1, 1.1, _hash2(slot, 3)) - lateral
+	var pos: Vector2 = _DepthUtil.to_screen(off, d)
+	var base_r: float = _DepthUtil.depth_to_scale(d) * lerp(9.0, 20.0, _hash2(slot, 29))
+	var tint: Color = ground_color_b.darkened(0.25) if _hash2(slot, 41) > 0.5 \
+		else ground_color_a.darkened(0.05)
+	_draw_cluster(pos, base_r, tint, slot * 97 + 13)
 
 
 # A cluster of overlapping lobes (dark rim behind, tinted fill on top) reads as an

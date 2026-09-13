@@ -9,7 +9,17 @@ extends Node2D
 
 const DURATION := 1.0
 
-var base_radius: float = 60.0  # set by spawner based on enemy depth
+# Screen is 960x672 (see depth_util.gd). Clamp so the widest layer (the fire
+# starburst, which peaks at ~2.8x base_radius) never blows past the viewport —
+# spawners can pass depth-scaled values that exceed 700+ for close-range kills
+# (depth_to_scale peaks at ~3.0), which previously produced an oversized flat
+# disc showing only the innermost glow layer instead of the full explosion.
+const MAX_BASE_RADIUS := 130.0
+const MIN_BASE_RADIUS := 20.0
+
+var base_radius: float = 60.0:  # set by spawner based on enemy depth
+	set(value):
+		base_radius = clampf(value, MIN_BASE_RADIUS, MAX_BASE_RADIUS)
 
 var _lifetime: float = 0.0
 var _sparks: Array[Dictionary] = []
