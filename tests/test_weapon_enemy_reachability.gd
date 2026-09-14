@@ -39,6 +39,7 @@ func assert_true(condition: bool, message: String) -> void:
 func _make_enemy(d: float, altitude: float) -> Node:
 	var e := Node.new()
 	e.set_script(EnemyJet2D)
+	get_root().add_child(e)  # enters tree -> _ready() runs -> joins "enemies" group
 	e.configure(0, 0.0, d)  # FIGHTER, centered x, at the given depth
 	e.logical_altitude = altitude  # near the top of the sky band — worst case for reach
 	return e
@@ -50,6 +51,7 @@ func test_vulcan_can_reach_enemy_at_depth(target_depth: float) -> void:
 	var b := Node2D.new()
 	b.set_script(VulcanBullet2D)
 	b.aim_x = 0.0
+	get_root().add_child(b)  # enters tree -> _ready() runs _acquire_aim_target()
 	var closest_gap: float = INF
 	var t: float = 0.0
 	var dt: float = 1.0 / 60.0
