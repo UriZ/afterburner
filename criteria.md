@@ -160,6 +160,12 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 10. **Explosion type must match the target.** Aircraft kills are pale cream/near-white cauliflower puffs at ~10-12% screen height with NO orange or red (desert-explosions.png, closeup-enemies.jpg). Orange/red fireballs are for ground and large impacts ONLY (huge-explosion.jpg, burst-c-10). Using a fireball for every kill = FAIL.
 
+11. **Ground feature size and brightness.** Near-field median feature diameter must be 1-2% of screen width — the reference's rocks/bushes are ~8px in a 686px frame — with hard edges and per-feature light/dark shading. Stage-relative ground brightness: desert mean V 0.67-0.69. Round 4 measured ours at 40-90px features (5-8x too large) with soft edges and V=0.51; saturation-only rules passed while this failed.
+
+12. **No effect composed solely of draw_circle.** Explosion and fire silhouettes must be irregular — per-vertex noise, jittered lobe radius and angle, ragged tongues. Three consecutive explosion fixes tuned radii and alphas of circles; the primitive itself was the defect.
+
+13. **Player screen occupancy.** The player jet must be on screen in >=90% of frames across a capture. Composition cannot be evaluated, and the game does not read as AB2, when the death/respawn gap leaves the frame empty for long stretches.
+
 8. **Player jet must move freely across the screen.** The jet must be able to reach all areas of the viewport, not be stuck at the bottom. Compare to AB2 — the jet roams the full screen.
 
 ---
