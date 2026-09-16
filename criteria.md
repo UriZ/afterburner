@@ -131,6 +131,13 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 ## HARD RULES — Automatic FAIL if violated
 
+**RULE ZERO — whole-frame comparison comes first.** Before measuring any attribute, put a full captured frame of our build beside a full reference frame and answer one question: *do these look like the same game?* Name every difference you see, ranked by how much of the screen it affects. Only then measure.
+
+Attribute measurement is a check on a judgement already made by eye — never a substitute for it. A build can pass every numeric target and still look wrong: aspect 2.92 vs 2.95, wingspan 36.25% vs 35.6%, saturation 0.853 vs 0.867 all passed while the ground read as foam bubbles and the jet read as a sticker. Measuring a proxy cannot detect a defect the proxy does not cover, and no attribute rule covered ground feature size — the single most damaging error on screen.
+
+Never evaluate a cropped subject alone. Composition defects live between elements.
+
+
 0. **No un-dodgeable deaths.** Every death must be preceded by a visible approaching threat with a >=0.5s reachable avoidance window. Idle-survival duration is NOT a criterion — an arcade game may legitimately kill a player who never moves. For visual evaluation, use a capture mode so lethality never truncates a review.
 
 1. **Jets must look like aircraft with visual detail.** A flat-shaded cylinder with box wings is NOT acceptable even if it's "recognizable." The jet must have visible surface detail: color variation across the body, highlight/shadow areas, panel-line-like color breaks. Compare to the reference screenshot — the original sprites had shading and detail despite being 320x224 pixels. Our 3D meshes at modern resolution should look AT LEAST as detailed.
