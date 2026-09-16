@@ -232,24 +232,35 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	_draw_tailplane(origin, rad, tail_r, tail_le_r)
 
 	# --- Wings ---
-	var wing_r := [Vector2(0.330, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.360, -0.245)]
-	var wing_le_r := [Vector2(0.330, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.986, -0.120), Vector2(0.692, -0.229), Vector2(0.332, -0.332)]
-	var wing_te_r := [Vector2(0.344, -0.288), Vector2(0.704, -0.180), Vector2(0.956, -0.106), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.360, -0.245)]
+	# Roots pulled in to meet the narrowed fuselage neck (see below) so the
+	# wing reads as the dominant mass sweeping almost from centerline to tip,
+	# per reference — not a short blade bolted onto a fat body.
+	var wing_r := [Vector2(0.085, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.100, -0.245)]
+	var wing_le_r := [Vector2(0.085, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.986, -0.120), Vector2(0.692, -0.229), Vector2(0.087, -0.332)]
+	var wing_te_r := [Vector2(0.095, -0.288), Vector2(0.704, -0.180), Vector2(0.956, -0.106), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.100, -0.245)]
 	_draw_wing(origin, rad, _mirror(wing_r), _mirror(wing_le_r), _mirror(wing_te_r))
 	_draw_wing(origin, rad, wing_r, wing_le_r, wing_te_r)
 
 	# --- Vertical tail fins (drawn before the fuselage so it covers their roots) ---
-	var fin_r := [Vector2(0.052, -0.492), Vector2(0.108, -0.470), Vector2(0.185, -0.250), Vector2(0.055, -0.270)]
-	var fin_shadow_r := [Vector2(0.052, -0.492), Vector2(0.072, -0.485), Vector2(0.075, -0.268), Vector2(0.055, -0.270)]
+	# Rooted at the shoulder, rising steeply to near-canopy height with a raked
+	# trailing edge — a distinct blade, not a sliver following the fuselage
+	# taper (that read as body shading and made the fins disappear, #112).
+	var fin_r := [Vector2(0.075, -0.230), Vector2(0.125, -0.560), Vector2(0.165, -0.510), Vector2(0.155, -0.195)]
+	var fin_shadow_r := [Vector2(0.075, -0.230), Vector2(0.118, -0.548), Vector2(0.125, -0.540), Vector2(0.083, -0.230)]
 	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_shadow_r))
 	_draw_fin(origin, rad, fin_r, fin_shadow_r)
 
 	# --- Fuselage body: symmetric closed polygon, right half authored top-to-bottom ---
+	# A slender neck from the canopy down to the wing root, flaring sharply into
+	# the engine-nacelle bulge only in the last stretch above the nozzles. The
+	# old design flared immediately below the canopy, filling the whole span
+	# with one wide oval and burying the tail fins — see #112 feedback.
 	var fuselage_half := [
 		Vector2(0.030, -0.622),  # flat nose cap — nothing drawn above this row
-		Vector2(0.062, -0.585), Vector2(0.078, -0.520), Vector2(0.100, -0.460),
-		Vector2(0.175, -0.420), Vector2(0.270, -0.390), Vector2(0.345, -0.345),
-		Vector2(0.392, -0.250), Vector2(0.400, -0.080), Vector2(0.355, -0.005),
+		Vector2(0.050, -0.585), Vector2(0.065, -0.520), Vector2(0.080, -0.450),
+		Vector2(0.095, -0.380), Vector2(0.110, -0.300), Vector2(0.120, -0.220),  # narrow neck — fin tips clear this
+		Vector2(0.390, -0.155),  # sharp flare into the nacelle bulge
+		Vector2(0.400, -0.080), Vector2(0.355, -0.005),
 		Vector2(0.230, 0.035), Vector2(0.120, 0.048), Vector2(0.000, 0.052),
 	]
 	var fuselage: Array = _symmetric_poly(fuselage_half)
@@ -263,22 +274,25 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 		Vector2(-0.355, -0.005),
 	], V1_LIT)
 
-	# (b) Nacelle outer-wall shading, both sides
-	var nacelle_r := [Vector2(0.300, -0.320), Vector2(0.395, -0.270), Vector2(0.400, -0.080), Vector2(0.300, -0.080)]
+	# (b) Nacelle outer-wall shading, both sides — hugs the new bulge, not the
+	# old (now-removed) high flare
+	var nacelle_r := [Vector2(0.250, -0.150), Vector2(0.395, -0.100), Vector2(0.400, -0.080), Vector2(0.310, -0.080)]
 	_draw_hs_poly(origin, rad, _mirror(nacelle_r), V3_SHADOW)
 	_draw_hs_poly(origin, rad, nacelle_r, V3_SHADOW)
 
-	# (c) Panel seams — four vertical bars (engine-body and fin-root seams)
+	# (c) Panel seams — four vertical bars, pulled down onto the bulge (the
+	# narrow neck above no longer has the width to hold them)
 	for sx in [-0.155, -0.040, 0.040, 0.155]:
-		_draw_hs_poly(origin, rad, _seam_quad(sx, -0.250, -0.060, 0.0175), V2_MID)
+		_draw_hs_poly(origin, rad, _seam_quad(sx, -0.140, -0.060, 0.0175), V2_MID)
 
 	# (d) Aft-deck shadow bar
 	_draw_hs_poly(origin, rad, [
 		Vector2(-0.078, -0.101), Vector2(0.045, -0.101), Vector2(0.045, -0.076), Vector2(-0.078, -0.076),
 	], V3_SHADOW)
 
-	# (e) Glove chevrons — darkest marks on the airframe, both sides
-	var chevron_r := [Vector2(0.195, -0.335), Vector2(0.315, -0.292), Vector2(0.315, -0.268), Vector2(0.225, -0.268), Vector2(0.195, -0.312)]
+	# (e) Glove chevrons — darkest marks on the airframe, both sides. Moved
+	# down onto the nacelle shoulder to match the new bulge position.
+	var chevron_r := [Vector2(0.230, -0.185), Vector2(0.370, -0.145), Vector2(0.370, -0.115), Vector2(0.280, -0.115), Vector2(0.230, -0.155)]
 	_draw_hs_poly(origin, rad, _mirror(chevron_r), BLACK)
 	_draw_hs_poly(origin, rad, chevron_r, BLACK)
 
