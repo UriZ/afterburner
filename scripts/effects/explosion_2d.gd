@@ -65,9 +65,14 @@ func _init_smoke() -> void:
 	var count := 8
 	for i in range(count):
 		var angle := randf() * TAU
-		var dist := randf_range(0.0, 0.5)
-		# radius stored as fraction of base_radius — resolved in _draw_smoke
-		var r_frac := randf_range(0.25, 0.55)
+		# Spread puffs well apart (0.35-0.85 of base_radius) so they read as
+		# distinct cauliflower lumps trailing off the fireball — the old
+		# 0.0-0.5 range with 0.25-0.55 radii put every puff on top of its
+		# neighbor, and since draw_circle alpha-blends identical colors flat,
+		# the whole cluster collapsed into one or two giant pale discs (#97
+		# follow-up) instead of a puffy cloud.
+		var dist := randf_range(0.35, 0.85)
+		var r_frac := randf_range(0.18, 0.38)
 		_smoke_puffs.append({
 			"offset_dir": Vector2(cos(angle), sin(angle)),
 			"max_dist": dist,
@@ -91,13 +96,16 @@ func _draw() -> void:
 	if _lifetime < 0.6:
 		_draw_sparks()
 
-	# Phase 3: Smoke cloud (0.3-0.9s)
-	if _lifetime > 0.3 and _lifetime < 0.9:
-		_draw_smoke((_lifetime - 0.3) / 0.6)
+	# Phase 3: Smoke cloud (0.45-0.9s) — starts after the fireball has had
+	# most of its screen time, so the burst (not pale smoke) is what reads
+	# as the explosion (#97 follow-up: smoke was dominating 60% of the
+	# lifetime and reading as flat pale discs instead of a fireball).
+	if _lifetime > 0.45 and _lifetime < 0.9:
+		_draw_smoke((_lifetime - 0.45) / 0.45)
 
-	# Phase 2: Fire burst (0.08-0.4s)
-	if _lifetime > 0.08 and _lifetime < 0.4:
-		_draw_fire((_lifetime - 0.08) / 0.32)
+	# Phase 2: Fire burst (0.08-0.5s)
+	if _lifetime > 0.08 and _lifetime < 0.5:
+		_draw_fire((_lifetime - 0.08) / 0.42)
 
 	# Phase 1: Flash (0-0.08s)
 	if _lifetime < 0.08:
@@ -105,7 +113,11 @@ func _draw() -> void:
 
 
 func _draw_flash(t: float) -> void:
-	var r: float = base_radius * 2.5 * (0.2 + t * 0.8)
+	# Kept clearly smaller than the fire burst's peak (2.8x) that follows it —
+	# at the old 2.5x multiplier the flash was nearly as wide as the fireball
+	# itself, so it read as its own giant pale disc rather than a brief
+	# ignition spark (#97 follow-up).
+	var r: float = base_radius * 1.4 * (0.2 + t * 0.8)
 	var a: float = 1.0 - t * 0.7
 	draw_circle(Vector2.ZERO, maxf(r, base_radius * 0.5), Color(1.0, 1.0, 0.9, a))
 
@@ -144,11 +156,20 @@ func _draw_smoke(t: float) -> void:
 		if t < delay:
 			continue
 		var local_t: float = (t - delay) / (1.0 - delay)
-		var drift: Vector2 = puff["offset_dir"] * puff["max_dist"] * base_radius * local_t
+		# Puffs start already spread out (40% of their offset) instead of
+		# easing up from the center — at local_t=0 they're at peak alpha, so
+		# starting bunched at the origin was what actually collapsed them
+		# into one pale disc; the spread range above never got a chance to
+		# show before alpha had already faded (#97 follow-up).
+		var spread: float = 0.4 + local_t * 0.6
+		var drift: Vector2 = puff["offset_dir"] * puff["max_dist"] * base_radius * spread
 		# Jitter
 		drift += Vector2(randf_range(-2.0, 2.0), randf_range(-2.0, 2.0))
-		var r: float = puff["radius_frac"] * base_radius * (0.6 + local_t * 0.4)
-		var a: float = 0.85 * (1.0 - local_t)
+		# Puffs shrink as they dissipate rather than growing — a puff that
+		# keeps expanding while fading reads as an ever-larger pale disc
+		# instead of trailing smoke (#97 follow-up).
+		var r: float = puff["radius_frac"] * base_radius * (0.85 - local_t * 0.35)
+		var a: float = 0.75 * (1.0 - local_t)
 
 		var color: Color
 		if local_t < 0.3:
@@ -158,7 +179,12 @@ func _draw_smoke(t: float) -> void:
 		else:
 			color = Color(0.533, 0.518, 0.502, a)  # dark grey
 
-		draw_circle(drift, maxf(r, 2.0), color)
+		# Two-tone shading (dim outer + lighter core) gives each puff visible
+		# roundness — a lumpy cauliflower bump instead of a flat translucent
+		# disc — matching the fire lobes' layered-glow technique.
+		var rr: float = maxf(r, 2.0)
+		draw_circle(drift, rr, color)
+		draw_circle(drift, rr * 0.6, color.lightened(0.18))
 
 
 func _draw_sparks() -> void:
