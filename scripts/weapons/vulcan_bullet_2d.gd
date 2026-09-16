@@ -65,10 +65,15 @@ func get_collision_radius() -> float:
 func _process(delta: float) -> void:
 	# Drift toward aim_x as bullet travels (converging fire)
 	logical_x = lerp(logical_x, aim_x, 4.0 * delta)
+	# Depth must advance BEFORE the altitude-progress calc below reads it —
+	# otherwise progress lags a frame behind logical_depth and, whenever a
+	# frame's depth step is comparable to (or bigger than) the target's
+	# depth window, the bullet's altitude never actually matches the
+	# target's at the moment their depths coincide (#100 regression).
+	logical_depth -= BULLET_SPEED * delta
 	var span: float = maxf(LAUNCH_DEPTH - _aim_target_depth, 0.001)
 	var progress: float = clampf((LAUNCH_DEPTH - logical_depth) / span, 0.0, 1.0)
 	logical_altitude = lerp(0.0, aim_altitude, progress)
-	logical_depth -= BULLET_SPEED * delta
 
 	var sp := get_screen_position()
 	if logical_depth < MIN_DEPTH or sp.x < 0.0 or sp.x > SCREEN_W or sp.y < 0.0:

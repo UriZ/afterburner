@@ -44,11 +44,17 @@ func assert_approx(a: float, b: float, message: String, tolerance: float = 0.01)
 
 func test_sight_initializes_to_center() -> void:
 	print("\ntest_sight_initializes_to_center:")
-	# WeaponManager sets sight_screen_pos to viewport center in _ready().
+	# WeaponManager2D sets sight_screen_pos to viewport center in _ready().
 	# We can't call _ready() without a viewport, but we can verify the default
 	# and that the constant values are correct.
-	var wm := preload("res://scripts/weapons/weapon_manager.gd")
-	assert_eq(wm.SIGHT_RADIUS, 80.0, "SIGHT_RADIUS is 80 pixels")
+	# NOTE: weapon_manager.gd (3D) is dead code from the pre-2D-migration
+	# weapon system — it's not attached to any scene and references the
+	# AudioManager autoload by bare name, which fails to compile when
+	# preloaded from a --script SceneTree entrypoint (autoloads aren't
+	# registered there). weapon_manager_2d.gd is the script actually
+	# attached to PlayerJet2D and is what lock-on runs on in-game.
+	var wm := preload("res://scripts/weapons/weapon_manager_2d.gd")
+	assert_eq(wm.LOCK_RADIUS, 80.0, "LOCK_RADIUS is 80 pixels")
 	assert_eq(wm.LOCK_BREAK_DELAY, 0.5, "LOCK_BREAK_DELAY is 0.5 seconds")
 
 

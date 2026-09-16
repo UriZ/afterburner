@@ -143,7 +143,8 @@ func _fire_vulcan() -> void:
 func _fire_missile() -> void:
 	if _missile_cooldown > 0.0:
 		return
-	if not GameState.use_missile():
+	var gs: Node = get_node_or_null("/root/GameState")
+	if gs == null or not gs.use_missile():
 		return
 	_missile_cooldown = MISSILE_FIRE_COOLDOWN
 

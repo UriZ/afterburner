@@ -67,23 +67,31 @@ func _process(delta: float) -> void:
 		_trail_write = (_trail_write + 1) % TRAIL_MAX
 		_trail_count = mini(_trail_count + 1, TRAIL_MAX)
 
-	# Homing toward target — enemies live at altitude, not the ground plane
-	# (#100). X still homes with a time-based lerp (the target drifts
-	# laterally, so continuously re-aiming makes sense). Altitude uses
-	# depth-progress instead: a time-based lerp can't reach a close target
-	# in time (its depth is reached almost immediately after launch), so
-	# convergence is tied to how much of the launch-to-target depth span has
-	# been closed — that reaches the target's exact altitude precisely when
-	# logical_depth reaches the target's depth, however little time that took.
+	logical_depth -= speed * delta
+
+	# Altitude homing (#100): enemies live at altitude, not the ground plane,
+	# so the missile must climb/dive to meet the target's altitude exactly
+	# when their depths coincide. Uses depth-progress, not a time-based lerp
+	# — a time-based lerp can't reach a close target in time (its depth is
+	# reached almost immediately after launch). Progress must be computed
+	# AFTER logical_depth advances above, and must NOT wait for
+	# HOMING_DELAY: a target close to launch depth has a depth window
+	# smaller than what HOMING_DELAY alone burns through, so gating this on
+	# the delay meant the missile had already flown past the target's depth
+	# before altitude tracking ever started. X-lead below stays gated on
+	# HOMING_DELAY on purpose (visual "flies straight, then turns" feel);
+	# altitude has no such visual requirement — it just needs to be correct.
+	if is_instance_valid(target) and "logical_altitude" in target and "logical_depth" in target:
+		var span: float = maxf(LAUNCH_DEPTH - target.logical_depth, 0.001)
+		var progress: float = clampf((LAUNCH_DEPTH - logical_depth) / span, 0.0, 1.0)
+		logical_altitude = lerp(0.0, target.logical_altitude, progress)
+
+	# X-lead homing — delayed so the missile visibly flies straight before
+	# it starts turning toward the target, matching AB2 missile feel.
 	if is_instance_valid(target) and _lifetime > HOMING_DELAY:
 		var target_x: float = target.logical_x if "logical_x" in target else 0.0
 		logical_x = lerp(logical_x, target_x, 4.0 * delta)
-		if "logical_altitude" in target and "logical_depth" in target:
-			var span: float = maxf(LAUNCH_DEPTH - target.logical_depth, 0.001)
-			var progress: float = clampf((LAUNCH_DEPTH - logical_depth) / span, 0.0, 1.0)
-			logical_altitude = lerp(0.0, target.logical_altitude, progress)
 
-	logical_depth -= speed * delta
 	position = get_screen_position()
 	queue_redraw()
 

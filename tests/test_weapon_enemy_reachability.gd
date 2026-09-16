@@ -13,9 +13,24 @@ const Missile2D := preload("res://scripts/weapons/missile_2d.gd")
 
 var _pass_count := 0
 var _fail_count := 0
+var _ran := false
 
 
-func _init() -> void:
+# Runs from _process(), not _init(): a node added via get_root().add_child()
+# during _init() has no valid tree backref yet (get_tree() reads null and
+# add_to_group()/get_nodes_in_group() are silent no-ops) because the engine
+# hasn't finished wiring the SceneTree root at that point in a --script
+# SceneTree entrypoint. That backref (and the group registry) is live by the
+# first _process() call. vulcan_bullet_2d.gd's _acquire_aim_target() depends
+# on get_tree().get_nodes_in_group("enemies") to find its target, so this
+# test must run once that's actually available — confirmed empirically: the
+# same setup silently found zero enemies from _init() (verified with debug
+# scripts, #91/#94/#100 investigation).
+func _process(_delta: float) -> bool:
+	if _ran:
+		return true
+	_ran = true
+
 	print("=== Weapon vs Sky-Enemy Reachability Tests (#100) ===")
 
 	for d in [0.15, 0.45, 0.85]:
@@ -25,6 +40,7 @@ func _init() -> void:
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
+	return true
 
 
 func assert_true(condition: bool, message: String) -> void:
@@ -39,7 +55,14 @@ func assert_true(condition: bool, message: String) -> void:
 func _make_enemy(d: float, altitude: float) -> Node:
 	var e := Node.new()
 	e.set_script(EnemyJet2D)
-	get_root().add_child(e)  # enters tree -> _ready() runs -> joins "enemies" group
+	get_root().add_child(e)  # enters tree so get_tree() works from its own methods
+	# _ready() (and therefore add_to_group("enemies")) is NOT guaranteed to
+	# have run synchronously by this point in a --script SceneTree with no
+	# frame iteration — confirmed empirically: is_in_group() reads false
+	# immediately after add_child() here. Register explicitly so the bullet
+	# spawned below can actually find this enemy via get_nodes_in_group();
+	# without this the aim-acquisition silently no-ops and every case fails.
+	e.add_to_group("enemies")
 	e.configure(0, 0.0, d)  # FIGHTER, centered x, at the given depth
 	e.logical_altitude = altitude  # near the top of the sky band — worst case for reach
 	return e
