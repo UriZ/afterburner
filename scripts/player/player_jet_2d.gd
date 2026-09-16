@@ -15,13 +15,13 @@ const MAX_BANK_ANGLE := 57.0
 # --- #112 redraw geometry constants ---
 const HS := 171.0          # half-span in px; full span 342 px = 35.6% of 960
 const ANCHOR_Y := 28.0     # local origin offset so on-screen placement is unchanged
-const OUTLINE_W := 3.0     # 1 arcade pixel at our 3x scale
+const OUTLINE_W := 2.0     # thin silhouette definition line, not a decal border
 
-const V0_HILITE := Color8(255, 255, 239)
-const V1_LIT := Color8(247, 230, 181)
-const V2_MID := Color8(214, 214, 164)
-const V3_SHADOW := Color8(164, 132, 132)
-const OUTLINE := Color8(132, 0, 0)
+const V0_HILITE := Color8(255, 255, 245)
+const V1_LIT := Color8(240, 220, 165)
+const V2_MID := Color8(198, 192, 148)
+const V3_SHADOW := Color8(138, 108, 92)
+const OUTLINE := Color8(70, 48, 40)  # dark warm neutral silhouette line — NOT saturated red
 const BLACK := Color8(0, 0, 0)
 const CANOPY_GLASS := Color8(132, 197, 247)
 const CANOPY_HI := Color8(197, 247, 247)
@@ -290,15 +290,17 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	], CANOPY_HI)
 	_stroke_hs_poly(origin, rad, canopy, OUTLINE, OUTLINE_W)
 
-	# --- Nozzles: dark housing ring around a small saturated orange-red core ---
+	# --- Nozzles: large black housing (measured ~13.7% of wingspan, up from a
+	# previous 9.4% that read as too small) around a golden-yellow glow core.
+	# No stroke needed — pure black against the white airframe / orange sky
+	# already reads via value contrast alone.
 	for x_n in [-0.315, 0.315]:
 		var housing: Vector2 = Vector2(x_n, -0.040) * HS
-		_draw_rotated_circle(origin, rad, housing, 0.094 * HS, BLACK)
-		_draw_rotated_arc(origin, rad, housing, 0.094 * HS, OUTLINE, OUTLINE_W)
+		_draw_rotated_circle(origin, rad, housing, 0.135 * HS, BLACK)
 		var glow: Vector2 = Vector2(x_n, 0.005) * HS
-		_draw_rotated_circle(origin, rad, glow, 0.062 * HS, Color8(115, 13, 0))
-		_draw_rotated_circle(origin, rad, glow, 0.045 * HS, Color8(242, 102, 16))
-		_draw_rotated_circle(origin, rad, glow, 0.027 * HS, Color8(255, 166, 64))
+		_draw_rotated_circle(origin, rad, glow, 0.090 * HS, Color8(90, 45, 10))
+		_draw_rotated_circle(origin, rad, glow, 0.065 * HS, Color8(225, 150, 25))
+		_draw_rotated_circle(origin, rad, glow, 0.039 * HS, Color8(255, 220, 100))
 
 
 func _draw_tailplane(origin: Vector2, rad: float, silhouette: Array, le_strip: Array) -> void:
@@ -392,11 +394,3 @@ func _draw_rotated_circle(center: Vector2, angle: float, local_pos: Vector2, rad
 	var rx: float = local_pos.x * cs - local_pos.y * sn
 	var ry: float = local_pos.x * sn + local_pos.y * cs
 	draw_circle(Vector2(center.x + rx, center.y + ry), radius, color)
-
-
-func _draw_rotated_arc(center: Vector2, angle: float, local_pos: Vector2, radius: float, color: Color, width: float) -> void:
-	var cs: float = cos(angle)
-	var sn: float = sin(angle)
-	var rx: float = local_pos.x * cs - local_pos.y * sn
-	var ry: float = local_pos.x * sn + local_pos.y * cs
-	draw_arc(Vector2(center.x + rx, center.y + ry), radius, 0.0, TAU, 32, color, width, false)
