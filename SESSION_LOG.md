@@ -1,5 +1,25 @@
 # Session Log
 
+### [2026-09-16 23:20] — developer — #112
+**Task**: Implement the architect's implementation spec for the player jet redraw (proportions, zero nose-extent, short fins, 4-stop value ramp + dark-red outline, pure-rotation banking, marking removal).
+**Result**: COMPLETED
+**Files changed**: `scripts/player/player_jet_2d.gd`
+**Key changes**:
+- Rewrote `_draw_player()` and all geometry entirely in half-span (`HS=171px`) units with origin at the nozzle-line midpoint (`ANCHOR_Y=28` preserves on-screen jet placement). Right-side parts authored directly; left-side produced via a `_mirror()` helper (negate x, reverse winding) per spec.
+- Fuselage nose forward-extent is now zero: the polygon's topmost row is a flat cap at the canopy top, no projecting radome — this was the primary cause of the old "paper dart" silhouette per the architect's ruling.
+- Tail fins cut from 94px to the spec's measured 34px.
+- Added a 4-stop value ramp (`V0_HILITE`, `V1_LIT`, `V2_MID`, `V3_SHADOW`) as full-coverage fills (no more 30-40%-alpha overlay strips) plus a `#840000` outline stroked on every part immediately after its own fills, in the spec's exact back-to-front draw order.
+- Deleted `ff_left`, `ff_right`, `belly_alpha` and all their uses — banking is now a pure image-plane rotation of fixed geometry; no fill shape or alpha varies with bank angle.
+- Removed the belly triangle, orange intake ramps, red fin-tip accents, and the animated nozzle heat-glow quad (all measured absent from every reference frame in the spec).
+- Nozzles rebuilt at the spec's larger housing diameter (32px) with the glow core offset 0.045 HS below the housing centre (dark rim above / bright core below, reading as a hole rather than a dot).
+**Testing**: `tests/test_player_jet_2d.gd` — 21 passed, 0 failed, unchanged (no test file edits needed; nothing in it referenced the deleted constants). `grep -n "ff_left\|ff_right\|belly_alpha"` → zero matches. `PLAYER_SCALE` still `130.0`, `get_collision_radius()` still `130.0 * 0.6`.
+**Visual verification**: Ran a private, isolated Godot instance (port 9560 via a temp `mcp_ports.cfg`, deleted after — did not touch other agents' live instances). Measured from a captured gameplay frame at zero bank, isolating jet-specific colors from HUD/reticle/ground contamination: wingspan 348px/36.25% (target 342±8/35.6%±0.8% — pass), height 119px/17.7% (target 116±5/17.3%±0.7% — pass), aspect ratio 2.92 (target 2.95±0.20 — pass). Confirmed all 4 value stops + outline + no stray orange present; nozzle housing ~29px diameter (low end of 32±3 tolerance) and glow offset 9.5px below centre (vs. target 7-9, 0.5px over). Live-input bank testing proved too network-noisy to sustain high bank (bank decays at 460°/s the instant input drops between discrete key-tap RPCs), so additionally wrote a throwaway verification scene (`scratch_bank_test.gd/.tscn`, deleted after use, confirmed via `git status`) that renders the real `_draw_player()` at bank 0°/30°/57° side by side — rasterized pixel-area held within ~4.6% across all three angles (rigid rotation confirmed, no foreshortening) and the Godot log showed zero triangulation errors at any angle including max bank.
+**Improvement Insights**:
+- **workflow**: live-input-based verification of bank-angle behavior over the MCP TCP bridge is unreliable — each `key` command is a discrete press+deferred-release pair (~1-2 frames held), and network round-trip latency between calls exceeds the ~124ms bank decay window (`460°/s` from `MAX_BANK_ANGLE=57°`), so rapid taps never accumulate to a sustained high bank. For any future bank/rotation-dependent geometry check, go straight to a throwaway direct-instantiation scene (set the state field, force a redraw) rather than attempting to reach the state via simulated input — it's faster and deterministic.
+- **mcp_ports.cfg**: picking a "spare" port isn't safe by inspection alone — my first attempt picked a port that looked free via `nc -z` but Godot's own bind still failed with EINVAL against a stale/contended value; the fix was just retrying with a different port and confirming the bridge's own "Listening on ..." log line, not just a successful `nc` probe. Worth noting in the developer/QA agent instructions: confirm via the Godot log line, not just a socket probe, before trusting a private-port instance.
+
+---
+
 ### [2026-09-14 00:45] — developer — #109, #97
 **Task**: Fix inverted engine nozzles + hairline tail fins (#109) and geometric starburst explosion (#97), both flagged by judge against reference frames.
 **Result**: COMPLETED

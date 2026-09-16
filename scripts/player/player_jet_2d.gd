@@ -12,6 +12,20 @@ const RESPAWN_POSITION := Vector2(480.0, 380.0)
 const PLAYER_SCALE := 130.0
 const MAX_BANK_ANGLE := 57.0
 
+# --- #112 redraw geometry constants ---
+const HS := 171.0          # half-span in px; full span 342 px = 35.6% of 960
+const ANCHOR_Y := 28.0     # local origin offset so on-screen placement is unchanged
+const OUTLINE_W := 3.0     # 1 arcade pixel at our 3x scale
+
+const V0_HILITE := Color8(255, 255, 239)
+const V1_LIT := Color8(247, 230, 181)
+const V2_MID := Color8(214, 214, 164)
+const V3_SHADOW := Color8(164, 132, 132)
+const OUTLINE := Color8(132, 0, 0)
+const BLACK := Color8(0, 0, 0)
+const CANOPY_GLASS := Color8(132, 197, 247)
+const CANOPY_HI := Color8(197, 247, 247)
+
 const DEATH_DURATION := 2.0
 const INVINCIBILITY_DURATION := 6.0
 const FLASH_INTERVAL := 0.1
@@ -202,310 +216,150 @@ func get_bank_angle() -> float:
 
 # --- Drawing ---
 
+## Geometry per #112 architect spec: half-span (HS) units, origin at the nozzle-line
+## midpoint (the roll axis). Right-side coordinates are authored directly; left-side
+## parts are produced by negating x and reversing the winding order. Banking is a pure
+## image-plane rotation — no foreshortening, no relighting (measured: a de-rotated
+## banked reference frame matches the level frame's span/nozzle-separation ratio).
 func _draw_player(pos: Vector2, bank: float) -> void:
 	var rad: float = deg_to_rad(bank)
-	var s: float = PLAYER_SCALE
-	var frame: int = Engine.get_frames_drawn()
+	var origin: Vector2 = pos + Vector2(0.0, ANCHOR_Y)
 
-	# Wing foreshortening factor (raised side appears shorter when banking)
-	var ff_left: float = 1.0
-	var ff_right: float = 1.0
-	if bank < 0.0:
-		ff_left = cos(deg_to_rad(absf(bank) * 0.7))
-	elif bank > 0.0:
-		ff_right = cos(deg_to_rad(absf(bank) * 0.7))
+	# --- Tailplanes ---
+	var tail_r := [Vector2(0.380, -0.155), Vector2(0.810, -0.010), Vector2(0.800, 0.035), Vector2(0.360, -0.085)]
+	var tail_le_r := [Vector2(0.380, -0.155), Vector2(0.810, -0.010), Vector2(0.808, 0.002), Vector2(0.378, -0.138)]
+	_draw_tailplane(origin, rad, _mirror(tail_r), _mirror(tail_le_r))
+	_draw_tailplane(origin, rad, tail_r, tail_le_r)
 
-	# Belly triangle alpha increases when banking (belly faces viewer)
-	var belly_alpha: float = clampf(0.85 + absf(bank) / 30.0 * 0.15, 0.85, 1.0)
+	# --- Wings ---
+	var wing_r := [Vector2(0.330, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.360, -0.245)]
+	var wing_le_r := [Vector2(0.330, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.986, -0.120), Vector2(0.692, -0.229), Vector2(0.332, -0.332)]
+	var wing_te_r := [Vector2(0.344, -0.288), Vector2(0.704, -0.180), Vector2(0.956, -0.106), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.360, -0.245)]
+	_draw_wing(origin, rad, _mirror(wing_r), _mirror(wing_le_r), _mirror(wing_te_r))
+	_draw_wing(origin, rad, wing_r, wing_le_r, wing_te_r)
 
-	var ny: float = s * 0.32  # nozzle exit Y
-	var cant: float = s * 0.06  # tail fin outward cant
+	# --- Vertical tail fins (drawn before the fuselage so it covers their roots) ---
+	var fin_r := [Vector2(0.052, -0.492), Vector2(0.108, -0.470), Vector2(0.185, -0.250), Vector2(0.055, -0.270)]
+	var fin_shadow_r := [Vector2(0.052, -0.492), Vector2(0.072, -0.485), Vector2(0.075, -0.268), Vector2(0.055, -0.270)]
+	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_shadow_r))
+	_draw_fin(origin, rad, fin_r, fin_shadow_r)
 
-	# --- Layer 0: nozzle heat glow (between the two nozzles) ---
-	# No extended flame plume — reference frames (stage-07, burst-a/b/c, closeup
-	# hero shots) show only glowing nozzle discs, never a trailing ribbon. See #109.
-	var glow_alpha: float = 0.20 + sin(float(frame) * 0.4) * 0.08
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-12.0, ny - 4.0),
-		Vector2(12.0,  ny - 4.0),
-		Vector2(14.0,  ny + s * 0.15),
-		Vector2(-14.0, ny + s * 0.15),
-	], Color(1.0, 0.5, 0.1, glow_alpha))
+	# --- Fuselage body: symmetric closed polygon, right half authored top-to-bottom ---
+	var fuselage_half := [
+		Vector2(0.030, -0.622),  # flat nose cap — nothing drawn above this row
+		Vector2(0.062, -0.585), Vector2(0.078, -0.520), Vector2(0.100, -0.460),
+		Vector2(0.175, -0.420), Vector2(0.270, -0.390), Vector2(0.345, -0.345),
+		Vector2(0.392, -0.250), Vector2(0.400, -0.080), Vector2(0.355, -0.005),
+		Vector2(0.230, 0.035), Vector2(0.120, 0.048), Vector2(0.000, 0.052),
+	]
+	var fuselage: Array = _symmetric_poly(fuselage_half)
+	_draw_hs_poly(origin, rad, fuselage, V0_HILITE)
+	_stroke_hs_poly(origin, rad, fuselage, OUTLINE, OUTLINE_W)
 
-	# --- Layer 1: Horizontal stabilizers ---
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-13.0,     s * 0.14),
-		Vector2(-s * 0.72, s * 0.36),
-		Vector2(-s * 0.55, s * 0.42),
-		Vector2(-11.0,     s * 0.22),
-	], Color(0.55, 0.58, 0.65))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(13.0,      s * 0.14),
-		Vector2(s * 0.72,  s * 0.36),
-		Vector2(s * 0.55,  s * 0.42),
-		Vector2(11.0,      s * 0.22),
-	], Color(0.55, 0.58, 0.65))
+	# (a) Lower-fuselage tone
+	_draw_hs_poly(origin, rad, [
+		Vector2(-0.400, -0.080), Vector2(0.400, -0.080), Vector2(0.355, -0.005), Vector2(0.230, 0.035),
+		Vector2(0.120, 0.048), Vector2(0.000, 0.052), Vector2(-0.120, 0.048), Vector2(-0.230, 0.035),
+		Vector2(-0.355, -0.005),
+	], V1_LIT)
 
-	# --- Layer 2: Main wings ---
-	# Wingtip multipliers scaled 0.686x from #101 per #109 measurement (stage-07,
-	# coastal-banking.jpg): 300-320px span on a 960px-wide screen at zero bank.
-	# Left wing — main surface
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-24.0,               -s * 0.12),
-		Vector2(-s * 1.27 * ff_left,  s * 0.18),
-		Vector2(-s * 1.06 * ff_left,  s * 0.34),
-		Vector2(-16.0,                s * 0.22),
-	], Color(0.88, 0.89, 0.92))
-	# Left wing — underside shadow
-	if ff_left > 0.25:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(-s * 0.50 * ff_left,  s * 0.06),
-			Vector2(-s * 1.06 * ff_left,  s * 0.34),
-			Vector2(-16.0,                s * 0.22),
-		], Color(0.52, 0.55, 0.60, 0.50))
-	# Left wing — leading edge highlight
-	if ff_left > 0.25:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(-24.0,               -s * 0.12),
-			Vector2(-s * 1.27 * ff_left,  s * 0.18),
-			Vector2(-s * 1.22 * ff_left,  s * 0.20),
-			Vector2(-22.0,               -s * 0.10),
-		], Color(0.96, 0.97, 1.0, 0.65))
-	# Left wing — panel line (root-to-tip tonal stroke, per #109 gap analysis)
-	if ff_left > 0.25:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(-s * 0.51 * ff_left,  s * 0.135),
-			Vector2(-s * 0.95 * ff_left,  s * 0.285),
-			Vector2(-s * 0.93 * ff_left,  s * 0.295),
-			Vector2(-s * 0.49 * ff_left,  s * 0.145),
-		], Color(0.60, 0.63, 0.70, 0.40))
+	# (b) Nacelle outer-wall shading, both sides
+	var nacelle_r := [Vector2(0.300, -0.320), Vector2(0.395, -0.270), Vector2(0.400, -0.080), Vector2(0.300, -0.080)]
+	_draw_hs_poly(origin, rad, _mirror(nacelle_r), V3_SHADOW)
+	_draw_hs_poly(origin, rad, nacelle_r, V3_SHADOW)
 
-	# Right wing — main surface
-	_draw_rotated_poly(pos, rad, [
-		Vector2(24.0,                -s * 0.12),
-		Vector2(s * 1.27 * ff_right,  s * 0.18),
-		Vector2(s * 1.06 * ff_right,  s * 0.34),
-		Vector2(16.0,                 s * 0.22),
-	], Color(0.88, 0.89, 0.92))
-	# Right wing — underside shadow
-	if ff_right > 0.25:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(s * 0.50 * ff_right,  s * 0.06),
-			Vector2(s * 1.06 * ff_right,  s * 0.34),
-			Vector2(16.0,                 s * 0.22),
-		], Color(0.52, 0.55, 0.60, 0.50))
-	# Right wing — leading edge highlight
-	if ff_right > 0.25:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(24.0,                -s * 0.12),
-			Vector2(s * 1.27 * ff_right,  s * 0.18),
-			Vector2(s * 1.22 * ff_right,  s * 0.20),
-			Vector2(22.0,                -s * 0.10),
-		], Color(0.96, 0.97, 1.0, 0.65))
-	# Right wing — panel line (root-to-tip tonal stroke, per #109 gap analysis)
-	if ff_right > 0.25:
-		_draw_rotated_poly(pos, rad, [
-			Vector2(s * 0.51 * ff_right,  s * 0.135),
-			Vector2(s * 0.95 * ff_right,  s * 0.285),
-			Vector2(s * 0.93 * ff_right,  s * 0.295),
-			Vector2(s * 0.49 * ff_right,  s * 0.145),
-		], Color(0.60, 0.63, 0.70, 0.40))
+	# (c) Panel seams — four vertical bars (engine-body and fin-root seams)
+	for sx in [-0.155, -0.040, 0.040, 0.155]:
+		_draw_hs_poly(origin, rad, _seam_quad(sx, -0.250, -0.060, 0.0175), V2_MID)
 
-	# --- Layer 3: Engine nacelles ---
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-30.0, -s * 0.04),
-		Vector2(-12.0, -s * 0.04),
-		Vector2(-10.0,  s * 0.32),
-		Vector2(-32.0,  s * 0.32),
-	], Color(0.30, 0.32, 0.38))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-29.0, -s * 0.04),
-		Vector2(-13.0, -s * 0.04),
-		Vector2(-13.0,  s * 0.01),
-		Vector2(-29.0,  s * 0.01),
-	], Color(0.45, 0.48, 0.55, 0.55))
+	# (d) Aft-deck shadow bar
+	_draw_hs_poly(origin, rad, [
+		Vector2(-0.078, -0.101), Vector2(0.045, -0.101), Vector2(0.045, -0.076), Vector2(-0.078, -0.076),
+	], V3_SHADOW)
 
-	_draw_rotated_poly(pos, rad, [
-		Vector2(12.0,  -s * 0.04),
-		Vector2(30.0,  -s * 0.04),
-		Vector2(32.0,   s * 0.32),
-		Vector2(10.0,   s * 0.32),
-	], Color(0.30, 0.32, 0.38))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(13.0,  -s * 0.04),
-		Vector2(29.0,  -s * 0.04),
-		Vector2(29.0,   s * 0.01),
-		Vector2(13.0,   s * 0.01),
-	], Color(0.45, 0.48, 0.55, 0.55))
+	# (e) Glove chevrons — darkest marks on the airframe, both sides
+	var chevron_r := [Vector2(0.195, -0.335), Vector2(0.315, -0.292), Vector2(0.315, -0.268), Vector2(0.225, -0.268), Vector2(0.195, -0.312)]
+	_draw_hs_poly(origin, rad, _mirror(chevron_r), BLACK)
+	_draw_hs_poly(origin, rad, chevron_r, BLACK)
 
-	# --- Layer 4: Intake ramps (orange/red — distinctive AB2 feature) ---
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-32.0, -s * 0.18),
-		Vector2(-22.0, -s * 0.18),
-		Vector2(-20.0, -s * 0.04),
-		Vector2(-30.0, -s * 0.04),
-	], Color(0.85, 0.22, 0.04))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-30.0, -s * 0.17),
-		Vector2(-24.0, -s * 0.17),
-		Vector2(-22.0, -s * 0.05),
-		Vector2(-28.0, -s * 0.05),
-	], Color(0.96, 0.42, 0.10, 0.65))
+	# --- Canopy ---
+	var canopy := [Vector2(-0.055, -0.605), Vector2(0.055, -0.605), Vector2(0.062, -0.520), Vector2(0.000, -0.500), Vector2(-0.062, -0.520)]
+	_draw_hs_poly(origin, rad, canopy, CANOPY_GLASS)
+	_draw_hs_poly(origin, rad, [
+		Vector2(-0.045, -0.600), Vector2(0.045, -0.600), Vector2(0.040, -0.565), Vector2(-0.040, -0.565),
+	], CANOPY_HI)
+	_stroke_hs_poly(origin, rad, canopy, OUTLINE, OUTLINE_W)
 
-	_draw_rotated_poly(pos, rad, [
-		Vector2(22.0,  -s * 0.18),
-		Vector2(32.0,  -s * 0.18),
-		Vector2(30.0,  -s * 0.04),
-		Vector2(20.0,  -s * 0.04),
-	], Color(0.85, 0.22, 0.04))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(24.0,  -s * 0.17),
-		Vector2(30.0,  -s * 0.17),
-		Vector2(28.0,  -s * 0.05),
-		Vector2(22.0,  -s * 0.05),
-	], Color(0.96, 0.42, 0.10, 0.65))
+	# --- Nozzles: dark housing ring around a small saturated orange-red core ---
+	for x_n in [-0.315, 0.315]:
+		var housing: Vector2 = Vector2(x_n, -0.040) * HS
+		_draw_rotated_circle(origin, rad, housing, 0.094 * HS, BLACK)
+		_draw_rotated_arc(origin, rad, housing, 0.094 * HS, OUTLINE, OUTLINE_W)
+		var glow: Vector2 = Vector2(x_n, 0.005) * HS
+		_draw_rotated_circle(origin, rad, glow, 0.062 * HS, Color8(115, 13, 0))
+		_draw_rotated_circle(origin, rad, glow, 0.045 * HS, Color8(242, 102, 16))
+		_draw_rotated_circle(origin, rad, glow, 0.027 * HS, Color8(255, 166, 64))
 
-	# --- Layer 5: Fuselage (BRIGHT WHITE) ---
-	# Nose widened -6/6 -> -9/9 per #109: real F-14 radome is wide/blunt (36" AWG-9
-	# dish), not a point. Medium confidence — nose is occluded in every rear-chase
-	# reference frame, so this is real-aircraft-informed, not pixel-measured.
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-9.0,  -s * 0.78),  # nose left
-		Vector2(9.0,   -s * 0.78),  # nose right
-		Vector2(24.0,  -s * 0.12),  # shoulder right
-		Vector2(30.0,   s * 0.06),  # max width right
-		Vector2(28.0,   s * 0.32),  # nozzle right
-		Vector2(-28.0,  s * 0.32),  # nozzle left
-		Vector2(-30.0,  s * 0.06),  # max width left
-		Vector2(-24.0, -s * 0.12),  # shoulder left
-	], Color(0.93, 0.94, 0.96))
 
-	# Dorsal spine highlight
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-2.5,  -s * 0.76),
-		Vector2(2.5,   -s * 0.76),
-		Vector2(3.5,    s * 0.15),
-		Vector2(-3.5,   s * 0.15),
-	], Color(0.98, 0.98, 1.0, 0.60))
+func _draw_tailplane(origin: Vector2, rad: float, silhouette: Array, le_strip: Array) -> void:
+	_draw_hs_poly(origin, rad, silhouette, V2_MID)
+	_draw_hs_poly(origin, rad, le_strip, V0_HILITE)
+	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
 
-	# Left fuselage shadow (triangle — subtle left-side depth shading)
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-9.0,  -s * 0.78),
-		Vector2(-24.0, -s * 0.12),
-		Vector2(-28.0,  s * 0.32),
-	], Color(0.72, 0.74, 0.78, 0.30))
 
-	# Panel line — diagonal chine
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-7.0,  -s * 0.62),
-		Vector2(-4.0,  -s * 0.62),
-		Vector2(1.0,   -s * 0.32),
-		Vector2(-2.0,  -s * 0.32),
-	], Color(0.60, 0.63, 0.70, 0.40))
+func _draw_wing(origin: Vector2, rad: float, silhouette: Array, le_band: Array, te_band: Array) -> void:
+	_draw_hs_poly(origin, rad, silhouette, V2_MID)
+	_draw_hs_poly(origin, rad, le_band, V0_HILITE)
+	_draw_hs_poly(origin, rad, te_band, V3_SHADOW)
+	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
 
-	# Panel line — horizontal mid-fuselage seam
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-22.0,  s * 0.04),
-		Vector2(22.0,   s * 0.04),
-		Vector2(22.0,   s * 0.06),
-		Vector2(-22.0,  s * 0.06),
-	], Color(0.60, 0.63, 0.70, 0.40))
 
-	# Belly shadow
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-16.0,  s * 0.10),
-		Vector2(16.0,   s * 0.10),
-		Vector2(14.0,   s * 0.32),
-		Vector2(-14.0,  s * 0.32),
-	], Color(0.62, 0.65, 0.70, 0.40))
+func _draw_fin(origin: Vector2, rad: float, silhouette: Array, shadow: Array) -> void:
+	_draw_hs_poly(origin, rad, silhouette, V1_LIT)
+	_draw_hs_poly(origin, rad, shadow, V3_SHADOW)
+	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
 
-	# Orange belly triangle marking
-	_draw_rotated_poly(pos, rad, [
-		Vector2(0.0,   s * 0.02),
-		Vector2(12.0,  s * 0.22),
-		Vector2(-12.0, s * 0.22),
-	], Color(0.90, 0.20, 0.05, belly_alpha))
 
-	# --- Layer 6: Vertical tail fins (canted outward) ---
-	# Widened per #109: previous fin averaged ~3.0px wide over a ~74px span
-	# (area/length, shoelace) — read as a hairline whisker. Reference
-	# (ab2-arcade-reload-dorsal.jpg close-up) shows a solid triangular fin.
-	# Base widened from [-20,-16] to [-24,-12], new fin averages ~9.5px wide
-	# over ~82px (~3.2x wider, ~3.5x more area).
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-24.0,           s * 0.18),
-		Vector2(-27.0 - cant,   -s * 0.54),
-		Vector2(-19.0 - cant,   -s * 0.42),
-		Vector2(-12.0,           s * 0.10),
-	], Color(0.58, 0.62, 0.68))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-24.0,           s * 0.18),
-		Vector2(-27.0 - cant,   -s * 0.54),
-		Vector2(-24.0 - cant,   -s * 0.50),
-		Vector2(-21.0,           s * 0.16),
-	], Color(0.72, 0.75, 0.80, 0.55))
-	# Left fin tip accent
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-27.0 - cant,  -s * 0.54),
-		Vector2(-24.0 - cant,  -s * 0.50),
-		Vector2(-26.0 - cant,  -s * 0.54),
-	], Color(0.85, 0.15, 0.05, 0.70))
+func _seam_quad(x: float, y0: float, y1: float, half_width: float) -> Array:
+	return [Vector2(x - half_width, y0), Vector2(x + half_width, y0), Vector2(x + half_width, y1), Vector2(x - half_width, y1)]
 
-	_draw_rotated_poly(pos, rad, [
-		Vector2(24.0,            s * 0.18),
-		Vector2(27.0 + cant,    -s * 0.54),
-		Vector2(19.0 + cant,    -s * 0.42),
-		Vector2(12.0,            s * 0.10),
-	], Color(0.58, 0.62, 0.68))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(24.0,            s * 0.18),
-		Vector2(27.0 + cant,    -s * 0.54),
-		Vector2(24.0 + cant,    -s * 0.50),
-		Vector2(21.0,            s * 0.16),
-	], Color(0.72, 0.75, 0.80, 0.55))
-	# Right fin tip accent
-	_draw_rotated_poly(pos, rad, [
-		Vector2(27.0 + cant,   -s * 0.54),
-		Vector2(24.0 + cant,   -s * 0.50),
-		Vector2(26.0 + cant,   -s * 0.54),
-	], Color(0.85, 0.15, 0.05, 0.70))
 
-	# --- Layer 7: Nozzle rings ---
-	# Redesigned per #109 pixel sampling (burst-b-03, stage-05): the previous
-	# white top-layer circle (r=7, offset) was drawn last and covered nearly
-	# the whole core, so it read as "white disc with an orange ring" — the
-	# inverse of the reference. The original has NO white in the nozzle at
-	# all; the brightest sampled pixels are amber-orange (255,184,126) /
-	# (255,153,57), never near-equal RGB. Dark rim samples near-black to dark
-	# maroon (15,0,0)-(90,0,0). Rim vs core split ~50/50 by area (core radius
-	# ~0.7x outer radius). White layer removed entirely.
-	for nox_r in [-20.0, 20.0]:
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny), 10.0, Color(0.06, 0.03, 0.03))  # dark housing rim
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  7.0, Color(0.45, 0.05, 0.0))   # red transition
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  5.0, Color(0.95, 0.40, 0.05))  # orange core
-		_draw_rotated_circle(pos, rad, Vector2(nox_r, ny),  3.0, Color(1.0, 0.65, 0.25))   # amber hotspot
+## Mirrors a right-side part to its left-side counterpart: negate x, reverse the
+## winding order so the polygon stays counter-clockwise.
+func _mirror(pts: Array) -> Array:
+	var out: Array = []
+	for i in range(pts.size() - 1, -1, -1):
+		var p: Vector2 = pts[i]
+		out.append(Vector2(-p.x, p.y))
+	return out
 
-	# --- Layer 8: Canopy ---
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-7.0,  -s * 0.48),
-		Vector2(7.0,   -s * 0.48),
-		Vector2(10.0,  -s * 0.24),
-		Vector2(0.0,   -s * 0.12),
-		Vector2(-10.0, -s * 0.24),
-	], Color(0.04, 0.06, 0.14))
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-5.0,  -s * 0.46),
-		Vector2(3.0,   -s * 0.38),
-		Vector2(2.0,   -s * 0.30),
-		Vector2(-6.0,  -s * 0.36),
-	], Color(0.18, 0.30, 0.65, 0.50))
-	# Canopy rear edge highlight
-	_draw_rotated_poly(pos, rad, [
-		Vector2(-10.0, -s * 0.24),
-		Vector2(10.0,  -s * 0.24),
-		Vector2(9.0,   -s * 0.22),
-		Vector2(-9.0,  -s * 0.22),
-	], Color(0.80, 0.82, 0.86, 0.45))
+
+## Closes a symmetric polygon from a right-side half-scan (top-to-bottom). If the
+## final point already sits on the centerline (x == 0) it is not duplicated.
+func _symmetric_poly(half_pts: Array) -> Array:
+	var full: Array = half_pts.duplicate()
+	var start: int = half_pts.size() - 1
+	if absf(half_pts[start].x) < 0.001:
+		start -= 1
+	for i in range(start, -1, -1):
+		var p: Vector2 = half_pts[i]
+		full.append(Vector2(-p.x, p.y))
+	return full
+
+
+func _scale(pts: Array, k: float) -> Array:
+	var out: Array = []
+	for p in pts:
+		out.append(p * k)
+	return out
+
+
+func _draw_hs_poly(origin: Vector2, rad: float, pts: Array, color: Color) -> void:
+	_draw_rotated_poly(origin, rad, _scale(pts, HS), color)
+
+
+func _stroke_hs_poly(origin: Vector2, rad: float, pts: Array, color: Color, width: float) -> void:
+	_stroke_rotated_poly(origin, rad, _scale(pts, HS), color, width)
 
 
 func _draw_rotated_poly(center: Vector2, angle: float, local_pts: Array, color: Color) -> void:
@@ -520,9 +374,29 @@ func _draw_rotated_poly(center: Vector2, angle: float, local_pts: Array, color: 
 	draw_polygon(pts, [color])
 
 
+## Strokes a closed polygon outline. antialiased = false: emulating pixel art.
+func _stroke_rotated_poly(center: Vector2, angle: float, local_pts: Array, color: Color, width: float) -> void:
+	var cs: float = cos(angle)
+	var sn: float = sin(angle)
+	var pts: PackedVector2Array = PackedVector2Array()
+	for p in local_pts:
+		var v: Vector2 = p
+		pts.append(Vector2(center.x + v.x * cs - v.y * sn, center.y + v.x * sn + v.y * cs))
+	pts.append(pts[0])  # close the loop
+	draw_polyline(pts, color, width, false)
+
+
 func _draw_rotated_circle(center: Vector2, angle: float, local_pos: Vector2, radius: float, color: Color) -> void:
 	var cs: float = cos(angle)
 	var sn: float = sin(angle)
 	var rx: float = local_pos.x * cs - local_pos.y * sn
 	var ry: float = local_pos.x * sn + local_pos.y * cs
 	draw_circle(Vector2(center.x + rx, center.y + ry), radius, color)
+
+
+func _draw_rotated_arc(center: Vector2, angle: float, local_pos: Vector2, radius: float, color: Color, width: float) -> void:
+	var cs: float = cos(angle)
+	var sn: float = sin(angle)
+	var rx: float = local_pos.x * cs - local_pos.y * sn
+	var ry: float = local_pos.x * sn + local_pos.y * cs
+	draw_arc(Vector2(center.x + rx, center.y + ry), radius, 0.0, TAU, 32, color, width, false)
