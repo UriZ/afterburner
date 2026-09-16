@@ -88,10 +88,10 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 - **Swept wings** clearly visible extending to both sides — NOT rectangles, they have aerodynamic planform
 - **Twin vertical tail fins** prominent at the rear
 - **Cockpit canopy** visible as a dark bubble on top of the fuselage
-- **Nose/radome** must be a WIDE, SMOOTH, bullet-shaped taper — like a real F-14 (it houses a 36-inch AWG-9 radar dish). NOT a needle, NOT a spike, NOT a thin antenna, NOT a blunt cone. It has substantial width at the base (nearly fuselage width) and tapers gradually to a slightly rounded tip over ~25% of total aircraft length. A needle/spike nose = FAIL. A stubby cone = FAIL. Compare against real F-14 photos.
+- **Nose/radome** — applies to enemy jets and any non-astern view only. For the PLAYER jet in the dead-astern chase view, the nose forward-extent is effectively ZERO: the topmost pixel of the aircraft in every clean reference frame is the canopy, not a radome. Drawing a projecting nose on the player jet = FAIL (it is the main cause of the paper-dart silhouette). Where the radome IS visible, it is a wide, smooth, bullet-shaped taper — never a needle or spike.
 - **Every major component must be shaped AND proportionally correct.** Nose, canopy, wings, intakes, nacelles, tail fins, nozzles — each needs correct proportions relative to the whole aircraft, verified against real aircraft photos AND arcade references. A mesh with good wings but a wrong-proportioned nose is half-finished = FAIL.
 - **Engine nozzles read as large hot-cored glowing discs** — dark rim with a hot orange/red/yellow centre. There is NO exhaust plume or ribbon. Verified across every motion burst and all 9 statics: the original has no engine flame trail. A long flame plume = FAIL.
-- The jet is **WIDE and FLAT** — roughly 50-55% of screen WIDTH by 15-20% of screen HEIGHT. Measured: burst-c-02 is 55%W x 17%H; burst-a-02 ~11%H. Do NOT use a height-only rule; a 25-30%-height jet is far too tall and reads as a paper dart.
+- The jet is **WIDE and FLAT** — 35-37% of screen WIDTH by 16-18% of screen HEIGHT, aspect ratio 2.8-3.1:1. Measured by nozzle-centroid-anchored segmentation on burst-c-11, burst-c-12 and ab2-arcade-reload-dorsal. Do NOT use a height-only rule; a 25-30%-height jet reads as a paper dart. NOTE: an earlier 50-55% width figure was a measurement error — a value-threshold bbox on burst-c-02 swallowed the stone wall behind the jet.
 - The jet has **visual detail and shading** — it is NOT a flat-colored 3D shape. It has highlights, shadows, panel lines, color variation across the surface
 
 ### Enemy Jets
@@ -162,7 +162,7 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 | # | Criterion | Description |
 |---|-----------|-------------|
 | 1 | Player jet has visual detail | Must have color variation, shading, highlights — NOT a single flat color. Multiple material colors on the fuselage (light top, darker sides). Canopy must be a distinct color. Wing undersides slightly different from tops. |
-| 2 | Player jet is large | Occupies 25-30% screen height. Dominates bottom quarter. |
+| 2 | Player jet proportions | Span occupies 35-37% of screen width; height 16-18%. Aspect 2.8-3.1:1. Dominates bottom quarter. |
 | 3 | Engine nozzles correct | Dark rim, hot orange/red/yellow core. No exhaust plume or ribbon of any length. |
 | 4 | Enemy jets are vivid | Saturated colors that POP against any background. Red fighters should be BRIGHT red (not dark red). At close range, clearly aircraft shapes. |
 | 5 | Ground creates speed | Strong perspective compression. Dense pattern. Fast scrolling. "Nauseating" speed sensation. |
