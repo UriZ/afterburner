@@ -6,6 +6,7 @@ extends Node2D
 
 const _DepthUtil := preload("res://scripts/game/depth_util.gd")
 const _EnemyRenderer := preload("res://scripts/enemies/enemy_sprite_renderer.gd")
+const _EnemyJet2D := preload("res://scripts/enemies/enemy_jet_2d.gd")
 
 const SCREEN_W: float = 960.0
 const SCREEN_H: float = 672.0
@@ -240,7 +241,7 @@ func _check_collisions() -> void:
 	var player_r: float = player.get_collision_radius()
 
 	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if not is_instance_valid(enemy):
+		if not is_instance_valid(enemy) or not _is_ramming_range(enemy):
 			continue
 		var enemy_pos: Vector2 = enemy.get_screen_position()
 		var enemy_r: float = enemy.get_collision_radius()
@@ -274,11 +275,34 @@ func _arm_invincibility_grace(player: Node) -> void:
 	var player_pos: Vector2 = player.get_screen_position()
 	var player_r: float = player.get_collision_radius()
 	for enemy in get_tree().get_nodes_in_group("enemies"):
-		if is_instance_valid(enemy) and player_pos.distance_to(enemy.get_screen_position()) < player_r + enemy.get_collision_radius():
+		if is_instance_valid(enemy) and _is_ramming_range(enemy) and player_pos.distance_to(enemy.get_screen_position()) < player_r + enemy.get_collision_radius():
 			_collision_ignore[enemy.get_instance_id()] = true
 	for bullet in get_tree().get_nodes_in_group("enemy_bullets"):
 		if is_instance_valid(bullet) and player_pos.distance_to(bullet.get_screen_position()) < player_r + bullet.get_collision_radius():
 			_collision_ignore[bullet.get_instance_id()] = true
+
+
+# Body-collision (ramming) eligibility gate (#103 regression fix). Every
+# enemy's screen-Y sweeps monotonically from the horizon, down through the
+# player's fixed screen-Y, then on up into the sky (see RAM_MIN_DEPTH in
+# enemy_jet_2d.gd) — a side effect of the sky-altitude approach (#100) that
+# didn't exist on the old ground-plane path. Two failure modes without this
+# gate: (1) every enemy spawns at logical_depth=0, right at the horizon,
+# already only ~40px from the player's screen-Y — well inside the player's
+# own 78px collision radius regardless of x position, so a freshly-spawned,
+# not-yet-visible speck could "hit" within a frame of appearing, bypassing
+# the invincibility grace entirely (grace only exempts bodies present at the
+# invincible->vulnerable transition, not ones that spawn afterward); (2) the
+# player's screen-Y crossing itself (d roughly 0.30-0.45, depending on the
+# enemy's altitude roll) is a second near-guaranteed vertical alignment,
+# independent of x. Gating eligibility to strictly after that crossing band
+# means ramming only becomes possible once the enemy is already separating
+# from the player's screen-Y again — a body hit then needs a genuinely
+# near-dead-center approach surviving all the way to near-despawn, matching
+# AB2 where ramming isn't really a mechanic; enemy bullets are the real
+# threat.
+func _is_ramming_range(enemy: Node) -> bool:
+	return enemy.logical_depth >= _EnemyJet2D.RAM_MIN_DEPTH
 
 
 # Returns true (and keeps the exemption) if `obj` is still an exempted body that

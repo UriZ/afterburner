@@ -57,6 +57,24 @@ const MIN_FIRE_DEPTH: float = 0.3
 # stop being negative (see depth_util.gd), so the rise is always monotonic.
 const ALTITUDE_MIN: float = 0.75
 const ALTITUDE_MAX: float = 1.2
+# Body-collision (ramming) eligibility floor, read by game_world.gd (#103
+# regression fix). With ALTITUDE_MIN/MAX both above depth_util.gd's 0.4128
+# break-even, every enemy's screen-Y sweeps monotonically from the horizon
+# down through the player's fixed screen-Y (crossing it somewhere in
+# d in [0.30, 0.45] depending on its own altitude roll) and on up into the
+# sky. Right past that crossing, vertical separation from the player is
+# still small and grows slowly (it's a parabola's near-flat region, not a
+# sharp corner) — a gate immediately after the crossing (tried: 0.5) still
+# leaves most of the player's own generous 78px collision radius as
+# horizontal margin, so it barely narrows the hit corridor. Only once
+# separation has grown enough that the player's radius can no longer bridge
+# it — d>=0.85, close to DESPAWN_DEPTH=0.92 — does a body hit require a
+# genuinely near-dead-center approach that also survived formation drift
+# all the way in. That's a real but narrow near-despawn window (the enemy
+# is huge and obviously in-your-face by then), not a guaranteed hit off of
+# every spawn. Matches AB2, where ramming isn't really a mechanic; enemy
+# bullets are the real threat.
+const RAM_MIN_DEPTH: float = 0.85
 
 var enemy_type: int = 0  # EnemyType.FIGHTER
 var logical_x: float = 0.0

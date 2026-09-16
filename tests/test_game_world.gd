@@ -15,6 +15,7 @@ extends SceneTree
 ## the main loop starts ticking _process().
 
 const GameWorld := preload("res://scripts/game/game_world.gd")
+const EnemyJet2D := preload("res://scripts/enemies/enemy_jet_2d.gd")
 
 var _pass_count := 0
 var _fail_count := 0
@@ -47,6 +48,10 @@ class MockEnemy extends Node2D:
 	var pos: Vector2 = Vector2.ZERO
 	var radius: float = 30.0
 	var damage_count: int = 0
+	# Deep enough to clear game_world.gd's RAM_MIN_DEPTH ramming-eligibility
+	# gate (#103) by default — these tests exercise grace/overlap logic, not
+	# the depth gate itself, so default to "always collidable".
+	var logical_depth: float = 1.0
 
 	func _init() -> void:
 		add_to_group("enemies")
@@ -87,6 +92,7 @@ func _process(_delta: float) -> bool:
 	test_normal_vulnerable_collision_unaffected()
 	test_grace_covers_multiple_simultaneous_overlaps()
 	test_bullet_grace_matches_enemy_grace()
+	test_ramming_gated_by_depth()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -204,6 +210,33 @@ func test_grace_covers_multiple_simultaneous_overlaps() -> void:
 	assert_true(world._collision_ignore.has(enemy1.get_instance_id()), "first overlapping body armed into grace list")
 	assert_true(world._collision_ignore.has(enemy2.get_instance_id()), "second overlapping body also armed (not just the first)")
 	assert_true(player.hit_count == 0, "no hit with two pre-loaded overlaps")
+
+	world.free()
+
+
+# Regression test for the #103 reopen: every enemy spawns at logical_depth=0,
+# ~40px from the player's screen-Y — well inside the player's 78px collision
+# radius regardless of x — so an un-gated body-collision check let a freshly
+# spawned, not-yet-visible enemy register a hit within a frame of appearing,
+# bypassing the invincibility grace entirely (grace only exempts bodies
+# present at the invincible->vulnerable transition, not ones spawned after).
+func test_ramming_gated_by_depth() -> void:
+	print("\ntest_ramming_gated_by_depth:")
+	var world: Node2D = _make_world()
+	var player := MockPlayer.new()
+	player.vulnerable = true
+	world.add_child(player)
+	var enemy := MockEnemy.new()
+	enemy.pos = player.pos  # fully overlapping
+	enemy.logical_depth = EnemyJet2D.RAM_MIN_DEPTH - 0.01
+	world.add_child(enemy)
+
+	world._check_collisions()
+	assert_true(player.hit_count == 0, "overlapping enemy below RAM_MIN_DEPTH does not hit")
+
+	enemy.logical_depth = EnemyJet2D.RAM_MIN_DEPTH
+	world._check_collisions()
+	assert_true(player.hit_count == 1, "same overlap hits once enemy reaches RAM_MIN_DEPTH")
 
 	world.free()
 

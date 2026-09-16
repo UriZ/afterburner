@@ -39,6 +39,13 @@ var _announce_label: Label = null
 
 
 func _ready() -> void:
+	# Godot's global RNG (randf_range etc., used throughout enemy spawn
+	# placement) is NOT auto-seeded from entropy — without this, every
+	# playthrough generates the exact same enemy formations, positions, and
+	# altitudes in the exact same order every single time (discovered while
+	# investigating #103: three "separate" zero-input trials were bit-for-bit
+	# identical). Seed once here, the first node to run each game session.
+	randomize()
 	# If launched directly (not from title screen), ensure phase is PLAYING
 	if GameState.phase == GameState.Phase.TITLE:
 		GameState.phase = GameState.Phase.PLAYING

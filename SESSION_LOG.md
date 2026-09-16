@@ -1,5 +1,23 @@
 # Session Log
 
+### [2026-09-16] — developer — #103 (reopen)
+**Task**: Reopened #103 — fix-lockon-hit agent reported ~1-2s zero-input survival (vs. earlier validated 6.5/6.5/9.8s), determine root cause before tuning.
+**Result**: COMPLETED
+**Files changed**: `scripts/game/game_world.gd`, `scripts/enemies/enemy_jet_2d.gd`, `scripts/game/game_manager_2d.gd`, `tests/test_game_world.gd`
+**Key changes**:
+- Built a deterministic headless verification harness (`godot --headless --fixed-fps 60 --script`, real `main_2d.tscn`, pure delta-accumulated sim time — zero capture/calibration lag) to replace unreliable screenshot-timing measurement. Confirmed the literal "~1-2s" claim does not reproduce: the 6.0s invincibility floor held in every trial.
+- Found the real bug: every enemy spawns at `logical_depth=0`, where screen-Y is always exactly `HORIZON_Y` (420px) — only ~40px from the player's fixed screen-Y (380px), well inside the player's 78px collision radius regardless of x. A fresh spawn could register a hit within a frame of appearing, bypassing the invincibility-grace fix entirely (grace only covers the invincible→vulnerable transition, not later spawns). Separately, `ALTITUDE_MIN/MAX` (#100) put every enemy's screen-Y on a path that crosses the player's exact screen-Y again at d≈0.30-0.45 — a second near-guaranteed vertical-alignment window that didn't exist pre-#100.
+- `enemy_jet_2d.gd:60` — added `RAM_MIN_DEPTH = 0.85` (body-ramming eligibility floor, near `DESPAWN_DEPTH=0.92`; empirically, 0.5 still left too much of the player's own radius as margin to matter).
+- `game_world.gd` — added `_is_ramming_range()` gate applied to both the live body-collision check and the grace snapshot.
+- `game_manager_2d.gd:_ready()` — added `randomize()`. Separate finding: Godot's global RNG was never seeded from entropy anywhere in the project, so every "separate" trial (including the earlier 6.5/6.5/9.8s measurement) was bit-for-bit identical — trials weren't actually independent.
+**Testing**: `tests/test_game_world.gd` — 15/15 pass (13 original + 2 new, `test_ramming_gated_by_depth`). Full 23-file suite re-run: zero new failures (`test_jet_mesh_builder.gd`/`test_enemy_jet.gd` failures confirmed pre-existing via `git stash` against the pre-fix commit — legacy 3D dead code). `tests/test_weapon_enemy_reachability.gd` 6/6 unchanged. `SCALE_SATURATION` unchanged (25.0, confirmed via grep — enemy peak size band untouched).
+**Verification**: 5 deterministic zero-input trials, first-life survival: 6.083s/6.583s/6.750s/7.817s/8.233s (genuine RNG variance now, vs. pre-fix where every trial died within 0.03-0.4s of the invincibility boundary regardless of seed). Every death traced (temp debug prints, removed) to a `bullet` hit with real prior flight time; zero `body`/ramming hits post-fix.
+**Improvement Insights**:
+- **workflow**: for any "survival time" / timing-sensitive zero-input measurement, prefer a deterministic `--headless --fixed-fps N --script` harness over screenshot/wall-clock capture — it has zero calibration lag, is far faster (whole 16-20s sim completes in a few wall seconds), and is exactly reproducible for A/B comparison (stash the fix, rerun, compare). Screenshot-based timing should be reserved for genuinely visual checks, not elapsed-time measurement.
+- **CLAUDE.md / project convention**: Godot's global RNG (`randf_range` etc.) is not auto-seeded — add `randomize()` once near project/game-session start. Without it, the entire game (not just tests) is fully deterministic across runs, which silently invalidates any "N separate trials" methodology anywhere in the pipeline until someone notices identical numbers.
+
+---
+
 ### [2026-09-16 23:20] — developer — #112
 **Task**: Implement the architect's implementation spec for the player jet redraw (proportions, zero nose-extent, short fins, 4-stop value ramp + dark-red outline, pure-rotation banking, marking removal).
 **Result**: COMPLETED
