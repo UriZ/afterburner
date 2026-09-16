@@ -7,6 +7,7 @@ extends Node2D
 const _DepthUtil := preload("res://scripts/game/depth_util.gd")
 const _EnemyRenderer := preload("res://scripts/enemies/enemy_sprite_renderer.gd")
 const _EnemyJet2D := preload("res://scripts/enemies/enemy_jet_2d.gd")
+const _GroundTerrain := preload("res://scripts/game/ground_terrain_2d.gd")
 
 const SCREEN_W: float = 960.0
 const SCREEN_H: float = 672.0
@@ -21,21 +22,26 @@ var sky_horizon_color: Color = Color(1.00, 0.72, 0.10)
 var ground_color_a: Color = Color(0.88, 0.65, 0.30)
 var ground_color_b: Color = Color(0.50, 0.30, 0.12)
 
-const FEATURE_COUNT: int = 150
-const FEATURE_MIN_DEPTH: float = 0.12  # skip features too far to read as detail
-# Depth units/sec a feature approaches the camera. Constant rate + the quadratic
-# depth->screen mapping (see DepthUtil) is what makes near features rush past fast
-# while far ones crawl — the core speed cue. A feature completes one full horizon-
-# to-camera pass every 1/GROUND_SCROLL_SPEED seconds, then wraps back to the horizon.
+# Depth units/sec the ground scrolls toward the camera. Constant rate + the
+# quadratic depth->screen mapping (see DepthUtil) is what makes near terrain
+# rush past fast while far terrain crawls — the core speed cue.
 const GROUND_SCROLL_SPEED: float = 1.4
 
-# World-scroll phase in [0, 1). Every terrain feature has a fixed identity (its slot
-# index) and a fixed base position in this cycle; only this single offset advances
-# per frame. A feature's screen position/size is a continuous function of
-# (slot, _ground_scroll) — it translates smoothly frame to frame instead of being
-# re-rolled from a frame-varying hash, which was the root cause of #42's inverted/
-# shimmering motion (features regenerated from scratch every frame instead of moving).
+# Wrap period for _ground_scroll (#42 redo). Large enough that the shader's
+# cellular noise field (CELL_FREQ_D=15, see ground_terrain_2d.gdshader) never
+# visibly repeats within a realistic play session (~708s at this speed), small
+# enough to stay well inside float32 precision (error ~991*2^-23 ~= 1.2e-4,
+# negligible next to the ~0.023/frame scroll delta at 60fps).
+const GROUND_SCROLL_WRAP: float = 991.0
+
+# Continuous world-depth scroll distance. Every ground pixel's terrain identity
+# is a function of (world position, _ground_scroll) computed per-pixel in the
+# ground shader — it translates smoothly frame to frame instead of being
+# re-rolled from a frame-varying hash, which was the root cause of #42's original
+# inverted/shimmering motion (terrain regenerated from scratch every frame
+# instead of moving).
 var _ground_scroll: float = 0.0
+var _ground_terrain: Node2D
 
 # --- Invincibility collision grace (#103) ---
 # Damage checks are skipped entirely while the player is invincible, but nothing
@@ -52,14 +58,27 @@ var _was_vulnerable: bool = true
 
 
 func _process(delta: float) -> void:
-	_ground_scroll = fposmod(_ground_scroll + delta * GROUND_SCROLL_SPEED, 1.0)
+	_ensure_ground_terrain()
+	_ground_scroll = fposmod(_ground_scroll + delta * GROUND_SCROLL_SPEED, GROUND_SCROLL_WRAP)
+	var haze: Color = sky_horizon_color
+	_ground_terrain.update(_ground_scroll, _player_lateral_offset(), ground_color_a, ground_color_b, haze)
 	_check_collisions()
 	queue_redraw()
 
 
+# Idempotent — safe to call from _process() every frame (cheap null check) and
+# directly from tests without relying on the engine's _ready()-on-tree-enter
+# timing (see test_ground_grid.gd).
+func _ensure_ground_terrain() -> void:
+	if _ground_terrain != null:
+		return
+	_ground_terrain = Node2D.new()
+	_ground_terrain.set_script(_GroundTerrain)
+	add_child(_ground_terrain)
+
+
 func _draw() -> void:
 	_draw_sky()
-	_draw_ground()
 	_draw_sorted_objects()
 
 
@@ -72,48 +91,19 @@ func _draw_sky() -> void:
 		var t: float = float(i) / float(bands)
 		var color: Color = sky_top_color.lerp(sky_horizon_color, t)
 		draw_rect(Rect2(0.0, float(i) * band_h, SCREEN_W, band_h + 1.0), color)
-	_draw_horizon_line()
-
-
-# A bright haze band right where sky meets ground (#108) — every reference
-# (ab2-arcade-desert.png, burst-a-02, burst-b-03) shows a visible glow line at
-# this join, not an abrupt sky-band-to-ground-band handoff. Drawn as the last
-# sky-space strip so the ground layer (drawn next, starting exactly at
-# HORIZON_Y) sits flush against it with no gap or overlap.
-func _draw_horizon_line() -> void:
-	var glow: Color = sky_horizon_color.lerp(ground_color_a, 0.5).lightened(0.2)
-	draw_rect(Rect2(0.0, HORIZON_Y - 4.0, SCREEN_W, 4.0), glow)
+	# No horizon stroke here (#42 redo) — the ground shader's own haze blend
+	# (ground_terrain_2d.gdshader, fades to sky_horizon_color as it nears the
+	# horizon) is the seam between sky and ground now. Every reference shows a
+	# density falloff, not a drawn line.
 
 
 # --- Ground ---
-# Base layer: a static horizon->camera gradient (atmospheric haze far away, richer
-# tone up close — see ab2-arcade-desert.png). It carries no identity and never needs
-# to move, so it's a pure function of screen depth with no scroll/hash input at all —
-# zero risk of the shimmer bug below.
-#
-# Detail layer: organic rock/vegetation clusters, each a persistent world-space
-# feature (fixed slot index -> fixed lateral offset/size/tint, hashed once). Only
-# the feature's depth advances every frame via the shared _ground_scroll phase, then
-# is projected to screen through the same DepthUtil math everything else uses. The
-# same feature is identifiable at a new screen position in the next frame — it
-# translates, it does not regenerate. (#42: hashing by frame-varying row index instead
-# of by a persistent feature identity was the root cause of the inverted/shimmering
-# motion the judge measured.)
-
-func _draw_ground() -> void:
-	_draw_ground_base()
-	_draw_terrain_features()
-
-
-func _draw_ground_base() -> void:
-	var bands: int = 24
-	for i in range(bands):
-		var d0: float = float(i) / float(bands)
-		var d1: float = float(i + 1) / float(bands)
-		var y0: float = _DepthUtil.to_screen(0.0, d0).y
-		var y1: float = _DepthUtil.to_screen(0.0, d1).y
-		var color: Color = ground_color_a.lerp(ground_color_b, (d0 + d1) * 0.5)
-		draw_rect(Rect2(0.0, y0, SCREEN_W, maxf(y1 - y0 + 1.0, 1.0)), color)
+# Rendered entirely by the _ground_terrain child node (ground_terrain_2d.gd),
+# a single shader-driven quad — see _ensure_ground_terrain(). Moved off
+# draw_circle()-per-feature (#42: ~40 large overlapping circles read as foam/
+# bubbles, not terrain) onto a per-pixel cellular-noise shader, which gives
+# 100% ground coverage with hundreds of small rock cells at a fixed draw-call
+# cost of one quad, instead of scaling draw calls with feature count.
 
 
 func _player_lateral_offset() -> float:
@@ -122,65 +112,6 @@ func _player_lateral_offset() -> float:
 		return 0.0
 	var px: float = player.get_screen_position().x
 	return clampf((px - SCREEN_W * 0.5) / (SCREEN_W * 0.45), -1.0, 1.0) * 0.6
-
-
-func _draw_terrain_features() -> void:
-	var lateral: float = _player_lateral_offset()
-	var visible: Array = []
-	for slot in range(FEATURE_COUNT):
-		var d: float = _feature_depth(slot)
-		if d < FEATURE_MIN_DEPTH:
-			continue
-		# Visibility is a threshold test on the feature's own fixed hash against a
-		# depth-increasing bar, so each feature has exactly one appear point per
-		# approach (far = sparse, near = dense) and never flickers on/off frame to
-		# frame the way a frame-varying hash would.
-		if _hash2(slot, 7) > lerp(0.45, 0.97, d):
-			continue
-		visible.append({"slot": slot, "d": d})
-
-	# Painter's algorithm: far features drawn first so near ones correctly overlap them.
-	visible.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["d"] < b["d"])
-
-	for entry in visible:
-		_draw_feature(entry["slot"], entry["d"], lateral)
-
-
-# A feature's depth is the only thing that changes over time: its base position in
-# the [0,1) approach cycle is fixed by its slot, and _ground_scroll (shared, advanced
-# once per frame in _process) shifts every feature's depth by the same small amount
-# each frame. When a feature reaches the camera (d=1) it wraps back to the horizon
-# (d=0) and starts its next approach — a plain, deterministic cycle, not a re-roll.
-func _feature_depth(slot: int) -> float:
-	var base: float = _hash2(slot, 5)
-	var wz: float = fposmod(base - _ground_scroll, 1.0)
-	return 1.0 - wz
-
-
-func _draw_feature(slot: int, d: float, lateral: float) -> void:
-	var off: float = lerp(-1.1, 1.1, _hash2(slot, 3)) - lateral
-	var pos: Vector2 = _DepthUtil.to_screen(off, d)
-	var base_r: float = _DepthUtil.depth_to_scale(d) * lerp(9.0, 20.0, _hash2(slot, 29))
-	var tint: Color = ground_color_b.darkened(0.25) if _hash2(slot, 41) > 0.5 \
-		else ground_color_a.darkened(0.05)
-	_draw_cluster(pos, base_r, tint, slot * 97 + 13)
-
-
-# A cluster of overlapping lobes (dark rim behind, tinted fill on top) reads as an
-# irregular rock/vegetation clump rather than a single uniform dot.
-func _draw_cluster(center: Vector2, radius: float, color: Color, cluster_id: int) -> void:
-	draw_circle(center, radius * 1.15, color.darkened(0.4))
-	draw_circle(center, radius, color)
-	for k in range(3):
-		var angle: float = _hash2(cluster_id + k, 3) * TAU
-		var dist: float = radius * lerp(0.35, 0.75, _hash2(cluster_id + k, 11))
-		var lobe_r: float = radius * lerp(0.4, 0.8, _hash2(cluster_id + k, 19))
-		draw_circle(center + Vector2(cos(angle), sin(angle)) * dist, lobe_r, color)
-
-
-static func _hash2(a: int, b: int) -> float:
-	var n: float = sin(float(a) * 127.1 + float(b) * 311.7) * 43758.5453
-	return n - floor(n)
 
 
 # --- Depth-sorted objects ---

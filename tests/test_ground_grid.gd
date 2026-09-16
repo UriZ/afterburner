@@ -1,15 +1,15 @@
 extends SceneTree
 
-## Unit tests for the ground rendering helpers in game_world.gd (issue #42).
-## Only covers the pure computational helpers — _draw_ground()/_draw_terrain_features()/
-## _draw_cluster() call draw_rect/draw_circle directly and need an active draw
-## context, so those are verified visually instead.
+## Unit tests for the ground rendering helpers in game_world.gd (#42 redo).
 ##
-## The _feature_depth tests below guard the actual #42 bug fix: a persistent-identity
-## terrain feature must have its depth change smoothly and continuously as the shared
-## world-scroll phase advances (translation), while everything that defines its look —
-## lateral position, size, tint — must be a function of its fixed slot index only, never
-## of the scroll phase (no re-roll from a frame-varying hash).
+## The per-pixel cellular-noise ground terrain itself lives in a fragment
+## shader (assets/shaders/ground_terrain_2d.gdshader) and needs an active
+## draw/GPU context, so it is verified visually instead (see #42 comments).
+## What's covered here is the GDScript-side data flow that feeds the shader:
+## the world-scroll accumulator (translates continuously, never re-rolls —
+## the actual #42 regression class) and the player lateral-parallax offset,
+## plus that the shader-backed child node wires up without crashing.
+##
 ## Run with: godot --headless --script res://tests/test_ground_grid.gd
 
 const GameWorld := preload("res://scripts/game/game_world.gd")
@@ -21,15 +21,12 @@ var _fail_count := 0
 func _init() -> void:
 	print("=== GroundGrid Tests ===")
 
-	test_hash2_range()
-	test_hash2_deterministic()
-	test_hash2_varies_with_input()
 	test_player_lateral_offset_no_player()
 	test_player_lateral_offset_clamped()
-	test_feature_depth_translates_continuously()
-	test_feature_depth_advances_toward_camera()
-	test_feature_depth_wraps_to_horizon()
-	test_feature_identity_independent_of_scroll()
+	test_ground_scroll_advances_continuously()
+	test_ground_scroll_wraps_at_period()
+	test_ensure_ground_terrain_idempotent()
+	test_ensure_ground_terrain_creates_child_with_material()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -63,37 +60,6 @@ func _make_fake_player(x: float) -> Node2D:
 	return p
 
 
-func test_hash2_range() -> void:
-	print("\ntest_hash2_range:")
-	var w := _make_world()
-	for i in range(20):
-		var h: float = w._hash2(i, i * 3)
-		assert_true(h >= 0.0 and h < 1.0, "_hash2(%d) in [0,1): %f" % [i, h])
-	w.free()
-
-
-func test_hash2_deterministic() -> void:
-	print("\ntest_hash2_deterministic:")
-	var w := _make_world()
-	var a: float = w._hash2(7, 13)
-	var b: float = w._hash2(7, 13)
-	assert_true(a == b, "_hash2 is deterministic for same inputs")
-	w.free()
-
-
-func test_hash2_varies_with_input() -> void:
-	print("\ntest_hash2_varies_with_input:")
-	var w := _make_world()
-	var first: float = w._hash2(0, 0)
-	var all_same := true
-	for i in range(1, 10):
-		if w._hash2(i, 0) != first:
-			all_same = false
-			break
-	assert_true(not all_same, "_hash2 output varies across row/col inputs")
-	w.free()
-
-
 func test_player_lateral_offset_no_player() -> void:
 	print("\ntest_player_lateral_offset_no_player:")
 	var w := _make_world()
@@ -116,57 +82,49 @@ func test_player_lateral_offset_clamped() -> void:
 	w.free()
 
 
-func test_feature_depth_translates_continuously() -> void:
-	print("\ntest_feature_depth_translates_continuously:")
+func test_ground_scroll_advances_continuously() -> void:
+	print("\ntest_ground_scroll_advances_continuously:")
 	var w := _make_world()
-	var slot := 42
-	w._ground_scroll = 0.5
-	var d0: float = w._feature_depth(slot)
-	w._ground_scroll = fposmod(w._ground_scroll + 0.01, 1.0)
-	var d1: float = w._feature_depth(slot)
-	# A one-frame-sized scroll step must move a feature's depth by a matching small
-	# amount (translation) — never an unrelated jump, which is what a frame-varying
-	# hash re-roll (the #42 bug) would produce.
-	var delta: float = absf(d1 - d0)
-	assert_true(is_equal_approx(delta, 0.01), "small scroll step -> matching small depth step: %f" % delta)
+	w._ground_scroll = 10.0
+	w._process(0.1)
+	# GROUND_SCROLL_SPEED=1.4, so a 0.1s step should advance _ground_scroll by
+	# 0.14 — a small, matching step (translation), never an unrelated jump,
+	# which is the continuous analogue of the #42 bug class (terrain
+	# regenerating from scratch instead of moving).
+	var expected: float = fposmod(10.0 + 0.1 * GameWorld.GROUND_SCROLL_SPEED, GameWorld.GROUND_SCROLL_WRAP)
+	assert_true(is_equal_approx(w._ground_scroll, expected), "_ground_scroll advances by delta * GROUND_SCROLL_SPEED: %f (expected %f)" % [w._ground_scroll, expected])
 	w.free()
 
 
-func test_feature_depth_advances_toward_camera() -> void:
-	print("\ntest_feature_depth_advances_toward_camera:")
+func test_ground_scroll_wraps_at_period() -> void:
+	print("\ntest_ground_scroll_wraps_at_period:")
 	var w := _make_world()
-	var slot := 7
-	w._ground_scroll = 0.0
-	var d_start: float = w._feature_depth(slot)
-	w._ground_scroll = 0.3
-	var d_later: float = w._feature_depth(slot)
-	var expected: float = fposmod(d_start + 0.3, 1.0)
-	assert_true(is_equal_approx(d_later, expected), "depth advances by exactly the scroll delta (mod wrap): %f -> %f, expected %f" % [d_start, d_later, expected])
+	w._ground_scroll = GameWorld.GROUND_SCROLL_WRAP - 0.01
+	w._process(0.1)
+	# Wraps back near 0 rather than growing unboundedly (float32 precision
+	# guard — see GROUND_SCROLL_WRAP comment in game_world.gd).
+	assert_true(w._ground_scroll < GameWorld.GROUND_SCROLL_WRAP, "_ground_scroll stays below the wrap period: %f" % w._ground_scroll)
+	assert_true(w._ground_scroll >= 0.0, "_ground_scroll never goes negative: %f" % w._ground_scroll)
 	w.free()
 
 
-func test_feature_depth_wraps_to_horizon() -> void:
-	print("\ntest_feature_depth_wraps_to_horizon:")
+func test_ensure_ground_terrain_idempotent() -> void:
+	print("\ntest_ensure_ground_terrain_idempotent:")
 	var w := _make_world()
-	var slot := 3
-	var base: float = w._hash2(slot, 5)
-	# Scroll just past the point where this feature reaches the camera (d=1).
-	w._ground_scroll = fposmod(base + 0.001, 1.0)
-	var d: float = w._feature_depth(slot)
-	assert_true(d < 0.01, "feature wraps back to the horizon (d≈0) right after reaching the camera: %f" % d)
+	w._ensure_ground_terrain()
+	var first: Node2D = w._ground_terrain
+	w._ensure_ground_terrain()
+	assert_true(w._ground_terrain == first, "_ensure_ground_terrain does not replace an existing child on a second call")
 	w.free()
 
 
-func test_feature_identity_independent_of_scroll() -> void:
-	print("\ntest_feature_identity_independent_of_scroll:")
+func test_ensure_ground_terrain_creates_child_with_material() -> void:
+	print("\ntest_ensure_ground_terrain_creates_child_with_material:")
 	var w := _make_world()
-	var slot := 15
-	# Lateral offset/size/tint are derived from _hash2(slot, ...) only — never from
-	# _ground_scroll — so a feature's look never re-rolls, only its depth moves.
-	var lateral_a: float = w._hash2(slot, 3)
-	w._ground_scroll = 0.0
-	var lateral_b: float = w._hash2(slot, 3)
-	w._ground_scroll = 0.87
-	var lateral_c: float = w._hash2(slot, 3)
-	assert_true(lateral_a == lateral_b and lateral_b == lateral_c, "feature identity hash is invariant to _ground_scroll")
+	w._ensure_ground_terrain()
+	assert_true(w._ground_terrain != null, "_ensure_ground_terrain creates the child node")
+	assert_true(w._ground_terrain.get_parent() == w, "ground terrain child is parented to GameWorld")
+	# update() should not crash even before/without a frame having run _ready().
+	w._ground_terrain.update(0.3, 0.1, Color.RED, Color.BLUE, Color.YELLOW)
+	assert_true(w._ground_terrain.material != null, "ground terrain child has a shader material assigned")
 	w.free()
