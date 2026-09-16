@@ -125,6 +125,6 @@ func test_ensure_ground_terrain_creates_child_with_material() -> void:
 	assert_true(w._ground_terrain != null, "_ensure_ground_terrain creates the child node")
 	assert_true(w._ground_terrain.get_parent() == w, "ground terrain child is parented to GameWorld")
 	# update() should not crash even before/without a frame having run _ready().
-	w._ground_terrain.update(0.3, 0.1, Color.RED, Color.BLUE, Color.YELLOW)
+	w._ground_terrain.update(0.3, 0.1, Color.RED, Color.BLUE, Color.YELLOW, Color.GREEN)
 	assert_true(w._ground_terrain.material != null, "ground terrain child has a shader material assigned")
 	w.free()

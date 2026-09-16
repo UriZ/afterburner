@@ -21,6 +21,7 @@ var sky_top_color: Color = Color(0.08, 0.04, 0.28)
 var sky_horizon_color: Color = Color(1.00, 0.72, 0.10)
 var ground_color_a: Color = Color(0.88, 0.65, 0.30)
 var ground_color_b: Color = Color(0.50, 0.30, 0.12)
+var ground_color_c: Color = Color(0.55, 0.55, 0.10)
 
 # Depth units/sec the ground scrolls toward the camera. Constant rate + the
 # quadratic depth->screen mapping (see DepthUtil) is what makes near terrain
@@ -61,7 +62,7 @@ func _process(delta: float) -> void:
 	_ensure_ground_terrain()
 	_ground_scroll = fposmod(_ground_scroll + delta * GROUND_SCROLL_SPEED, GROUND_SCROLL_WRAP)
 	var haze: Color = sky_horizon_color
-	_ground_terrain.update(_ground_scroll, _player_lateral_offset(), ground_color_a, ground_color_b, haze)
+	_ground_terrain.update(_ground_scroll, _player_lateral_offset(), ground_color_a, ground_color_b, haze, ground_color_c)
 	_check_collisions()
 	queue_redraw()
 
@@ -89,7 +90,17 @@ func _draw_sky() -> void:
 	var band_h: float = HORIZON_Y / float(bands)
 	for i in range(bands):
 		var t: float = float(i) / float(bands)
-		var color: Color = sky_top_color.lerp(sky_horizon_color, t)
+		# Measured directly off burst-a-02/burst-a-03 (#42 follow-up): pixel
+		# color is flat (within JPEG noise) from the top of frame down to
+		# ~80% of the sky's height, then brightens sharply into a haze band
+		# only in the last ~20% before the horizon. A plain linear lerp across
+		# the full sky height (the previous code) spreads that same total
+		# color change evenly, which reads as "one flat orange" because the
+		# top 80% barely moves off sky_top_color either way — smoothstep
+		# concentrates the whole ramp into the band where the reference
+		# actually has one.
+		var te: float = smoothstep(0.75, 1.0, t)
+		var color: Color = sky_top_color.lerp(sky_horizon_color, te)
 		draw_rect(Rect2(0.0, float(i) * band_h, SCREEN_W, band_h + 1.0), color)
 	# No horizon stroke here (#42 redo) — the ground shader's own haze blend
 	# (ground_terrain_2d.gdshader, fades to sky_horizon_color as it nears the

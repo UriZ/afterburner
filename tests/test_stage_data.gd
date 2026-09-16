@@ -44,7 +44,7 @@ func test_stage_count() -> void:
 
 func test_all_stages_have_required_keys() -> void:
 	print("\ntest_all_stages_have_required_keys:")
-	var required_keys := ["ground_a", "ground_b", "sky_top", "sky_horizon", "spawn_interval", "enemies_per_wave", "is_bonus"]
+	var required_keys := ["ground_a", "ground_b", "ground_c", "sky_top", "sky_horizon", "spawn_interval", "enemies_per_wave", "is_bonus"]
 	var all_valid := true
 	for i in range(StageData.stage_count()):
 		var stage := StageData.get_stage(i + 1)
@@ -60,7 +60,7 @@ func test_stage_colors_are_valid() -> void:
 	var all_valid := true
 	for i in range(StageData.stage_count()):
 		var stage := StageData.get_stage(i + 1)
-		for key in ["ground_a", "ground_b", "sky_top", "sky_horizon"]:
+		for key in ["ground_a", "ground_b", "ground_c", "sky_top", "sky_horizon"]:
 			var c: Color = stage[key]
 			if c.r < 0.0 or c.r > 1.0 or c.g < 0.0 or c.g > 1.0 or c.b < 0.0 or c.b > 1.0:
 				all_valid = false

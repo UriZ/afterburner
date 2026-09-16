@@ -99,6 +99,7 @@ func _apply_stage(stage_number: int) -> void:
 		game_world.sky_horizon_color = data["sky_horizon"]
 		game_world.ground_color_a = data["ground_a"]
 		game_world.ground_color_b = data["ground_b"]
+		game_world.ground_color_c = data["ground_c"]
 
 	# Update spawn difficulty — later/harder stages dispense enemies more often,
 	# but always within a band that SpawnPacing.MAX_ON_SCREEN_ENEMIES can absorb.

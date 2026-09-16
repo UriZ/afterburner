@@ -49,11 +49,12 @@ func _draw() -> void:
 	draw_polygon(points, PackedColorArray([Color.WHITE]), uvs)
 
 
-func update(world_scroll: float, lateral: float, color_a: Color, color_b: Color, haze_color: Color) -> void:
+func update(world_scroll: float, lateral: float, color_a: Color, color_b: Color, haze_color: Color, color_c: Color = Color(0.55, 0.55, 0.10)) -> void:
 	_ensure_material()
 	_material.set_shader_parameter("world_scroll", world_scroll)
 	_material.set_shader_parameter("lateral", lateral)
 	_material.set_shader_parameter("color_a", color_a)
 	_material.set_shader_parameter("color_b", color_b)
+	_material.set_shader_parameter("color_c", color_c)
 	_material.set_shader_parameter("haze_color", haze_color)
 	queue_redraw()

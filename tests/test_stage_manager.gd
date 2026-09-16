@@ -40,7 +40,7 @@ func assert_eq(a: Variant, b: Variant, message: String) -> void:
 
 func test_stage_data_has_manager_required_keys() -> void:
 	print("\ntest_stage_data_has_manager_required_keys:")
-	var required := ["ground_a", "ground_b", "sky_top", "sky_horizon", "spawn_interval", "is_bonus"]
+	var required := ["ground_a", "ground_b", "ground_c", "sky_top", "sky_horizon", "spawn_interval", "is_bonus"]
 	var all_valid := true
 	for i in range(1, StageData.stage_count() + 1):
 		var data := StageData.get_stage(i)
