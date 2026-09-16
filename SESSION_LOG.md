@@ -1,5 +1,18 @@
 # Session Log
 
+### [2026-09-17] — developer — #112 (continued)
+**Task**: Fix 4 remaining jet-visual defects from TL video review: double-band wings, gull-wing kink, warm cream tint, twin fins reading as one mass.
+**Result**: COMPLETED
+**Files changed**: `scripts/player/player_jet_2d.gd`
+**Key changes**:
+- `player_jet_2d.gd:20-24` — sampled true airframe palette from `ab2-arcade-desert.png` (native, uncompressed): discrete arcade ramp is neutral/cool grey (255,255,255 / 164,164,164 / 164,132,132 warm-shadow), never brown/beige. `V1_LIT` 240,220,165→205,205,205; `V2_MID` 198,192,148→168,168,168; `V3_SHADOW` 138,108,92 (brown, R-B=46)→150,120,120 (warm grey, R-B=30).
+- `player_jet_2d.gd:234-260` — wing silhouette rebuilt as a 4-point quad with single straight leading/trailing edges (no bend point), removing the x=0.700 kink that read as a gull-wing "W".
+- Tailplane shrunk from a near-full-span blade (x 0.36-0.81, y -0.155..0.035, overlapping the wing's band) to a small stub tucked at the tail-cone/nozzle shoulder (x 0.125-0.40, y 0.005-0.072) — fully hidden behind the fuselage/nozzles at this angle, matching the reference where no separate tailplane is visible.
+- Fin root/tip x-range widened 0.075-0.165 → 0.095-0.235/0.275 (~2.5x more splay at the tip) so the two fins open into a visible valley instead of staying near-parallel.
+**Testing**: 21/21 existing unit tests pass unchanged (no test covers wing/fin/tail geometry). Built a throwaway scene instantiating the real `player_jet_2d.tscn` at bank -45/0/+45, captured a composite frame, deleted scratch files after (confirmed via `git status`). Full-frame side-by-side against `burst-a-02.jpg` and a tail/nozzle zoom crop confirm all 4 defects are gone.
+**Improvement Insights**:
+- **workflow**: The shared scratchpad directory is used concurrently by multiple agents working the same issue in parallel (saw other agents' `verify112_*.png`, `spec112.txt` files there mid-session) — safe in practice since filenames didn't collide, but worth naming scratch files with an agent/task-specific prefix to avoid any future overwrite risk.
+
 ### [2026-09-16] — developer — #103 (reopen)
 **Task**: Reopened #103 — fix-lockon-hit agent reported ~1-2s zero-input survival (vs. earlier validated 6.5/6.5/9.8s), determine root cause before tuning.
 **Result**: COMPLETED

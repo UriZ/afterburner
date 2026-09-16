@@ -17,10 +17,14 @@ const HS := 171.0          # half-span in px; full span 342 px = 35.6% of 960
 const ANCHOR_Y := 28.0     # local origin offset so on-screen placement is unchanged
 const OUTLINE_W := 2.0     # thin silhouette definition line, not a decal border
 
-const V0_HILITE := Color8(255, 255, 245)
-const V1_LIT := Color8(240, 220, 165)
-const V2_MID := Color8(198, 192, 148)
-const V3_SHADOW := Color8(138, 108, 92)
+const V0_HILITE := Color8(255, 255, 255)
+const V1_LIT := Color8(205, 205, 205)
+const V2_MID := Color8(168, 168, 168)
+const V3_SHADOW := Color8(150, 120, 120)  # warm-tinted grey (R > G=B), NOT brown — matches
+# the discrete in-game palette sampled from ab2-arcade-desert.png (native, uncompressed):
+# (255,255,255) hilite / (164,164,164) mid / (164,132,132) shadow. #112 feedback: our
+# airframe was reading beige because these tones carried a G>B cream cast (240,220,165
+# etc.) that isn't in the source palette at all.
 const OUTLINE := Color8(70, 48, 40)  # dark warm neutral silhouette line — NOT saturated red
 const BLACK := Color8(0, 0, 0)
 const CANOPY_GLASS := Color8(132, 197, 247)
@@ -225,28 +229,38 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	var rad: float = deg_to_rad(bank)
 	var origin: Vector2 = pos + Vector2(0.0, ANCHOR_Y)
 
-	# --- Tailplanes ---
-	var tail_r := [Vector2(0.380, -0.155), Vector2(0.810, -0.010), Vector2(0.800, 0.035), Vector2(0.360, -0.085)]
-	var tail_le_r := [Vector2(0.380, -0.155), Vector2(0.810, -0.010), Vector2(0.808, 0.002), Vector2(0.378, -0.138)]
-	_draw_tailplane(origin, rad, _mirror(tail_r), _mirror(tail_le_r))
-	_draw_tailplane(origin, rad, tail_r, tail_le_r)
-
-	# --- Wings ---
-	# Roots pulled in to meet the narrowed fuselage neck (see below) so the
-	# wing reads as the dominant mass sweeping almost from centerline to tip,
-	# per reference — not a short blade bolted onto a fat body.
-	var wing_r := [Vector2(0.085, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.100, -0.245)]
-	var wing_le_r := [Vector2(0.085, -0.360), Vector2(0.700, -0.240), Vector2(1.000, -0.128), Vector2(0.986, -0.120), Vector2(0.692, -0.229), Vector2(0.087, -0.332)]
-	var wing_te_r := [Vector2(0.095, -0.288), Vector2(0.704, -0.180), Vector2(0.956, -0.106), Vector2(0.940, -0.098), Vector2(0.718, -0.155), Vector2(0.100, -0.245)]
+	# --- Wings (drawn first: single straight-swept blade, the dominant surface) ---
+	# Leading and trailing edges are each a single straight segment root-to-tip
+	# (no intermediate bend point) — the reference shows one continuous blade,
+	# not a kinked "W". #112 feedback: the previous 6-point silhouette bent at
+	# x=0.700, reading as a gull-wing kink.
+	var wing_r := [Vector2(0.090, -0.355), Vector2(1.000, -0.125), Vector2(0.965, -0.095), Vector2(0.100, -0.250)]
+	var wing_le_r := [Vector2(0.090, -0.355), Vector2(1.000, -0.125), Vector2(0.995, -0.108), Vector2(0.098, -0.333)]
+	var wing_te_r := [Vector2(0.100, -0.283), Vector2(0.955, -0.118), Vector2(0.965, -0.095), Vector2(0.100, -0.250)]
 	_draw_wing(origin, rad, _mirror(wing_r), _mirror(wing_le_r), _mirror(wing_te_r))
 	_draw_wing(origin, rad, wing_r, wing_le_r, wing_te_r)
 
+	# --- Tailplanes ---
+	# Tucked to a small stub at the tail-cone/nozzle shoulder (y > 0, well
+	# below the wing's -0.355..-0.095 band and far short of its span). #112
+	# feedback: the previous tailplane nearly matched the wing's span and sat
+	# in the same vertical band, so the two surfaces read as a double-banded
+	# biplane. The reference shows no separate tailplane blade at all in this
+	# near head-on view — it's a small nub hugging the tail cone, not a second
+	# wing.
+	var tail_r := [Vector2(0.140, 0.005), Vector2(0.400, 0.040), Vector2(0.385, 0.072), Vector2(0.125, 0.045)]
+	var tail_le_r := [Vector2(0.140, 0.005), Vector2(0.400, 0.040), Vector2(0.395, 0.026), Vector2(0.138, -0.008)]
+	_draw_tailplane(origin, rad, _mirror(tail_r), _mirror(tail_le_r))
+	_draw_tailplane(origin, rad, tail_r, tail_le_r)
+
 	# --- Vertical tail fins (drawn before the fuselage so it covers their roots) ---
-	# Rooted at the shoulder, rising steeply to near-canopy height with a raked
-	# trailing edge — a distinct blade, not a sliver following the fuselage
-	# taper (that read as body shading and made the fins disappear, #112).
-	var fin_r := [Vector2(0.075, -0.230), Vector2(0.125, -0.560), Vector2(0.165, -0.510), Vector2(0.155, -0.195)]
-	var fin_shadow_r := [Vector2(0.075, -0.230), Vector2(0.118, -0.548), Vector2(0.125, -0.540), Vector2(0.083, -0.230)]
+	# Splayed outward (root x 0.095 -> tip x 0.235-0.275, nearly 2.5x the tip
+	# spread of the previous shape) so the gap between the two fins is a clear
+	# widening valley, not a near-parallel pair reading as one white mass.
+	# #112 feedback: previous root/tip x-range (0.075-0.165) kept both fins
+	# too close together through their full height.
+	var fin_r := [Vector2(0.095, -0.225), Vector2(0.235, -0.555), Vector2(0.275, -0.500), Vector2(0.175, -0.195)]
+	var fin_shadow_r := [Vector2(0.095, -0.225), Vector2(0.222, -0.542), Vector2(0.235, -0.532), Vector2(0.108, -0.222)]
 	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_shadow_r))
 	_draw_fin(origin, rad, fin_r, fin_shadow_r)
 
