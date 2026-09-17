@@ -8,6 +8,8 @@ A faithful recreation of SEGA's classic 1987 After Burner II arcade game, built 
 
 Study the motion reference AND ALL 9 reference screenshots in `assets/reference/`. The gap between our game and the original AB2 is what we're closing. Code quality, test coverage, and technical correctness are secondary to visual and gameplay fidelity to the original.
 
+**Concurrent capture** — when multiple agents run at once, pass `--port N` (e.g. 9502+) to `game-capture`/`game-video`; each script then launches, tracks, and kills only its own Godot instance. Never run a blanket `pkill -f Godot`.
+
 **How to study motion** — agents cannot stream video, and `WebFetch` on a YouTube URL returns page text, not frames. Use the `youtube-reference` skill, which converts footage into frame sequences any agent can Read:
 
 ```bash
