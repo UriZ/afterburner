@@ -24,13 +24,18 @@ render_mode unshaded;
 
 uniform vec4 color_a : source_color = vec4(0.88, 0.65, 0.30, 1.0);
 uniform vec4 color_b : source_color = vec4(0.50, 0.30, 0.12, 1.0);
-// Accent color for a scatter of distinct-hue clumps (soil on forest, foam
-// on ocean...) over the rock base — see the veg blend in fragment() below
-// for the per-stage caveat: desert/sunset stages set this equal to color_a
-// (round-5 gate measured their reference showing NO second hue, disproving
-// this uniform's original "olive scrub on desert" premise), so it's a no-op
-// there. Kept as its own uniform, not derived from color_a/color_b, for
-// stages where a genuine second hue is plausible.
+// Third stage-specific accent hue (soil on forest, foam on ocean, olive
+// scrub on desert...). One of four material clusters the round-6 patch
+// system in fragment() scatters across the ground — see the cluster
+// selection block there. The round-5 "desert shows 0% olive" finding that
+// used to zero this out for desert/sunset was measured against a single
+// frame; a closer zoomed crop of burst-a-02/03 clearly shows golden/olive
+// scrub texture alongside grey stone and reddish rock (#42 round-6 gate,
+// "irregular multi-hue rubble"), so stage_data.gd restores a real olive
+// value here for desert/sunset. Kept as its own uniform (not derived from
+// color_a/color_b) since it's the one hue genuinely stage-specific rather
+// than mechanically derivable — grey and pink, the other two clusters, ARE
+// derived from color_a/color_b at render time (see fragment()).
 uniform vec4 color_c : source_color = vec4(0.55, 0.55, 0.10, 1.0);
 uniform vec4 haze_color : source_color = vec4(1.0, 0.72, 0.10, 1.0);
 
@@ -67,6 +72,19 @@ const float CELL_FREQ_D = 28.0;
 // Low-frequency broad tonal patches (the mottled light/dark regions visible
 // across the reference beyond individual rock cells).
 const float REGION_FREQ = 1.6;
+// Material-cluster patch frequency (#42 round-6 gate — "shape regularity"):
+// small regions of grey stone / olive scrub / pink rock scattered across the
+// base tan/brown rock, matching the reference's irregular multi-hue rubble
+// instead of a uniform two-hue field. First pass used 1.1 (a few
+// world-units-sized regions); a live capture showed that read as 2-3 giant
+// single-hue "continents" filling half the screen each — much larger and
+// more contiguous than the reference's fine interspersed mix. 3.2 (second
+// pass) fixed the continent problem but still produced fairly large, sharply
+// bounded blobs — a "paint bucket" map of solid colour regions rather than
+// the reference's finer salt-and-pepper mixing. 5.5 (third pass) roughly
+// halves the patch size again for a more interspersed look, still well
+// below CELL_FREQ so a patch still spans several rock cells, not one.
+const float PATCH_FREQ = 5.5;
 
 float hash1(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -86,6 +104,26 @@ float value_noise(vec2 p) {
 	float c = hash1(i + vec2(0.0, 1.0));
 	float d = hash1(i + vec2(1.0, 1.0));
 	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// Standard (Sam Hocevar) RGB<->HSV round-trip, used by the round-6 patch/
+// cluster system below to derive a desaturated "grey stone" and a hue-shifted
+// "pink rock" tone from each stage's own ground_a/ground_b at render time,
+// instead of plumbing two more per-stage uniforms through GameWorld/
+// stage_data.gd for every one of the 23 stages.
+vec3 rgb2hsv(vec3 c) {
+	vec4 k = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+	vec4 p = mix(vec4(c.bg, k.wz), vec4(c.gb, k.xy), step(c.b, c.g));
+	vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+	float d = q.x - min(q.w, q.y);
+	float e = 1.0e-10;
+	return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+vec3 hsv2rgb(vec3 c) {
+	vec4 k = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+	vec3 p = abs(fract(c.xxx + k.xyz) * 6.0 - k.www);
+	return c.z * mix(k.xxx, clamp(p - k.xxx, 0.0, 1.0), c.y);
 }
 
 // F1 Worley distance + a per-cell id hash, giving irregular rock-cell shapes
@@ -181,6 +219,69 @@ void fragment() {
 	float aa_horizon = 1.0 - smoothstep(0.0, 0.20, UV.y);
 	aa = max(aa, aa_horizon);
 
+	// Material-cluster selection (#42 round-6 gate: "shape regularity" —
+	// matching feature size/edge/brightness while every feature is the same
+	// two-hue lozenge still fails; needs varied outline AND >=3 hue clusters
+	// per band). A second, lower-frequency noise field (PATCH_FREQ, well
+	// below CELL_FREQ so a patch spans many rock cells) picks one of four
+	// material clusters per pixel: grey stone / the tuned base tan-brown rock
+	// / the stage's own accent hue (olive scrub, foam, ember...) / a
+	// hue-rotated "pink" rock. Grey and pink are DERIVED from ground_a/
+	// ground_b via HSV at render time rather than two more per-stage
+	// uniforms threaded through 23 stage_data.gd entries and the
+	// GameWorld->update() call site (out of this task's file ownership) —
+	// every stage automatically gets a biome-appropriate 4-hue spread from
+	// its own existing palette. Each cluster also gets its own warp/crevice/
+	// grain tuning below so different regions don't all read as the same
+	// bright-center/dark-edge "bead" (the literal round-6 gate complaint).
+	vec3 hsv_a = rgb2hsv(color_a.rgb);
+	vec3 hsv_b = rgb2hsv(color_b.rgb);
+	vec3 grey_light = hsv2rgb(vec3(hsv_a.x, hsv_a.y * 0.18, clamp(hsv_a.z * 0.92, 0.0, 1.0)));
+	vec3 grey_dark = hsv2rgb(vec3(hsv_b.x, hsv_b.y * 0.18, clamp(hsv_b.z * 1.05, 0.0, 1.0)));
+	vec3 pink_hsv = hsv_b;
+	pink_hsv.x = fract(pink_hsv.x - 0.07);
+	pink_hsv.y *= 0.60;
+	vec3 pink_light = hsv2rgb(vec3(pink_hsv.x, pink_hsv.y, clamp(pink_hsv.z * 1.9 + 0.15, 0.0, 1.0)));
+	vec3 pink_dark = pink_light * 0.55;
+
+	float patch_n = value_noise(world_p * PATCH_FREQ + vec2(300.0, -150.0));
+	float patch_idx = floor(clamp(patch_n * 4.0, 0.0, 3.9999));
+
+	vec3 cluster_light;
+	vec3 cluster_dark;
+	// warp_extra: per-cluster boundary jaggedness (multiplies the domain warp
+	// below) — grey stone is smoother/rounder, the accent/scrub cluster is
+	// spikier, matching how those materials actually look in the reference.
+	float warp_extra;
+	// thresh_bias: shifts the crevice threshold band (below) per cluster so
+	// each material gets its own amount of visible crevice/mottle instead of
+	// the identical "bright fill, dark rim" treatment on every feature.
+	float thresh_bias;
+	float grain_lo;
+	float grain_hi;
+	if (patch_idx < 0.5) {
+		cluster_light = grey_light; cluster_dark = grey_dark;
+		warp_extra = 0.55; thresh_bias = 0.05; grain_lo = 0.78; grain_hi = 1.22;
+	} else if (patch_idx < 1.5) {
+		cluster_light = color_a.rgb; cluster_dark = color_b.rgb;
+		warp_extra = 1.0; thresh_bias = 0.0; grain_lo = 0.60; grain_hi = 1.40;
+	} else if (patch_idx < 2.5) {
+		// dark 0.50->0.68 and thresh_bias -0.07->-0.03 (in-session brightness
+		// check): the first pass's light/dark ratio (~0.43) was much lower
+		// than every other cluster's (~0.6-0.7), and its own dark tone then
+		// also feeds crevice = cluster_dark*0.50, so the scrub cluster's
+		// crevices approached near-black. Since it also gets more crevice
+		// AREA (negative thresh_bias) and visually dominates the field, that
+		// combination pulled the whole-frame mean V well below the passing
+		// round-5 band. Matching the light/dark ratio to the other clusters
+		// keeps the still-hue-distinct look without the brightness drop.
+		cluster_light = color_c.rgb * 1.15; cluster_dark = color_c.rgb * 0.68;
+		warp_extra = 1.55; thresh_bias = -0.03; grain_lo = 0.45; grain_hi = 1.55;
+	} else {
+		cluster_light = pink_light; cluster_dark = pink_dark;
+		warp_extra = 1.25; thresh_bias = 0.02; grain_lo = 0.65; grain_hi = 1.35;
+	}
+
 	// Domain warp: perturb the sample point before evaluating Worley. A
 	// single low-frequency warp still reads as a too-regular round-pebble
 	// mosaic (cobblestone paving) — the reference ground is jagged, chaotic
@@ -211,7 +312,16 @@ void fragment() {
 	// the whole neighborhood in lockstep.
 	vec2 warp1 = vec2(value_noise(cell_p * 0.9 + 11.0), value_noise(cell_p * 0.9 + 47.0)) - 0.5;
 	vec2 warp2 = vec2(value_noise(cell_p * 1.8 + 91.0), value_noise(cell_p * 1.8 + 23.0)) - 0.5;
-	cell_p += warp1 * 0.20 + warp2 * 0.10 * (1.0 - aa);
+	// Per-cell outline variation (#42 round-6 gate: "vary the Worley cell
+	// shaping per cell id"): a cheap hash of the UN-warped grid cell (not the
+	// spatially-varying jitter the reverted freq_jitter experiment above used
+	// — this only scales the bounded warp1/warp2 VECTORS, it never multiplies
+	// cell_p itself, so it can't reproduce that derivative-blowup bug) gives
+	// each cell its own jaggedness independent of which material cluster it
+	// falls in, so no two neighbouring rocks share an identical outline.
+	float cell_seed = hash1(floor(cell_p) * 3.0 + 17.0);
+	float warp_cell_mult = mix(0.55, 1.65, cell_seed) * warp_extra;
+	cell_p += warp1 * 0.20 * warp_cell_mult + warp2 * 0.10 * warp_cell_mult * (1.0 - aa);
 
 	float cell_id;
 	float cell_dist = worley(cell_p, cell_id);
@@ -236,46 +346,20 @@ void fragment() {
 	// again, frequency 6.0 -> 9.0 and range 0.75-1.25 -> 0.60-1.40 (still
 	// symmetric around 1.0, so mean brightness is unaffected).
 	float grain = mix(value_noise(cell_p * 9.0), 0.5, aa);
-	float grain_mul = mix(0.60, 1.40, grain);
+	// Range now per-cluster (grain_lo/grain_hi, set above) instead of the
+	// single fixed 0.60-1.40 band — the scrub/pink clusters want stronger
+	// per-pixel contrast (chaotic mottle) than the smoother grey-stone
+	// cluster, another way to stop every feature reading identically (#42
+	// round-6 gate). Still symmetric enough around 1.0 within each cluster
+	// that it doesn't reintroduce a mean-brightness regression on its own.
+	float grain_mul = mix(grain_lo, grain_hi, grain);
 
-	vec3 dark = color_b.rgb;
-	vec3 light = color_a.rgb;
-	// 0.72, not 0.5 (#42 round-4 gate): crevices cover a meaningful fraction
-	// of every frame, so a crevice this much darker than color_b alone pulls
-	// the whole-ground mean brightness down hard — measured V=0.51 against a
-	// then-target of 0.67-0.69 (round-5 gate found that literal itself was
-	// never measured in-session; the real reference target is V=0.569, see
-	// the crevice threshold below). Still visibly darker than the rock face
-	// (per-feature shadow), just not black-seam dark.
-	//
-	// Cut again to 0.50: 0.72->0.60 paired with the threshold move below only
-	// brought mean V to 0.621-0.646 (target 0.564) — most of the frame's
-	// pixels are the ~50/50 dark/light rock_color blend BEFORE any crevice
-	// mix is applied (mix(dark,light,cell_id*0.6+0.2) averages to roughly
-	// the dark/light midpoint over a uniform cell_id), so crevice depth/area
-	// alone has to do more work to pull the frame mean down to the reference.
-	vec3 crevice = color_b.rgb * 0.50;
-
-	// Vegetation/accent clumps (#42 colour-variety follow-up): a second,
-	// decorrelated noise field selects patches of color_c instead of rock
-	// tones. The claim this comment used to make — that reference desert
-	// frames show distinct olive clumps — measured FALSE at round-5 gate
-	// (olive hue 26.2% of ground pixels here vs 0.0% in two independent
-	// reference frames). The mechanism itself is kept generic (some biomes,
-	// e.g. forest soil, plausibly do want a visible third tone) but desert/
-	// sunset stage_data.gd entries now set ground_c equal to ground_a, so
-	// this blend is a no-op for them — the fix lives in the per-stage DATA,
-	// not here, since only the data (an unverified color literal) was wrong.
-	// Frequency: first pass used 0.8 directly in world units, where
-	// near-camera screen width spans only ~2 world units — a single noise
-	// cell was over half the visible ground, reading as one giant blob
-	// instead of clumps. 6.0 gives a ~0.17-world-unit period, several
-	// clump-sized patches across the near-camera screen width. Faded out
-	// under aa (like the rock detail above) since it's higher-frequency than
-	// the old 0.8 and would otherwise shimmer once undersampled near the
-	// horizon.
-	float veg_n = value_noise(world_p * 6.0 + vec2(50.0, 90.0));
-	float veg = smoothstep(0.62, 0.72, veg_n) * (1.0 - aa);
+	// Crevice tone: proportionally darker than each cluster's own dark tone
+	// (not one fixed color_b-derived constant) so grey stone gets a grey
+	// crevice, olive scrub gets an olive crevice, etc. 0.50 factor carried
+	// over unchanged from the round-5 gate's brightness-band tuning (#42) —
+	// see the base-rock cluster's V=0.564 target history below.
+	vec3 crevice = cluster_dark * 0.50;
 
 	// Per-cell tint biased toward mid-tones (avoid pure-light/pure-dark
 	// extremes so the field reads as one terrain, not scattered confetti).
@@ -284,18 +368,15 @@ void fragment() {
 	// high cell_dist, the lit rock face at low cell_dist. (First pass had
 	// this inverted, painting a dark dot at every cell center instead of a
 	// seam at its edge — read as polka-dots/cobblestone rather than rock.)
-	vec3 rock_color = mix(dark, light, cell_id * 0.6 + 0.2);
-	vec3 veg_color = mix(color_c.rgb * 0.6, color_c.rgb * 1.15, cell_id);
-	vec3 veg_crevice = color_c.rgb * 0.35;
-	vec3 base_color = mix(rock_color, veg_color, veg);
+	vec3 base_color = mix(cluster_dark, cluster_light, cell_id * 0.6 + 0.2);
 	// cell_id is a per-cell CONSTANT that jumps discontinuously the instant
 	// the nearest Worley feature point changes — at the spatial frequency
 	// near the horizon (see aa above), that happens within a single pixel,
 	// and no smoothstep width fixes a discontinuous field. Falling back to
 	// the smooth regional tone once cells aren't resolvable is the only way
 	// to stop that showing up as per-pixel color flicker.
-	base_color = mix(base_color, mix(dark, light, region), aa);
-	vec3 crevice_color = mix(crevice, veg_crevice, veg);
+	base_color = mix(base_color, mix(cluster_dark, cluster_light, region), aa);
+	vec3 crevice_color = crevice;
 	// cell_dist itself (not just cell_id) is only continuous in VALUE, not in
 	// gradient, at Worley cell boundaries — its derivative jumps where the
 	// nearest feature point changes. Widening the smoothstep band alone
@@ -333,14 +414,26 @@ void fragment() {
 	// passes, still ~0.06-0.08 above the 0.564 reference target — moving
 	// threshold + crevice depth together, not either alone, is what closes
 	// the rest of that gap.
-	vec3 terrain = mix(base_color, crevice_color, smoothstep(0.40 - 0.08 * aa, 0.46 + 0.08 * aa, cell_dist_stable));
+	//
+	// thresh_bias (#42 round-6 gate) shifts this whole band per material
+	// cluster — set above, e.g. the scrub cluster gets a negative bias
+	// (more crevice coverage, breaks up into mottle rather than a clean
+	// bead) while grey stone gets a positive bias (fewer, rounder crevices).
+	// A small per-cell jitter derived from the same cell_seed used for the
+	// warp above adds one more layer of "not every feature is identical".
+	float thresh_jitter = (hash1(floor(cell_p) * 3.0 + 71.0) - 0.5) * 0.10;
+	float thresh_mid = 0.40 + thresh_bias + thresh_jitter;
+	vec3 terrain = mix(base_color, crevice_color, smoothstep(thresh_mid - 0.08 * aa, thresh_mid + 0.06 + 0.08 * aa, cell_dist_stable));
 	// Regional tonal wash cut from 0.25 to 0.15 (#42 round-4 gate): a strong
 	// low-frequency wash wins uniformly over the sharpened crevice edge
 	// above and reads as softening it back out — this blend is meant to hide
 	// aliasing in undersampled far terrain (aa handles that via the mix
 	// weight implicitly through cell_dist_stable/base_color already), not to
-	// flatten near-camera contrast where edges must stay crisp.
-	terrain = mix(terrain, mix(dark, light, region), 0.15 * (1.0 - veg));
+	// flatten near-camera contrast where edges must stay crisp. Uses the
+	// active cluster's own dark/light (#42 round-6) instead of the removed
+	// global dark/light, so the wash never pulls a scrub or stone patch back
+	// toward the base-rock hue.
+	terrain = mix(terrain, mix(cluster_dark, cluster_light, region), 0.15);
 	terrain *= grain_mul;
 
 	// Haze: ground fades into the sky's horizon tone as UV.y -> 0 (the
