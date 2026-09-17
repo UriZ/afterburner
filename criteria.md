@@ -181,7 +181,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 | # | Criterion | Description |
 |---|-----------|-------------|
 | 1 | Player jet has visual detail | Must have color variation, shading, highlights — NOT a single flat color. Multiple material colors on the fuselage (light top, darker sides). Canopy must be a distinct color. Wing undersides slightly different from tops. |
-| 2 | Player jet proportions | Span occupies 35-37% of screen width; height 16-18%. Aspect 2.8-3.1:1. Dominates bottom quarter. |
+| 2 | Player jet proportions | Span 35-37% of screen width; height 16-18%; aspect 2.8-3.1:1 — measured at LEVEL pose only. An axis-aligned bbox balloons under bank from rigid rotation alone (bank=15 reads ~22%H on correct geometry); control for bank before failing this. |
 | 3 | Engine nozzles correct | Dark rim, hot orange/red/yellow core. No exhaust plume or ribbon of any length. |
 | 4 | Enemy jets are vivid | Saturated colors that POP against any background. Red fighters should be BRIGHT red (not dark red). At close range, clearly aircraft shapes. |
 | 5 | Ground creates speed | Strong perspective compression. Dense pattern. Fast scrolling. "Nauseating" speed sensation. |
