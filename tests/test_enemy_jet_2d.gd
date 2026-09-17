@@ -40,6 +40,12 @@ func _init() -> void:
 	test_enemy_y_rises_monotonically_with_depth()
 	test_depth_util_altitude_default_matches_ground_formula()
 
+	print("\n=== Bank Angle Tests (#100) ===")
+	test_get_bank_angle_zero_drift_is_level()
+	test_get_bank_angle_sign_matches_drift_direction()
+	test_get_bank_angle_scales_with_drift_magnitude()
+	test_get_bank_angle_clamped_to_max()
+
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
 
@@ -367,6 +373,47 @@ func test_enemy_fires_once_past_min_depth() -> void:
 
 
 # --- Enemy renderer ---
+
+# --- Bank angle (#100: reference frames show enemies canted into their turn) ---
+
+func test_get_bank_angle_zero_drift_is_level() -> void:
+	print("\ntest_get_bank_angle_zero_drift_is_level:")
+	var e := _make_enemy(0)
+	e.configure(0, 0.0, 0.0, 0.0)
+	assert_approx(e.get_bank_angle(), 0.0, 0.001, "zero x_drift means no bank")
+	e.free()
+
+
+func test_get_bank_angle_sign_matches_drift_direction() -> void:
+	print("\ntest_get_bank_angle_sign_matches_drift_direction:")
+	var e := _make_enemy(0)
+	e.configure(0, 0.0, 0.0, 0.08)
+	assert_true(e.get_bank_angle() > 0.0, "positive drift banks positive (%.3f)" % e.get_bank_angle())
+	e.configure(0, 0.0, 0.0, -0.08)
+	assert_true(e.get_bank_angle() < 0.0, "negative drift banks negative (%.3f)" % e.get_bank_angle())
+	e.free()
+
+
+func test_get_bank_angle_scales_with_drift_magnitude() -> void:
+	print("\ntest_get_bank_angle_scales_with_drift_magnitude:")
+	var e := _make_enemy(0)
+	e.configure(0, 0.0, 0.0, 0.03)
+	var shallow: float = e.get_bank_angle()
+	e.configure(0, 0.0, 0.0, 0.10)
+	var steep: float = e.get_bank_angle()
+	assert_true(steep > shallow, "larger drift banks harder (%.3f > %.3f)" % [steep, shallow])
+	e.free()
+
+
+func test_get_bank_angle_clamped_to_max() -> void:
+	print("\ntest_get_bank_angle_clamped_to_max:")
+	var e := _make_enemy(0)
+	e.configure(0, 0.0, 0.0, 10.0)  # absurdly large drift
+	assert_approx(e.get_bank_angle(), e.MAX_BANK_RAD, 0.001, "bank never exceeds MAX_BANK_RAD")
+	e.configure(0, 0.0, 0.0, -10.0)
+	assert_approx(e.get_bank_angle(), -e.MAX_BANK_RAD, 0.001, "bank never exceeds -MAX_BANK_RAD")
+	e.free()
+
 
 func test_enemy_renderer_colors_count() -> void:
 	print("\ntest_enemy_renderer_colors_count:")

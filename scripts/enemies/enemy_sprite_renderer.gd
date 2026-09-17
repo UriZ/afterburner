@@ -47,67 +47,75 @@ const ENEMY_COLORS: Array[Dictionary] = [
 ]
 
 
-static func draw_enemy(canvas: CanvasItem, type: int, pos: Vector2, s: float) -> void:
-	## Draw one enemy jet onto the canvas at screen position pos with scale s.
+static func draw_enemy(canvas: CanvasItem, type: int, pos: Vector2, s: float, bank_rad: float = 0.0) -> void:
+	## Draw one enemy jet onto the canvas at screen position pos with scale s,
+	## banked bank_rad radians (see enemy_jet_2d.gd's get_bank_angle() — #100:
+	## reference frames show enemies canted into their turn, never flat).
 	## s = depth_to_scale(d) * 35.0
 	var c: Dictionary = ENEMY_COLORS[clamp(type, 0, 2)]
 
 	if s < 1.5:
-		# Dot mode: just a colored dot
+		# Dot mode: just a colored dot — too small for a bank to read, and a
+		# dot has no orientation anyway, so skip the transform entirely.
 		canvas.draw_circle(pos, maxf(1.2, s * 0.5), c["dot_color"])
 		return
 
+	# Every vertex below is drawn relative to the origin; draw_set_transform
+	# positions and rotates the whole sprite in one step, so bank reads as a
+	# rigid roll of the silhouette rather than a skew of individual layers.
+	canvas.draw_set_transform(pos, bank_rad, Vector2.ONE)
+
 	# Layer 1: Wing undersides (darkest, drawn first — behind fuselage)
 	canvas.draw_polygon(PackedVector2Array([
-		Vector2(pos.x - s * 0.12, pos.y + s * 0.10),
-		Vector2(pos.x - s * 1.55, pos.y + s * 0.38),
-		Vector2(pos.x - s * 1.30, pos.y + s * 0.52),
-		Vector2(pos.x - s * 0.08, pos.y + s * 0.28),
+		Vector2(-s * 0.12, s * 0.10),
+		Vector2(-s * 1.55, s * 0.38),
+		Vector2(-s * 1.30, s * 0.52),
+		Vector2(-s * 0.08, s * 0.28),
 	]), [c["wing_underside"]])
 	canvas.draw_polygon(PackedVector2Array([
-		Vector2(pos.x + s * 0.12, pos.y + s * 0.10),
-		Vector2(pos.x + s * 1.55, pos.y + s * 0.38),
-		Vector2(pos.x + s * 1.30, pos.y + s * 0.52),
-		Vector2(pos.x + s * 0.08, pos.y + s * 0.28),
+		Vector2(s * 0.12, s * 0.10),
+		Vector2(s * 1.55, s * 0.38),
+		Vector2(s * 1.30, s * 0.52),
+		Vector2(s * 0.08, s * 0.28),
 	]), [c["wing_underside"]])
 
 	# Layer 2: Main wings (top surface)
 	canvas.draw_polygon(PackedVector2Array([
-		Vector2(pos.x - s * 0.14, pos.y - s * 0.05),
-		Vector2(pos.x - s * 1.45, pos.y + s * 0.32),
-		Vector2(pos.x - s * 1.30, pos.y + s * 0.50),
-		Vector2(pos.x - s * 0.10, pos.y + s * 0.10),
+		Vector2(-s * 0.14, -s * 0.05),
+		Vector2(-s * 1.45, s * 0.32),
+		Vector2(-s * 1.30, s * 0.50),
+		Vector2(-s * 0.10, s * 0.10),
 	]), [c["wing_base"]])
 	canvas.draw_polygon(PackedVector2Array([
-		Vector2(pos.x + s * 0.14, pos.y - s * 0.05),
-		Vector2(pos.x + s * 1.45, pos.y + s * 0.32),
-		Vector2(pos.x + s * 1.30, pos.y + s * 0.50),
-		Vector2(pos.x + s * 0.10, pos.y + s * 0.10),
+		Vector2(s * 0.14, -s * 0.05),
+		Vector2(s * 1.45, s * 0.32),
+		Vector2(s * 1.30, s * 0.50),
+		Vector2(s * 0.10, s * 0.10),
 	]), [c["wing_base"]])
 
 	# Layer 3: Fuselage (7-vertex polygon)
 	canvas.draw_polygon(PackedVector2Array([
-		Vector2(pos.x,            pos.y - s * 1.10),
-		Vector2(pos.x + s * 0.20, pos.y - s * 0.35),
-		Vector2(pos.x + s * 0.26, pos.y + s * 0.05),
-		Vector2(pos.x + s * 0.22, pos.y + s * 0.45),
-		Vector2(pos.x - s * 0.22, pos.y + s * 0.45),
-		Vector2(pos.x - s * 0.26, pos.y + s * 0.05),
-		Vector2(pos.x - s * 0.20, pos.y - s * 0.35),
+		Vector2(0.0,       -s * 1.10),
+		Vector2(s * 0.20,  -s * 0.35),
+		Vector2(s * 0.26,   s * 0.05),
+		Vector2(s * 0.22,   s * 0.45),
+		Vector2(-s * 0.22,  s * 0.45),
+		Vector2(-s * 0.26,  s * 0.05),
+		Vector2(-s * 0.20, -s * 0.35),
 	]), [c["fuselage"]])
 
 	# Layer 4: Fuselage center shadow stripe
 	canvas.draw_polygon(PackedVector2Array([
-		Vector2(pos.x - s * 0.06, pos.y - s * 0.80),
-		Vector2(pos.x + s * 0.06, pos.y - s * 0.80),
-		Vector2(pos.x + s * 0.10, pos.y + s * 0.45),
-		Vector2(pos.x - s * 0.10, pos.y + s * 0.45),
+		Vector2(-s * 0.06, -s * 0.80),
+		Vector2(s * 0.06,  -s * 0.80),
+		Vector2(s * 0.10,   s * 0.45),
+		Vector2(-s * 0.10,  s * 0.45),
 	]), [c["panel_accent"]])
 
 	# Layer 5: Engine intake ring (red disc accent — was s*0.24, wider than the
 	# fuselage itself and read as an oversized bullseye; reference shows a
 	# modest marking, not a dominant roundel)
-	var intake_center := Vector2(pos.x, pos.y - s * 0.05)
+	var intake_center := Vector2(0.0, -s * 0.05)
 	canvas.draw_circle(intake_center, s * 0.13, c["engine_intake"])
 	if s >= 4.0:
 		canvas.draw_circle(intake_center, s * 0.087, c["engine_interior"])
@@ -117,36 +125,41 @@ static func draw_enemy(canvas: CanvasItem, type: int, pos: Vector2, s: float) ->
 	# Layer 6: Canopy (only at s >= 8)
 	if s >= 8.0:
 		canvas.draw_polygon(PackedVector2Array([
-			Vector2(pos.x,            pos.y - s * 0.78),
-			Vector2(pos.x + s * 0.09, pos.y - s * 0.52),
-			Vector2(pos.x - s * 0.09, pos.y - s * 0.52),
+			Vector2(0.0,      -s * 0.78),
+			Vector2(s * 0.09, -s * 0.52),
+			Vector2(-s * 0.09, -s * 0.52),
 		]), [c["canopy"]])
 		if s >= 14.0:
 			canvas.draw_polygon(PackedVector2Array([
-				Vector2(pos.x - s * 0.03, pos.y - s * 0.72),
-				Vector2(pos.x + s * 0.04, pos.y - s * 0.62),
-				Vector2(pos.x + s * 0.03, pos.y - s * 0.58),
-				Vector2(pos.x - s * 0.04, pos.y - s * 0.65),
+				Vector2(-s * 0.03, -s * 0.72),
+				Vector2(s * 0.04,  -s * 0.62),
+				Vector2(s * 0.03,  -s * 0.58),
+				Vector2(-s * 0.04, -s * 0.65),
 			]), [Color(1.0, 1.0, 1.0, 0.55)])
 
 	# Layer 7: Wing tip chevrons (only at s >= 16)
 	if s >= 16.0:
 		canvas.draw_polygon(PackedVector2Array([
-			Vector2(pos.x - s * 1.42, pos.y + s * 0.30),
-			Vector2(pos.x - s * 1.30, pos.y + s * 0.22),
-			Vector2(pos.x - s * 1.22, pos.y + s * 0.38),
+			Vector2(-s * 1.42, s * 0.30),
+			Vector2(-s * 1.30, s * 0.22),
+			Vector2(-s * 1.22, s * 0.38),
 		]), [c["panel_accent"]])
 		canvas.draw_polygon(PackedVector2Array([
-			Vector2(pos.x + s * 1.42, pos.y + s * 0.30),
-			Vector2(pos.x + s * 1.30, pos.y + s * 0.22),
-			Vector2(pos.x + s * 1.22, pos.y + s * 0.38),
+			Vector2(s * 1.42, s * 0.30),
+			Vector2(s * 1.30, s * 0.22),
+			Vector2(s * 1.22, s * 0.38),
 		]), [c["panel_accent"]])
 
 	# Layer 8: Tail stub (only at s >= 10)
 	if s >= 10.0:
 		canvas.draw_polygon(PackedVector2Array([
-			Vector2(pos.x - s * 0.05, pos.y + s * 0.40),
-			Vector2(pos.x + s * 0.05, pos.y + s * 0.40),
-			Vector2(pos.x + s * 0.03, pos.y + s * 0.55),
-			Vector2(pos.x - s * 0.03, pos.y + s * 0.55),
+			Vector2(-s * 0.05, s * 0.40),
+			Vector2(s * 0.05,  s * 0.40),
+			Vector2(s * 0.03,  s * 0.55),
+			Vector2(-s * 0.03, s * 0.55),
 		]), [c["panel_accent"]])
+
+	# Reset so the transform doesn't leak into whatever GameWorld draws next
+	# (ground, other enemies, HUD) — every _draw_enemy_obj() call must leave
+	# the canvas transform as it found it.
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

@@ -75,6 +75,14 @@ const ALTITUDE_MAX: float = 1.2
 # every spawn. Matches AB2, where ramming isn't really a mechanic; enemy
 # bullets are the real threat.
 const RAM_MIN_DEPTH: float = 0.85
+# Bank angle correlates with lateral drift (#100 gate: reference frames
+# burst-a-05/burst-a-08/burst-b-05 show enemies canted hard into their turn,
+# never flat). Scaled so scattered formations' widest drift (+-0.12, see
+# game_manager_2d.gd) reads as a pronounced ~35 degree bank while gentler
+# V/line drift (+-0.02-0.08) still visibly tilts, giving varied bank angles
+# across concurrently on-screen enemies instead of every sprite flat.
+const MAX_BANK_RAD: float = 0.6109  # 35 degrees
+const BANK_DRIFT_SCALE: float = 5.0  # rad per unit of _x_drift, then clamped
 
 var enemy_type: int = 0  # EnemyType.FIGHTER
 var logical_x: float = 0.0
@@ -154,6 +162,10 @@ func get_collision_radius() -> float:
 
 func get_visual_type() -> int:
 	return TYPE_DATA[enemy_type]["visual"]
+
+
+func get_bank_angle() -> float:
+	return clampf(_x_drift * BANK_DRIFT_SCALE, -MAX_BANK_RAD, MAX_BANK_RAD)
 
 
 func take_damage(amount: int = 1) -> void:

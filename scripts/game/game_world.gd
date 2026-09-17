@@ -154,7 +154,9 @@ func _draw_sorted_objects() -> void:
 func _draw_enemy_obj(enemy: Node) -> void:
 	var s: float = enemy.get_screen_scale() * 35.0
 	var pos: Vector2 = enemy.get_screen_position()
-	_EnemyRenderer.draw_enemy(self, enemy.get_visual_type(), pos, s)
+	# Bank correlates with the enemy's own lateral drift (#100) — see
+	# enemy_jet_2d.gd's get_bank_angle() and the renderer's draw_set_transform.
+	_EnemyRenderer.draw_enemy(self, enemy.get_visual_type(), pos, s, enemy.get_bank_angle())
 
 
 func _draw_bullet_obj(bullet: Node) -> void:

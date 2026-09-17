@@ -51,9 +51,9 @@ func assert_eq(a: Variant, b: Variant, message: String) -> void:
 func test_max_on_screen_enemies_is_capped_low() -> void:
 	print("\ntest_max_on_screen_enemies_is_capped_low:")
 	# Must be low enough that a full wave burst can't fill the screen (#103),
-	# but high enough the screen never reads as empty (#50).
-	assert_true(SpawnPacing.MAX_ON_SCREEN_ENEMIES >= 3, "cap allows at least 3 enemies (%d)" % SpawnPacing.MAX_ON_SCREEN_ENEMIES)
-	assert_true(SpawnPacing.MAX_ON_SCREEN_ENEMIES <= 6, "cap stays low enough to avoid overwhelm (%d)" % SpawnPacing.MAX_ON_SCREEN_ENEMIES)
+	# but high enough to hit the reference's 4-6 simultaneous enemies (#100).
+	assert_true(SpawnPacing.MAX_ON_SCREEN_ENEMIES >= 6, "cap reaches the reference's 4-6 band (%d)" % SpawnPacing.MAX_ON_SCREEN_ENEMIES)
+	assert_true(SpawnPacing.MAX_ON_SCREEN_ENEMIES <= 8, "cap stays low enough to avoid overwhelm (%d)" % SpawnPacing.MAX_ON_SCREEN_ENEMIES)
 
 
 # --- Dispense interval clamping ---

@@ -149,60 +149,80 @@ func _queue_next_wave() -> void:
 
 	var positions := _calculate_formation(count, formation)
 	for pos_data in positions:
-		_pending_spawns.append([enemy_type, pos_data[0], pos_data[1], pos_data[2]])
+		# Clamp here (not per-formation) since every formation's depth is
+		# center_d + jitter and jitter alone can go negative — DESPAWN_DEPTH's
+		# floor of 0.0 is the one invariant all callers share.
+		_pending_spawns.append([enemy_type, pos_data[0], maxf(pos_data[1], 0.0), pos_data[2]])
+
+
+# Enemies used to always spawn at logical_depth==0.0. DepthUtil's lateral
+# spread factor (0.1 + d*0.9) is at its floor there, so every formation
+# member — regardless of its logical_x — rendered at nearly the same screen
+# x right at the horizon and only fanned out into its formation shape once
+# already in flight. Concurrently, every wave entered the sky at the exact
+# same size. Result (#100 gate): enemies read as a single stacked point at
+# the horizon rather than the reference's spread of varied-size silhouettes.
+# Randomizing each wave's center depth — and jittering each member's depth
+# around it — fixes both: nonzero d gives immediate lateral separation, and
+# different waves/members now enter at different points along the
+# depth->scale curve, so concurrent on-screen enemies vary in size too.
+const SPAWN_DEPTH_MIN := 0.05
+const SPAWN_DEPTH_SPAN := 0.20
 
 
 func _calculate_formation(count: int, formation: String) -> Array:
 	# Returns array of [logical_x, logical_depth, x_drift]
 	var result: Array = []
 	var center_x: float = randf_range(-0.6, 0.6)
+	var center_d: float = randf_range(SPAWN_DEPTH_MIN, SPAWN_DEPTH_MIN + SPAWN_DEPTH_SPAN)
 
 	match formation:
 		"v":
-			result = _v_formation(count, center_x)
+			result = _v_formation(count, center_x, center_d)
 		"line":
-			result = _line_formation(count, center_x)
+			result = _line_formation(count, center_x, center_d)
 		"scattered":
-			result = _scattered_formation(count, center_x)
+			result = _scattered_formation(count, center_x, center_d)
 		_:
-			result = _scattered_formation(count, center_x)
+			result = _scattered_formation(count, center_x, center_d)
 
 	return result
 
 
-func _v_formation(count: int, cx: float) -> Array:
+func _v_formation(count: int, cx: float, cd: float) -> Array:
 	var result: Array = []
 	var x_spacing := 0.15
-	var d_spacing := 0.03
+	var d_spacing := 0.02
 	# Leader
-	result.append([cx, 0.0, randf_range(-0.05, 0.05)])
+	result.append([cx, cd, randf_range(-0.05, 0.05)])
 	for i in range(1, count):
 		var side: float = 1.0 if i % 2 == 1 else -1.0
 		var rank: int = ceili(float(i) / 2.0)
 		var x: float = cx + side * rank * x_spacing
-		var d: float = -rank * d_spacing  # slightly behind
+		var d: float = cd + rank * d_spacing  # each rank a little closer/bigger
 		var drift: float = randf_range(-0.08, 0.08)
-		result.append([x, maxf(d, 0.0), drift])
+		result.append([x, d, drift])
 	return result
 
 
-func _line_formation(count: int, cx: float) -> Array:
+func _line_formation(count: int, cx: float, cd: float) -> Array:
 	var result: Array = []
 	var spacing := 0.2
 	var total_w: float = (count - 1) * spacing
 	var start_x: float = cx - total_w / 2.0
 	for i in range(count):
 		var x: float = start_x + i * spacing
+		var d: float = cd + randf_range(-0.02, 0.02)
 		var drift: float = randf_range(-0.05, 0.05)
-		result.append([x, 0.0, drift])
+		result.append([x, d, drift])
 	return result
 
 
-func _scattered_formation(count: int, cx: float) -> Array:
+func _scattered_formation(count: int, cx: float, cd: float) -> Array:
 	var result: Array = []
 	for i in range(count):
 		var x: float = cx + randf_range(-0.4, 0.4)
-		var d: float = randf_range(0.0, 0.05)
+		var d: float = cd + randf_range(-0.03, 0.05)
 		var drift: float = randf_range(-0.12, 0.12)
 		result.append([x, d, drift])
 	return result
