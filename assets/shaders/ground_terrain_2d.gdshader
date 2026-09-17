@@ -24,12 +24,13 @@ render_mode unshaded;
 
 uniform vec4 color_a : source_color = vec4(0.88, 0.65, 0.30, 1.0);
 uniform vec4 color_b : source_color = vec4(0.50, 0.30, 0.12, 1.0);
-// Vegetation/accent color (#42 colour-variety follow-up) — a scatter of
-// distinct-hue clumps (olive scrub on desert, soil on forest, foam on
-// ocean...) over the rock base. Reference desert frames measure clump
-// pixels at hue~60 (olive-yellow) against rock's hue~30-40 (orange-tan) —
-// a real second hue, not a value/saturation variant of the rock colors, so
-// it needs its own uniform rather than being derived from color_a/color_b.
+// Accent color for a scatter of distinct-hue clumps (soil on forest, foam
+// on ocean...) over the rock base — see the veg blend in fragment() below
+// for the per-stage caveat: desert/sunset stages set this equal to color_a
+// (round-5 gate measured their reference showing NO second hue, disproving
+// this uniform's original "olive scrub on desert" premise), so it's a no-op
+// there. Kept as its own uniform, not derived from color_a/color_b, for
+// stages where a genuine second hue is plausible.
 uniform vec4 color_c : source_color = vec4(0.55, 0.55, 0.10, 1.0);
 uniform vec4 haze_color : source_color = vec4(1.0, 0.72, 0.10, 1.0);
 
@@ -160,7 +161,15 @@ void fragment() {
 	// grows is the standard fix — it does NOT touch world-space identity or
 	// the persistent-translation guarantee, it only widens/softens how a
 	// pixel that can no longer resolve individual cells gets shaded.
-	float aa = clamp(length(fwidth(cell_p)) * 0.22, 0.0, 1.0);
+	// Coefficient cut 0.22 -> 0.08 (#42 round-5 gate): even in the near field,
+	// where fwidth(cell_p) should be small (see the derivation above — world_x's
+	// derivative wrt screen_x shrinks as x_spread grows near d=1), 0.22 was
+	// still large enough to keep aa materially above 0 close to the camera,
+	// softening exactly the edges the gate measured as too soft (mean |grad|
+	// 0.027 vs reference 0.078-0.090). This only weakens the anti-alias
+	// response, not its shape — the horizon still gets full suppression via
+	// aa_horizon below regardless of this coefficient.
+	float aa = clamp(length(fwidth(cell_p)) * 0.08, 0.0, 1.0);
 	// The fwidth term above is directional (it grows fastest toward the
 	// screen edges at low d, since world_x = off/x_spread blows up there
 	// fastest) — round-4 gate caught this as a visible band of streaks
@@ -188,9 +197,21 @@ void fragment() {
 	// one blob — measured as 40-90px features against a ~32px nominal grid.
 	// Small warp still breaks up the round Worley boundary into an irregular
 	// one without merging cells.
-	vec2 warp1 = vec2(value_noise(cell_p * 0.5 + 11.0), value_noise(cell_p * 0.5 + 47.0)) - 0.5;
+	//
+	// Round-5 gate: 40-90px had regressed further to 86-133px (vs a 44-52px
+	// reference target) even after that cut — cut again (0.35/0.18 -> 0.20/0.10)
+	// and, more importantly, warp1's own SAMPLING frequency raised 0.5 -> 0.9:
+	// a low-frequency warp field is smooth over many cells at once, so
+	// neighboring cells get displaced by nearly the SAME vector and their
+	// relative spacing barely changes — individual cells still fuse into
+	// multi-cell chains even at small amplitude, because the amplitude cut
+	// alone doesn't decorrelate what neighbors are being pushed toward. A
+	// warp field that itself varies within a cell's width displaces adjacent
+	// cells differently, actively pulling them apart instead of translating
+	// the whole neighborhood in lockstep.
+	vec2 warp1 = vec2(value_noise(cell_p * 0.9 + 11.0), value_noise(cell_p * 0.9 + 47.0)) - 0.5;
 	vec2 warp2 = vec2(value_noise(cell_p * 1.8 + 91.0), value_noise(cell_p * 1.8 + 23.0)) - 0.5;
-	cell_p += warp1 * 0.35 + warp2 * 0.18 * (1.0 - aa);
+	cell_p += warp1 * 0.20 + warp2 * 0.10 * (1.0 - aa);
 
 	float cell_id;
 	float cell_dist = worley(cell_p, cell_id);
@@ -199,34 +220,60 @@ void fragment() {
 	// don't read as smooth/cartoonish — the reference's texture is visibly
 	// noisy even within a single rock, not a flat fill. Fades toward a
 	// neutral 1.0 multiplier under aa for the same reason as warp2.
-	float grain = mix(value_noise(cell_p * 3.3), 0.5, aa);
-	// Floor raised 0.82->0.90 (#42 round-4 gate, brightness pass): grain
-	// multiplies the FINAL terrain color, so its low end darkens the
-	// majority-light base tone too, on top of the crevice-threshold fix
-	// above. 0.90-1.1 keeps visible per-pixel noise without dragging mean V
-	// down.
-	float grain_mul = mix(0.90, 1.1, grain);
+	// Frequency raised 3.3 -> 6.0 and range widened 0.90-1.1 -> 0.75-1.25
+	// (#42 round-5 gate): the reference measures frac(|grad|>0.05) at
+	// 0.64-0.73 — a strong per-pixel gradient at nearly 2 out of 3 pixels,
+	// characteristic of the arcade sprite's dithered/grainy look, not just
+	// the Worley cell-boundary network (which only contributes edges AT
+	// boundaries, a minority of pixels by area). Widening this multiplier's
+	// range is symmetric around 1.0 (mix(0.75,1.25,0.5) == 1.0), so it adds
+	// per-pixel contrast/gradient without shifting mean brightness — that is
+	// tuned separately via the crevice threshold below.
+	//
+	// Re-measured after the above: mean|grad| moved 0.027 -> 0.070-0.074 and
+	// frac(|grad|>0.05) moved 0.15 -> 0.48-0.50 — real progress but both
+	// still short of the 0.078-0.090 / 0.64-0.73 reference band. Pushed
+	// again, frequency 6.0 -> 9.0 and range 0.75-1.25 -> 0.60-1.40 (still
+	// symmetric around 1.0, so mean brightness is unaffected).
+	float grain = mix(value_noise(cell_p * 9.0), 0.5, aa);
+	float grain_mul = mix(0.60, 1.40, grain);
 
 	vec3 dark = color_b.rgb;
 	vec3 light = color_a.rgb;
 	// 0.72, not 0.5 (#42 round-4 gate): crevices cover a meaningful fraction
 	// of every frame, so a crevice this much darker than color_b alone pulls
 	// the whole-ground mean brightness down hard — measured V=0.51 against a
-	// 0.67-0.69 target. Still visibly darker than the rock face (per-feature
-	// shadow), just not black-seam dark.
-	vec3 crevice = color_b.rgb * 0.72;
+	// then-target of 0.67-0.69 (round-5 gate found that literal itself was
+	// never measured in-session; the real reference target is V=0.569, see
+	// the crevice threshold below). Still visibly darker than the rock face
+	// (per-feature shadow), just not black-seam dark.
+	//
+	// Cut again to 0.50: 0.72->0.60 paired with the threshold move below only
+	// brought mean V to 0.621-0.646 (target 0.564) — most of the frame's
+	// pixels are the ~50/50 dark/light rock_color blend BEFORE any crevice
+	// mix is applied (mix(dark,light,cell_id*0.6+0.2) averages to roughly
+	// the dark/light midpoint over a uniform cell_id), so crevice depth/area
+	// alone has to do more work to pull the frame mean down to the reference.
+	vec3 crevice = color_b.rgb * 0.50;
 
-	// Vegetation clumps (#42 colour-variety follow-up): a second, decorrelated
-	// noise field selects patches of color_c instead of rock tones — reference
-	// desert frames show several SMALL distinct olive clumps scattered over
-	// the tan/brown rock, not one wash covering the field. First pass used
-	// frequency 0.8 directly in world units, where near-camera screen width
-	// spans only ~2 world units — a single noise cell was over half the
-	// visible ground, reading as one giant green blob instead of clumps.
-	// 6.0 gives a ~0.17-world-unit period, several clump-sized patches across
-	// the near-camera screen width. Faded out under aa (like the rock detail
-	// above) since it's higher-frequency than the old 0.8 and would otherwise
-	// shimmer once undersampled near the horizon.
+	// Vegetation/accent clumps (#42 colour-variety follow-up): a second,
+	// decorrelated noise field selects patches of color_c instead of rock
+	// tones. The claim this comment used to make — that reference desert
+	// frames show distinct olive clumps — measured FALSE at round-5 gate
+	// (olive hue 26.2% of ground pixels here vs 0.0% in two independent
+	// reference frames). The mechanism itself is kept generic (some biomes,
+	// e.g. forest soil, plausibly do want a visible third tone) but desert/
+	// sunset stage_data.gd entries now set ground_c equal to ground_a, so
+	// this blend is a no-op for them — the fix lives in the per-stage DATA,
+	// not here, since only the data (an unverified color literal) was wrong.
+	// Frequency: first pass used 0.8 directly in world units, where
+	// near-camera screen width spans only ~2 world units — a single noise
+	// cell was over half the visible ground, reading as one giant blob
+	// instead of clumps. 6.0 gives a ~0.17-world-unit period, several
+	// clump-sized patches across the near-camera screen width. Faded out
+	// under aa (like the rock detail above) since it's higher-frequency than
+	// the old 0.8 and would otherwise shimmer once undersampled near the
+	// horizon.
 	float veg_n = value_noise(world_p * 6.0 + vec2(50.0, 90.0));
 	float veg = smoothstep(0.62, 0.72, veg_n) * (1.0 - aa);
 
@@ -261,18 +308,32 @@ void fragment() {
 	// pixel-independent blend, which cannot moire no matter how undersampled
 	// the underlying cell grid is.
 	float cell_dist_stable = mix(cell_dist, 0.5, aa);
-	// Threshold moved from 0.33 to 0.65 (#42 round-4 gate, second pass): F1
-	// Worley cell_dist keeps growing across nearly the WHOLE cell, not just
-	// near its boundary — only a small core close to each feature point sits
-	// below ~0.3-0.4. A 0.33 cutoff therefore classified most of the field
-	// as "crevice", which is backwards from the reference (lit rock/sand is
-	// the majority tone, dark seams are a minority accent) and was the real
-	// reason ground mean V measured 0.51 even after color_b was brightened —
-	// no amount of raising color_b fixes a threshold that paints most pixels
-	// with the darker of the two colors. 0.65 keeps only the genuinely
-	// far-from-any-center pixels (true valley bottoms) dark. Band still 0.06
-	// wide at aa=0 for a hard edge, widening under aa same as before.
-	vec3 terrain = mix(base_color, crevice_color, smoothstep(0.65 - 0.28 * aa, 0.71 + 0.28 * aa, cell_dist_stable));
+	// Threshold history: 0.33 (pre round-4) painted most of the field as
+	// crevice, measuring V=0.51 against the then-target 0.67-0.69. Raising it
+	// to 0.65 (round-4) overshot the other way — round-5 gate measured mean V
+	// 0.645-0.659 against the CORRECT reference target of 0.564-0.569 (the
+	// 0.67-0.69 literal it was tuned against was itself never measured
+	// in-session). 0.52 (first round-5 pass) only moved mean V to 0.630-0.656;
+	// 0.40, paired with the crevice-color cut above, is the third pass —
+	// still stopping short of 0.33's original mostly-dark extreme.
+	//
+	// Band width coefficient cut 0.28 -> 0.08 (#42 round-5 gate): this is the
+	// other half of the "edges too soft" defect (mean |grad| 0.027 vs
+	// reference 0.078-0.090) — even where aa itself is now small (see the aa
+	// coefficient cut above), this term was still widening the transition
+	// band up to 0.62 total at aa=1, well beyond what's needed to hide
+	// undersampling moiré near the horizon. Band is 0.06 wide at aa=0 (hard
+	// edge, unchanged) growing to 0.22 at aa=1 (still soft far-field, just not
+	// as extreme). Re-measured in-session: mean|grad| 0.027 -> 0.070-0.074,
+	// frac(|grad|>0.05) 0.15 -> 0.48-0.50 — real progress, still short of the
+	// 0.078-0.090 / 0.64-0.73 reference band; the grain widening above is the
+	// second half of closing that remaining gap.
+	// Threshold cut again 0.52 -> 0.40 (paired with the crevice-color cut
+	// above): re-measured mean V at 0.621-0.646 after the first two brightness
+	// passes, still ~0.06-0.08 above the 0.564 reference target — moving
+	// threshold + crevice depth together, not either alone, is what closes
+	// the rest of that gap.
+	vec3 terrain = mix(base_color, crevice_color, smoothstep(0.40 - 0.08 * aa, 0.46 + 0.08 * aa, cell_dist_stable));
 	// Regional tonal wash cut from 0.25 to 0.15 (#42 round-4 gate): a strong
 	// low-frequency wash wins uniformly over the sharpened crevice edge
 	// above and reads as softening it back out — this blend is meant to hide
