@@ -160,9 +160,13 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 10. **Explosion type must match the target.** Aircraft kills are pale cream/near-white cauliflower puffs at ~10-12% screen height with NO orange or red (desert-explosions.png, closeup-enemies.jpg). Orange/red fireballs are for ground and large impacts ONLY (huge-explosion.jpg, burst-c-10). Using a fireball for every kill = FAIL.
 
-11. **Ground feature size and brightness.** Near-field median feature diameter must be 1-2% of screen width — the reference's rocks/bushes are ~8px in a 686px frame — with hard edges and per-feature light/dark shading. Stage-relative ground brightness: desert mean V 0.67-0.69. Round 4 measured ours at 40-90px features (5-8x too large) with soft edges and V=0.51; saturation-only rules passed while this failed.
+11. **Ground feature size, edge hardness, brightness — measured against the reference IN THE SAME EVALUATION.** Do not bake numeric literals into this file; two successive gates produced conflicting brightness targets (0.67-0.69 vs a directly measured 0.569) and the baked number drove the shader brighter than the arcade original. At gate time: measure the equivalent reference band (feature diameter distribution, mean |grad| and frac(|grad|>0.05) for edge hardness, mean V) and compare ours to it. Round-5 reference near-band data points: median feature ~0.7-0.9%W, mean|grad| 0.078-0.090, frac>0.05 0.64-0.73, mean V 0.569.
 
-12. **No effect composed solely of draw_circle.** Explosion and fire silhouettes must be irregular — per-vertex noise, jittered lobe radius and angle, ragged tongues. Three consecutive explosion fixes tuned radii and alphas of circles; the primitive itself was the defect.
+12. **Effects must be OPAQUE with fine-grained fringes.** Banning draw_circle was too narrow — polygons reproduced the same defect. The real requirements: (a) explosion bodies are opaque (background must not show through centres or gaps — reference puffs are solid cream), (b) perimeter detail at the 4-6px bump scale, not 40px facets, (c) death fireballs have radiating tongues and internal mottle. Measure fringe bump scale against the reference explosion crops.
+
+14. **HUD furniture parity.** Any HUD element present in 100% of reference frames must exist in ours. The top-right target/scope box (~13% of screen width, present in every reference static and burst frame) was missing for five evaluation rounds because no rule named it.
+
+15. **Sky population.** Enemies-above-horizon is not enough: the reference shows 4-6 enemy silhouettes simultaneously at varied sizes and bank angles, plus flak and tracer fire. Measure enemy pixel counts in the sky region across a capture; a sky that is empty or near-empty in a meaningful fraction of frames = FAIL.
 
 13. **Player screen occupancy.** The player jet must be on screen in >=90% of frames across a capture. Composition cannot be evaluated, and the game does not read as AB2, when the death/respawn gap leaves the frame empty for long stretches.
 
@@ -179,7 +183,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 | 3 | Engine nozzles correct | Dark rim, hot orange/red/yellow core. No exhaust plume or ribbon of any length. |
 | 4 | Enemy jets are vivid | Saturated colors that POP against any background. Red fighters should be BRIGHT red (not dark red). At close range, clearly aircraft shapes. |
 | 5 | Ground creates speed | Strong perspective compression. Dense pattern. Fast scrolling. "Nauseating" speed sensation. |
-| 6 | Explosions are dramatic | Each explosion fills 15-25% screen height. Puffy white/yellow clouds. Multiple visible simultaneously. |
+| 6 | Explosions are dramatic | Aircraft-kill puffs ~10-12% screen height (opaque cream cauliflower); death/large-impact fireballs 15-25% with radiating tongues. Multiple visible simultaneously. |
 | 7 | Bold arcade colors | Compare to reference. Vivid saturated colors throughout. No grey, muted, or washed-out areas. |
 | 8 | Composition matches AB2 | Horizon 60-65% from top (more sky than ground). Jet in bottom 25%. |
 | 9 | Super Scaler scaling | Enemies scale from dots at horizon to large aircraft. Smooth, dramatic. |
