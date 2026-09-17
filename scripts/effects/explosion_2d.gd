@@ -35,6 +35,26 @@ extends Node2D
 ## strictly inside the larger one, so the nested layers (and the fireball's
 ## inner/outer bodies, which reuse the exact same scaled radii) can never
 ## open a gap either.
+##
+## Round 7 gate (criteria.md rule 12: ">=8 distinct value levels by
+## histogram; a 2-3 flat-fill construction is an automatic FAIL") found both
+## bodies still read as 2-3 flat colour fills once the outline was fixed.
+## ab2-arcade-huge-explosion.jpg's burst-c-05 motion frame shows the real
+## fireball is built from DOZENS of small overlapping round "bubbles", each
+## individually shaded (dark rim -> bright mid -> occasional hot core), over
+## a darker base body — not one smooth gradient. Fixed by keeping the lobed
+## outer/inner bodies as a dark, gapless coverage base (so there is never a
+## background gap) and scattering many small shaded bubble blobs on top,
+## each with its own randomised brightness — this alone produces far more
+## than 8 distinct rendered values and matches the reference's "many bright
+## cores scattered through a mottled body" look. The kill puff got the same
+## treatment (dense cream/pale-yellow speckle blobs over a warmer base,
+## instead of a smooth grey gradient), plus a wider/spikier rim band for a
+## less regular silhouette. The round-5 fix (rule 12a) resurfaced during
+## fade: independently alpha-blending several stacked same-shape layers
+## makes each layer's edge visible as a seam once alpha drops below 1 — the
+## kill puff now collapses to a single flat polygon for the final fade
+## stretch instead of re-drawing the full stack at reduced alpha.
 
 ## Defaults to true (kill puff) because the two aircraft-kill call sites
 ## (enemy_jet_2d.gd, missile_2d.gd) instantiate this script directly and
@@ -95,6 +115,26 @@ const FIRE_CORE_RATIO := 0.6
 # smooth lobe bumps — the fireball's fringe/mottle texture (rule 12).
 const FIRE_EDGE_JITTER := 0.02
 
+# Many small shaded "bubble" blobs scattered over the fireball body (rule
+# 12, round 7) — ab2-arcade-huge-explosion.jpg's burst-c-05 frame shows
+# dozens of these, each with its own rim/mid/hot-core shading, forming the
+# cauliflower texture. Distances/sizes as a fraction of r_base.
+const FIRE_BUBBLE_COUNT := 16
+const FIRE_BUBBLE_DIST_MIN := 0.12
+const FIRE_BUBBLE_DIST_MAX := 0.82
+const FIRE_BUBBLE_SIZE_MIN := 0.20
+const FIRE_BUBBLE_SIZE_MAX := 0.38
+const FIRE_BUBBLE_HOT_CHANCE := 0.4  # fraction of bubbles with a bright core
+
+# Dense speckle blobs scattered over the kill puff (rule 12, round 7) —
+# replaces the old smooth 3-layer gradient with visible cream/pale-yellow
+# cauliflower texture, matching ab2-arcade-desert-explosions.png's puffs.
+const KILL_SPECK_COUNT := 20
+const KILL_SPECK_DIST_MIN := 0.08
+const KILL_SPECK_DIST_MAX := 0.78
+const KILL_SPECK_SIZE_MIN := 0.10
+const KILL_SPECK_SIZE_MAX := 0.22
+
 var base_radius: float = 60.0:  # set by spawner based on enemy depth
 	set(value):
 		base_radius = clampf(value, MIN_BASE_RADIUS, MAX_BASE_RADIUS)
@@ -108,6 +148,8 @@ var _center_outer: Dictionary    # fireball: outer (darker) lobed cloud body
 var _center_core: Dictionary     # fireball: inner (brighter) lobed cloud body
 var _mottle_patches: Array[Dictionary] = []  # fireball: dark internal blotches
 var _hot_core: Dictionary        # fireball: irregular white-hot core blob
+var _bubbles: Array[Dictionary] = []   # fireball: many small shaded body blobs
+var _speckles: Array[Dictionary] = []  # kill puff: many small cream body blobs
 
 
 func _ready() -> void:
@@ -217,11 +259,15 @@ func _init_sparks() -> void:
 func _init_shapes() -> void:
 	if is_kill:
 		# One dense simple polygon — gapless by construction, unlike the old
-		# 4 separately-offset low-vertex lobes (rule 12a/b). No spike chance:
-		# a handful of enlarged vertices among many small ones reads as a
-		# few sharp points, not the reference's uniform fine cauliflower
-		# scallops — keep every vertex in the same narrow radius band.
-		_puff_blob = _make_blob(KILL_BLOB_VERTS, 0.86, 1.0, 0.0, 1.0, 1.0)
+		# 4 separately-offset low-vertex lobes (rule 12a/b). A wider smooth
+		# radius band than round 6 (0.78-1.0 vs 0.86-1.0) breaks up the
+		# regular-facet read gate round 7 flagged. NOT a spike_chance — a
+		# lone spiked vertex reads as a literal needle point (a starburst
+		# with a different name), verified and reverted via composite
+		# render; the speckle overlay below is what supplies the
+		# cauliflower-lump irregularity instead.
+		_puff_blob = _make_blob(KILL_BLOB_VERTS, 0.78, 1.0, 0.0, 1.0, 1.0)
+		_init_speckles()
 		return
 	var angles := _make_even_angles(FIRE_BLOB_VERTS)
 	var lobes := _make_fire_lobes(FIRE_LOBE_COUNT)
@@ -236,7 +282,41 @@ func _init_shapes() -> void:
 	_center_outer = {"angles": angles, "radii": outer_radii}
 	_center_core = {"angles": angles, "radii": core_radii}
 	_init_mottle()
+	_init_bubbles()
 	_hot_core = _make_blob(10, 0.8, 1.0, 0.0, 1.0, 1.0)
+
+
+## Many small shaded "bubble" blobs scattered across the fireball body —
+## each gets its own randomised position, size, brightness jitter, and
+## chance of a bright hot core, so drawing them produces far more than 8
+## distinct rendered values (rule 12, round 7) instead of the old 2-3 flat
+## fills.
+func _init_bubbles() -> void:
+	for i in range(FIRE_BUBBLE_COUNT):
+		var angle := randf() * TAU
+		_bubbles.append({
+			"dir": Vector2(cos(angle), sin(angle)),
+			"dist_frac": randf_range(FIRE_BUBBLE_DIST_MIN, FIRE_BUBBLE_DIST_MAX),
+			"size_frac": randf_range(FIRE_BUBBLE_SIZE_MIN, FIRE_BUBBLE_SIZE_MAX),
+			"jitter": randf_range(-0.08, 0.08),
+			"hot": randf() < FIRE_BUBBLE_HOT_CHANCE,
+			"blob": _make_blob(16, 0.78, 1.0, 0.0, 1.0, 1.0),
+		})
+
+
+## Many small shaded blobs scattered across the kill puff body — cream/
+## pale-yellow with per-blob brightness jitter, giving the puff visible
+## cauliflower texture instead of a smooth radial gradient (rule 12, round 7).
+func _init_speckles() -> void:
+	for i in range(KILL_SPECK_COUNT):
+		var angle := randf() * TAU
+		_speckles.append({
+			"dir": Vector2(cos(angle), sin(angle)),
+			"dist_frac": randf_range(KILL_SPECK_DIST_MIN, KILL_SPECK_DIST_MAX),
+			"size_frac": randf_range(KILL_SPECK_SIZE_MIN, KILL_SPECK_SIZE_MAX),
+			"jitter": randf_range(-0.06, 0.10),
+			"blob": _make_blob(9, 0.78, 1.0, 0.0, 1.0, 1.0),
+		})
 
 
 func _init_mottle() -> void:
@@ -327,24 +407,45 @@ func _draw_fire(t: float) -> void:
 	# matching the cauliflower fireball in ab2-arcade-huge-explosion.jpg /
 	# burst-c-10 (rule 12c) — never a straight-sided starburst. The inner
 	# body's radii are an exact scaled-down copy of the outer body's, so it's
-	# guaranteed to nest inside the outer silhouette at every angle.
+	# guaranteed to nest inside the outer silhouette at every angle. This
+	# pair is now a dark gapless BASE (round 7) — the bright, varied texture
+	# comes from the many bubble blobs drawn on top, not from these two
+	# flat fills, so the dark shows through as shading in the gaps between
+	# bubbles, matching burst-c-05's dark-red-between-bright-blobs look.
 	#
 	# Colors are pushed well away from every stage's ground/sky hue (desert
 	# skies measure ~(0.85, 0.45, 0.05) — nearly identical to a naive "dark
 	# orange" fill, which made the whole fireball vanish into a desert
-	# background). Outer goes deep saturated RED (not orange), inner goes
-	# bright yellow, so the burst reads as a bright hot mass against any
-	# stage background, not just a blue sky.
-	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_outer), Color(0.85, 0.14, 0.02, alpha))
-	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_core), Color(1.0, 0.68, 0.04, alpha))
+	# background). Outer goes deep maroon-red (not orange), inner goes mid
+	# orange, so the burst reads as a bright hot mass against any stage
+	# background, not just a blue sky.
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_outer), Color(0.5, 0.06, 0.02, alpha))
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_core), Color(0.82, 0.32, 0.04, alpha))
 
 	# Dark mottled patches scattered through the mid-body — the reference
 	# shows blotchy maroon patches between the outer bulges and the hot core,
-	# not a smooth gradient (rule 12c).
+	# not a smooth gradient (rule 12c). Darker than the base now that the
+	# base itself went darker, so the blotches still read as distinct shadow
+	# accents in the gaps between bubbles.
 	for patch in _mottle_patches:
 		var center: Vector2 = patch["dir"] * patch["dist_frac"] * r_base
 		var pr: float = patch["size_frac"] * r_base
-		draw_colored_polygon(_blob_polygon(center, pr, patch["blob"]), Color(0.4, 0.04, 0.01, alpha))
+		draw_colored_polygon(_blob_polygon(center, pr, patch["blob"]), Color(0.22, 0.02, 0.01, alpha))
+
+	# Dozens of small shaded bubble blobs (rule 12, round 7) — each is its
+	# own rim -> bright mid -> occasional hot core, with a randomised
+	# brightness jitter per bubble, so the body reads as many overlapping
+	# lumps rather than a flat or smoothly-gradiented fill, matching
+	# burst-c-05's cluster of individually-lit round bulges.
+	for bub in _bubbles:
+		var bcenter: Vector2 = bub["dir"] * bub["dist_frac"] * r_base
+		var br: float = bub["size_frac"] * r_base
+		var j: float = bub["jitter"]
+		var bblob: Dictionary = bub["blob"]
+		draw_colored_polygon(_blob_polygon(bcenter, br, bblob), Color(0.9, clampf(0.32 + j, 0.16, 0.56), 0.03, alpha))
+		draw_colored_polygon(_blob_polygon(bcenter, br * 0.6, bblob), Color(1.0, clampf(0.62 + j, 0.45, 0.85), 0.06, alpha))
+		if bub["hot"]:
+			draw_colored_polygon(_blob_polygon(bcenter, br * 0.32, bblob), Color(1.0, clampf(0.92 + j * 0.5, 0.85, 1.0), clampf(0.55 + j, 0.4, 0.75), alpha))
 
 	# Bright white-hot core — an irregular blob, not a perfect circle, so it
 	# reads as part of the mottled interior rather than a flat disc.
@@ -402,13 +503,27 @@ func _draw_kill_puff() -> void:
 
 	# Single cohesive cauliflower silhouette — one simple polygon, no offset
 	# lobe scatter (that used to blow the puff's true extent well past
-	# r_cap and leave gaps of sky between lobes, rule 12a/b). Three nested
-	# scalings of the SAME shape give it shading/depth while guaranteeing
-	# full coverage — a smaller scaling of a star-shaped polygon can never
-	# open a gap against a larger scaling of itself.
-	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _puff_blob), Color(0.78, 0.76, 0.69, alpha))
-	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.86, _puff_blob), Color(0.92, 0.90, 0.86, alpha))
-	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.52, _puff_blob), Color(0.99, 0.98, 0.95, alpha))
+	# r_cap and leave gaps of sky between lobes, rule 12a/b).
+	if alpha < 0.999:
+		# Fading (final stretch only): collapse to ONE flat polygon. Round 7
+		# gate found that independently alpha-blending the base + speckle
+		# stack during fade makes each layer's edge visible as a seam —
+		# shapes "showing through" (rule 12a). A single flat fill can't seam.
+		draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _puff_blob), Color(0.88, 0.81, 0.58, alpha))
+		return
+
+	# Opaque phase: base + a brighter nested layer give it depth, then dense
+	# cream/pale-yellow speckle blobs on top break up what used to be a
+	# smooth grey gradient into visible cauliflower texture (rule 12, round
+	# 7) — colors pushed warmer (cream/pale-yellow, not neutral grey-white)
+	# to match ab2-arcade-desert-explosions.png's puffs.
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _puff_blob), Color(0.76, 0.68, 0.45))
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.85, _puff_blob), Color(0.88, 0.81, 0.58))
+	for speck in _speckles:
+		var scenter: Vector2 = speck["dir"] * speck["dist_frac"] * r_base
+		var sr: float = speck["size_frac"] * r_base
+		var j: float = speck["jitter"]
+		draw_colored_polygon(_blob_polygon(scenter, sr, speck["blob"]), Color(clampf(0.93 + j, 0.85, 1.0), clampf(0.87 + j, 0.78, 0.96), clampf(0.62 + j, 0.5, 0.78)))
 
 	# Brief white ignition point — white is not a fireball color, still
 	# permitted on a kill puff.

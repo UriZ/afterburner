@@ -40,6 +40,8 @@ func _initialize() -> void:
 	test_scene_default_is_fireball()
 	test_kill_puff_is_single_opaque_blob()
 	test_fireball_body_is_rounded_lobes_and_nests_correctly()
+	test_fireball_has_many_shaded_bubbles()
+	test_kill_puff_has_many_shaded_speckles()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -293,4 +295,35 @@ func test_fireball_body_is_rounded_lobes_and_nests_correctly() -> void:
 			no_deep_notch = false
 	assert_true(nested, "inner body radius is smaller than outer at every vertex")
 	assert_true(no_deep_notch, "outer body never pinches down to a deep notch between lobes")
+	e.queue_free()
+
+
+func test_fireball_has_many_shaded_bubbles() -> void:
+	# Round 7 gate (rule 12: ">=8 distinct value levels by histogram; a 2-3
+	# flat-fill construction is an automatic FAIL"). A flat 2-body fill can't
+	# clear that bar no matter how it's shaded — the fix scatters many small
+	# independently-jittered bubble blobs across the body instead.
+	var e := _make_explosion(false)
+	assert_true(e._bubbles.size() == e.FIRE_BUBBLE_COUNT, "fireball generates the full bubble count")
+	assert_true(e.FIRE_BUBBLE_COUNT >= 8, "enough bubbles to clear the 8-distinct-value-level bar")
+	var jitters := {}
+	for bub in e._bubbles:
+		assert_true(bub.has("dist_frac") and bub.has("size_frac") and bub.has("blob"), "bubble has position/size/shape data")
+		jitters[bub["jitter"]] = true
+	assert_true(jitters.size() > 1, "bubble brightness jitter varies per bubble, not a single repeated shade")
+	e.queue_free()
+
+
+func test_kill_puff_has_many_shaded_speckles() -> void:
+	# Round 7 gate: the puff's 3 nested same-shape scalings read as one
+	# smooth radial gradient, not the reference's dense cream/pale-yellow
+	# cauliflower speckle — fixed by scattering many small jittered blobs.
+	var e := _make_explosion(true)
+	assert_true(e._speckles.size() == e.KILL_SPECK_COUNT, "kill puff generates the full speckle count")
+	assert_true(e.KILL_SPECK_COUNT >= 8, "enough speckles to clear the 8-distinct-value-level bar")
+	var jitters := {}
+	for speck in e._speckles:
+		assert_true(speck.has("dist_frac") and speck.has("size_frac") and speck.has("blob"), "speckle has position/size/shape data")
+		jitters[speck["jitter"]] = true
+	assert_true(jitters.size() > 1, "speckle brightness jitter varies per speckle, not a single repeated shade")
 	e.queue_free()
