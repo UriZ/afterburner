@@ -10,6 +10,17 @@ const MISSILE_FIRE_COOLDOWN := 0.4
 const LOCK_RADIUS := 80.0             # screen pixels — lock-on detection radius
 const LOCK_BREAK_DELAY := 0.5
 
+# The HUD target box tracks the nearest enemy ANYWHERE on screen, not just
+# ones inside LOCK_RADIUS — AB2's box is on the closest threat continuously,
+# not only once the crosshair is hovering over it (#49 follow-up: box was
+# absent from most frames because it was only drawn for `locked_enemy`,
+# which requires crosshair proximity). Missile weapon-lock keeps requiring
+# LOCK_RADIUS proximity — that gameplay rule is unchanged.
+# TRACK_SWITCH_MARGIN: a new candidate must be at least this much closer
+# than the current tracked enemy to steal the box — without this, two
+# similarly-distant enemies make the box flicker between them every frame.
+const TRACK_SWITCH_MARGIN := 0.85
+
 # Bracket sizing/centering must derive from the enemy's ACTUAL drawn sprite,
 # not an independent depth curve (#49 gate) — otherwise the bracket floats
 # around at a size and position unrelated to what's on screen. 35.0 mirrors
@@ -38,6 +49,13 @@ var sight_screen_pos: Vector2 = Vector2.ZERO
 var locked_enemy: Node = null
 var locked_enemy_screen_pos: Vector2 = Vector2.ZERO
 var locked_enemy_bracket_size: float = 48.0
+
+# HUD target box target — nearest enemy on screen, always populated when any
+# enemy exists (see TRACK_SWITCH_MARGIN above). Distinct from locked_enemy,
+# which additionally requires LOCK_RADIUS proximity for missile homing/audio.
+var tracked_enemy: Node = null
+var tracked_enemy_screen_pos: Vector2 = Vector2.ZERO
+var tracked_enemy_bracket_size: float = 48.0
 
 var _vulcan_cooldown: float = 0.0
 var _missile_cooldown: float = 0.0
@@ -87,17 +105,35 @@ func _update_lockon(delta: float) -> void:
 	var enemies := get_tree().get_nodes_in_group("enemies")
 	var best_enemy: Node = null
 	var best_dist := INF
+	var tracked_dist := INF
 
 	for enemy in enemies:
 		if not is_instance_valid(enemy) or not enemy.has_method("get_screen_position"):
 			continue
 		var sp: Vector2 = enemy.get_screen_position()
 		var dist: float = sp.distance_to(sight_screen_pos)
-		if dist <= LOCK_RADIUS and dist < best_dist:
+		if dist < best_dist:
 			best_dist = dist
 			best_enemy = enemy
+		if enemy == tracked_enemy:
+			tracked_dist = dist
 
-	if best_enemy != null:
+	# HUD target box: adopt the nearest enemy if we have none, or if the new
+	# candidate is meaningfully closer (TRACK_SWITCH_MARGIN) than whoever we
+	# currently track. Otherwise keep tracking the current one even if it's
+	# no longer the single closest — avoids per-frame target swapping.
+	if best_enemy != null and (not is_instance_valid(tracked_enemy) or best_dist < tracked_dist * TRACK_SWITCH_MARGIN):
+		tracked_enemy = best_enemy
+	elif best_enemy == null:
+		tracked_enemy = null
+
+	if is_instance_valid(tracked_enemy):
+		tracked_enemy_screen_pos = tracked_enemy.get_screen_position() + _bracket_center_offset(tracked_enemy)
+		tracked_enemy_bracket_size = _bracket_size_for_enemy(tracked_enemy)
+
+	# Missile weapon-lock (audio beep + homing) still requires the enemy be
+	# within the crosshair's LOCK_RADIUS — unchanged gameplay rule.
+	if best_enemy != null and best_dist <= LOCK_RADIUS:
 		if best_enemy != locked_enemy:
 			_on_new_lock()
 		locked_enemy = best_enemy

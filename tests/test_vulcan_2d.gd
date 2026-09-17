@@ -18,7 +18,7 @@ func _initialize() -> void:
 	test_bullet_min_depth()
 	test_bullet_altitude_ramps_toward_aim_and_lifts_above_horizon()
 	test_weapon_manager_constants()
-	test_reticle_blink_defaults()
+	test_reticle_lock_flash_defaults()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -124,20 +124,25 @@ func test_weapon_manager_constants() -> void:
 	assert_true(wm.VULCAN_FIRE_INTERVAL == 0.08, "vulcan fire interval 0.08s (~12/sec)")
 	assert_true(wm.LOCK_RADIUS == 80.0, "lock radius 80px")
 	assert_true(wm.SIGHT_AHEAD_Y == 120.0, "sight leads 120px above player")
+	assert_true(wm.TRACK_SWITCH_MARGIN == 0.85, "track switch margin 0.85 (hysteresis)")
 	assert_true(wm.locked_enemy == null, "no locked enemy at start")
 	assert_true(wm.locked_enemy_bracket_size == 48.0, "default bracket size 48px")
+	assert_true(wm.tracked_enemy == null, "no tracked enemy at start")
+	assert_true(wm.tracked_enemy_bracket_size == 48.0, "default tracked bracket size 48px")
 	wm.queue_free()
 
 
-func test_reticle_blink_defaults() -> void:
-	print("\ntest_reticle_blink_defaults:")
+func test_reticle_lock_flash_defaults() -> void:
+	print("\ntest_reticle_lock_flash_defaults:")
+	# Target box is always drawn while tracked_enemy is valid — no blink-to-
+	# hide anymore (#49 follow-up: that caused visible dropout frames while
+	# a target was on screen). Only a brief stroke-width flash on new lock.
 	var script: GDScript = load("res://scripts/ui/reticle_2d.gd")
 	var r := Node2D.new()
 	r.set_script(script)
 	get_root().add_child(r)
 
-	assert_true(r._blink_visible == true, "blink visible by default")
-	assert_true(r._blink_timer == 0.0, "blink timer at 0")
-	assert_true(r.BLINK_COUNT == 3, "3 blink cycles")
-	assert_approx(r.BLINK_INTERVAL, 0.06, "60ms blink interval", 0.001)
+	assert_true(r._lock_flash_timer == 0.0, "lock flash timer at 0 by default")
+	assert_approx(r.LOCK_FLASH_DURATION, 0.18, "180ms lock flash duration", 0.001)
+	assert_true(r.LOCK_FLASH_STROKE > r.BRACKET_STROKE, "flash stroke is thicker than resting stroke")
 	r.queue_free()

@@ -13,14 +13,15 @@ const COLOR_WHITE := Color(1.0, 1.0, 1.0, 1.0)
 const BRACKET_ARM := 10.0
 const BRACKET_STROKE := 2.0
 
-# Blink on lock acquisition
-const BLINK_COUNT := 3
-const BLINK_INTERVAL := 0.06
+# Brief brighten pulse on lock acquisition. The box itself is NEVER hidden —
+# a previous blink-to-invisible-on-new-lock caused visible dropout frames
+# while a target was clearly on screen (#49 follow-up round 5 gate).
+const LOCK_FLASH_DURATION := 0.18
+const LOCK_FLASH_STROKE := 3.5
 
 var _weapon_manager: Node = null
 var _prev_locked: Node = null
-var _blink_timer: float = 0.0
-var _blink_visible: bool = true
+var _lock_flash_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -41,15 +42,10 @@ func _process(delta: float) -> void:
 		current = _weapon_manager.locked_enemy
 
 	if current != null and current != _prev_locked:
-		_blink_timer = float(BLINK_COUNT) * BLINK_INTERVAL * 2.0
+		_lock_flash_timer = LOCK_FLASH_DURATION
 
 	_prev_locked = current
-
-	if _blink_timer > 0.0:
-		_blink_timer = maxf(_blink_timer - delta, 0.0)
-		_blink_visible = (floori(_blink_timer / BLINK_INTERVAL) % 2 == 0)
-	else:
-		_blink_visible = true
+	_lock_flash_timer = maxf(_lock_flash_timer - delta, 0.0)
 
 	queue_redraw()
 
@@ -60,10 +56,21 @@ func _draw() -> void:
 
 	_draw_crosshair(_weapon_manager.sight_screen_pos)
 
-	if is_instance_valid(_weapon_manager.locked_enemy) and _blink_visible:
+	# Target box tracks the nearest enemy on screen continuously (AB2 shows
+	# it in effectively every frame a threat is visible, not only once a
+	# missile lock is achieved — #49 follow-up). It briefly brightens when
+	# a full weapon lock is newly acquired, but is always drawn while
+	# tracked_enemy is valid — never toggled fully invisible.
+	if "tracked_enemy" in _weapon_manager and is_instance_valid(_weapon_manager.tracked_enemy):
+		var stroke := BRACKET_STROKE
+		var is_locked: bool = is_instance_valid(_weapon_manager.locked_enemy) \
+			and _weapon_manager.locked_enemy == _weapon_manager.tracked_enemy
+		if is_locked and _lock_flash_timer > 0.0:
+			stroke = lerpf(BRACKET_STROKE, LOCK_FLASH_STROKE, _lock_flash_timer / LOCK_FLASH_DURATION)
 		_draw_enemy_brackets(
-			_weapon_manager.locked_enemy_screen_pos,
-			_weapon_manager.locked_enemy_bracket_size
+			_weapon_manager.tracked_enemy_screen_pos,
+			_weapon_manager.tracked_enemy_bracket_size,
+			stroke
 		)
 
 
@@ -77,10 +84,10 @@ func _draw_crosshair(pos: Vector2) -> void:
 	draw_line(pos + Vector2(0.0, g),      pos + Vector2(0.0, g + a), COLOR_WHITE, w)
 
 
-func _draw_enemy_brackets(pos: Vector2, size: float) -> void:
+func _draw_enemy_brackets(pos: Vector2, size: float, stroke: float = BRACKET_STROKE) -> void:
 	var s := size * 0.5
 	var a := BRACKET_ARM
-	var w := BRACKET_STROKE
+	var w := stroke
 	# Top-left
 	draw_line(pos + Vector2(-s, -s), pos + Vector2(-s + a, -s), COLOR_WHITE, w)
 	draw_line(pos + Vector2(-s, -s), pos + Vector2(-s, -s + a), COLOR_WHITE, w)
