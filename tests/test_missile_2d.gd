@@ -32,6 +32,7 @@ func _initialize() -> void:
 	test_missile_screen_position()
 	test_explosion_radius_clamped()
 	test_missile_homes_toward_target_altitude()
+	test_missile_climbs_without_lock()
 	test_explosion_kill_puff_is_small_and_colorless()
 	test_explosion_fireball_is_default()
 	test_blob_polygon_is_simple()
@@ -152,6 +153,22 @@ func test_missile_homes_toward_target_altitude() -> void:
 	assert_true(m.get_screen_position().y < _DepthUtil.HORIZON_Y, "homed missile has risen above the horizon toward the airborne target")
 	m.queue_free()
 	target.queue_free()
+
+
+func test_missile_climbs_without_lock() -> void:
+	# #91: a missile fired without a weapon-lock (target == null — common,
+	# since locking requires LOCK_RADIUS crosshair proximity, not just "an
+	# enemy exists somewhere") used to leave logical_altitude pinned at its
+	# 0.0 ground-plane default for its entire flight, visually diving toward
+	# the ground while every on-screen enemy flew at altitude (#100). It must
+	# now climb toward the fallback aim point acquired at _ready() instead.
+	var m := _make_missile()  # no target assigned — exercises the fallback path
+	assert_true(m.target == null, "sanity: unlocked missile has no target")
+	while m.logical_depth > -0.05:
+		m._process(1.0 / 60.0)
+	assert_true(m.logical_altitude > 0.5, "unlocked missile still climbs toward a sky altitude (%.3f)" % m.logical_altitude)
+	assert_true(m.get_screen_position().y < _DepthUtil.HORIZON_Y, "unlocked missile has risen above the horizon by the end of its flight")
+	m.queue_free()
 
 
 func test_explosion_radius_clamped() -> void:

@@ -94,8 +94,12 @@ func test_missile_can_reach_enemy_at_depth(target_depth: float) -> void:
 	var e := _make_enemy(target_depth, EnemyJet2D.ALTITUDE_MAX)
 	var m := Node2D.new()
 	m.set_script(Missile2D)
-	m._ready()
+	# target must be assigned before _ready() runs, matching weapon_manager_2d.gd's
+	# real firing order (target set, then add_child() triggers _ready()) — otherwise
+	# _ready()'s fallback-aim acquisition (#91) runs for a still-untargeted, still
+	# untreed missile and get_tree() errors instead of finding this enemy.
 	m.target = e
+	m._ready()
 	var closest_gap: float = INF
 	var t: float = 0.0
 	var dt: float = 1.0 / 60.0

@@ -10,6 +10,12 @@ const TRAIL_MAX := 40
 const HOMING_DELAY := 0.3
 const MAX_LIFETIME := 5.0
 const LAUNCH_DEPTH := 0.9
+# Fallback climb target for missiles fired without a lock (see _acquire_fallback_aim
+# below) — matches vulcan_bullet_2d.gd's DEFAULT_AIM_ALTITUDE/depth-ramp-endpoint
+# pair so an unlocked shot reaches this altitude by the time it's near the horizon,
+# same as an unlocked vulcan round (#100 convention).
+const DEFAULT_AIM_ALTITUDE := 1.0
+const DEFAULT_AIM_DEPTH := 0.05
 
 const _DepthUtil := preload("res://scripts/game/depth_util.gd")
 
@@ -21,6 +27,12 @@ var speed: float = 0.8
 
 # Target
 var target: Node = null
+
+# Fallback climb endpoint used when `target` is invalid/unset — see
+# _acquire_fallback_aim(). Defaults reproduce the pre-fallback ground-hugging
+# behavior only if no enemy exists at all to aim at.
+var _fallback_altitude: float = DEFAULT_AIM_ALTITUDE
+var _fallback_depth: float = DEFAULT_AIM_DEPTH
 
 # Pylon offset (local space, applied at launch)
 var pylon_offset: Vector2 = Vector2.ZERO
@@ -38,6 +50,35 @@ func _ready() -> void:
 	_trail.resize(TRAIL_MAX)
 	for i in range(TRAIL_MAX):
 		_trail[i] = Vector2.ZERO
+	if not is_instance_valid(target):
+		_acquire_fallback_aim()
+
+
+func _acquire_fallback_aim() -> void:
+	# A missile fired without a weapon-lock (target == null — common since
+	# locking requires LOCK_RADIUS crosshair proximity, not just "an enemy
+	# exists") previously left logical_altitude pinned at its 0.0 ground-plane
+	# default for its whole flight: enemies fly at altitude (#100), so the
+	# unhomed missile visually dove toward/along the ground while every
+	# on-screen enemy sat in the sky above it. Snapping to the nearest actual
+	# enemy's altitude/depth — same approach as vulcan_bullet_2d.gd's
+	# _acquire_aim_target() — makes an unlocked shot climb into the sky like
+	# a locked one does, instead of never climbing at all.
+	if not is_inside_tree():
+		return
+	var tree := get_tree()
+	var best: Node = null
+	var best_dx: float = INF
+	for enemy in tree.get_nodes_in_group("enemies"):
+		if not ("logical_x" in enemy and "logical_altitude" in enemy and "logical_depth" in enemy):
+			continue
+		var dx: float = absf(enemy.logical_x - logical_x)
+		if dx < best_dx:
+			best_dx = dx
+			best = enemy
+	if best != null:
+		_fallback_altitude = best.logical_altitude
+		_fallback_depth = best.logical_depth
 
 
 func get_screen_position() -> Vector2:
@@ -85,6 +126,12 @@ func _process(delta: float) -> void:
 		var span: float = maxf(LAUNCH_DEPTH - target.logical_depth, 0.001)
 		var progress: float = clampf((LAUNCH_DEPTH - logical_depth) / span, 0.0, 1.0)
 		logical_altitude = lerp(0.0, target.logical_altitude, progress)
+	else:
+		# No lock — climb toward the fallback aim point acquired at launch
+		# (see _acquire_fallback_aim) instead of staying on the ground plane.
+		var span: float = maxf(LAUNCH_DEPTH - _fallback_depth, 0.001)
+		var progress: float = clampf((LAUNCH_DEPTH - logical_depth) / span, 0.0, 1.0)
+		logical_altitude = lerp(0.0, _fallback_altitude, progress)
 
 	# X-lead homing — delayed so the missile visibly flies straight before
 	# it starts turning toward the target, matching AB2 missile feel.
