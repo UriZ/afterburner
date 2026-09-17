@@ -1,12 +1,18 @@
 extends Node
 
 const DEFAULT_PORT := 9501
+const MAX_HOLD_MS := 5000.0
 
 var port := DEFAULT_PORT
 var tcp_server: TCPServer
 var clients: Array[StreamPeerTCP] = []
 var pending_screenshot_client: StreamPeerTCP = null
 var _deferred_release: Vector2 = Vector2.ZERO
+
+## Keys currently held via key_down/hold. keycode(int) -> Timer or null
+## (null means held indefinitely until an explicit key_up).
+var held_keys: Dictionary = {}
+var _last_scene: Node = null
 
 
 func _ready() -> void:
@@ -31,6 +37,13 @@ func _exit_tree() -> void:
 
 
 func _process(_delta: float) -> void:
+	# Any scene swap (title <-> game, game over <-> title) means a fresh run;
+	# don't let a held key leak across it and get stuck.
+	var current_scene := get_tree().current_scene
+	if current_scene != _last_scene:
+		_last_scene = current_scene
+		_release_all_held_keys()
+
 	if not tcp_server or not tcp_server.is_listening():
 		return
 
@@ -89,6 +102,16 @@ func _handle_request(client: StreamPeerTCP, data: String) -> void:
 		"key":
 			var key_name: String = request.get("key", "")
 			_send_response(client, _cmd_key(key_name))
+		"key_down":
+			var key_name: String = request.get("key", "")
+			_send_response(client, _cmd_key_down(key_name))
+		"key_up":
+			var key_name: String = request.get("key", "")
+			_send_response(client, _cmd_key_up(key_name))
+		"hold":
+			var key_name: String = request.get("key", "")
+			var ms: float = request.get("ms", 200.0)
+			_send_response(client, _cmd_hold(key_name, ms))
 		"set_capture_invincible":
 			var enabled: bool = request.get("enabled", true)
 			var game_state := get_node_or_null("/root/GameState")
@@ -160,6 +183,80 @@ func _cmd_key(key_name: String) -> Dictionary:
 
 func _send_deferred_key_release(event: InputEventKey) -> void:
 	Input.parse_input_event(event)
+
+
+## Press-and-hold with no auto-release. Pairs with key_up. Unlike the legacy
+## "key" command, the release does NOT land in the same Input flush batch as
+## the press, so level-triggered reads (is_action_pressed, get_axis) see the
+## key as held on the frames in between.
+func _cmd_key_down(key_name: String) -> Dictionary:
+	var keycode := OS.find_keycode_from_string(key_name)
+	if keycode == KEY_NONE:
+		return {"error": "Unknown key: %s" % key_name}
+	_press_key(keycode)
+	held_keys[keycode] = null
+	return {"ok": true, "key": key_name}
+
+
+func _cmd_key_up(key_name: String) -> Dictionary:
+	var keycode := OS.find_keycode_from_string(key_name)
+	if keycode == KEY_NONE:
+		return {"error": "Unknown key: %s" % key_name}
+	_release_held_key(keycode)
+	return {"ok": true, "key": key_name}
+
+
+## Press now, auto-release after ms via a real Timer (not call_deferred) so
+## the release lands several frames after the press.
+func _cmd_hold(key_name: String, ms: float) -> Dictionary:
+	var keycode := OS.find_keycode_from_string(key_name)
+	if keycode == KEY_NONE:
+		return {"error": "Unknown key: %s" % key_name}
+	var duration_ms := clampf(ms, 0.0, MAX_HOLD_MS)
+
+	_press_key(keycode)
+	if held_keys.has(keycode) and held_keys[keycode] != null:
+		(held_keys[keycode] as Timer).queue_free()
+
+	var timer := Timer.new()
+	timer.wait_time = maxf(duration_ms / 1000.0, 0.001)
+	timer.one_shot = true
+	add_child(timer)
+	timer.timeout.connect(_on_hold_timeout.bind(keycode, timer))
+	timer.start()
+	held_keys[keycode] = timer
+	return {"ok": true, "key": key_name, "ms": duration_ms}
+
+
+func _on_hold_timeout(keycode: int, timer: Timer) -> void:
+	_release_held_key(keycode)
+	timer.queue_free()
+
+
+func _press_key(keycode: Key) -> void:
+	var press := InputEventKey.new()
+	press.keycode = keycode
+	press.physical_keycode = keycode
+	press.pressed = true
+	Input.parse_input_event(press)
+
+
+func _release_held_key(keycode: Key) -> void:
+	if held_keys.has(keycode):
+		var timer: Timer = held_keys[keycode]
+		if timer != null:
+			timer.queue_free()
+		held_keys.erase(keycode)
+	var release := InputEventKey.new()
+	release.keycode = keycode
+	release.physical_keycode = keycode
+	release.pressed = false
+	Input.parse_input_event(release)
+
+
+func _release_all_held_keys() -> void:
+	for keycode in held_keys.keys():
+		_release_held_key(keycode)
 
 
 func _cmd_get_runtime_tree() -> Dictionary:

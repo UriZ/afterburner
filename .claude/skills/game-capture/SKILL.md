@@ -18,6 +18,18 @@ Captures a burst of gameplay screenshots via the MCP bridge TCP port, giving jud
 4. Prints all paths so agents can Read each frame
 5. Fails loudly (non-zero exit) if it could not capture the full requested frame count — it never hands back a silently partial set
 
+## Held Input Over the MCP Bridge
+
+The bridge's legacy `{"cmd":"key","key":"Z"}` presses and releases in the same
+frame's input flush, so it's invisible to level-triggered reads
+(`is_action_pressed`, `Input.get_axis`) — fine for menu taps, useless for
+"hold Z to fire" or "hold Left to bank". For anything that needs to be seen
+as held across frames, use instead (all sent as raw JSON over the same TCP
+port, e.g. via `nc`):
+- `{"cmd":"key_down","key":"Z"}` / `{"cmd":"key_up","key":"Z"}` — press/release explicitly, held until you send key_up
+- `{"cmd":"hold","key":"Left","ms":1500}` — press now, auto-release after `ms` (capped at 5000) via a real Timer, not a same-frame deferred call
+All held keys are force-released on any scene change (title/game/game-over transitions), so a stuck hold can't leak into the next run.
+
 ## Usage
 
 ```bash
