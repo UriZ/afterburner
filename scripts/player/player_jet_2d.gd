@@ -263,19 +263,20 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	_draw_wing(origin, rad, _mirror(wing_r), _mirror(wing_le_r), _mirror(wing_te_r))
 	_draw_wing(origin, rad, wing_r, wing_le_r, wing_te_r)
 
-	# --- Tail fins: short blades canted outward from the nacelle shoulder,
-	# tip trimmed below the canopy apex so the canopy (not the fin) sets the
-	# jet's total height. #112 round-6 feedback: the round-5 fin (tip at
-	# x=0.340, only 0.040 outboard of its root) rose almost straight up past
-	# the canopy (-0.615 vs canopy apex -0.590) — two near-vertical parallel
-	# posts, measured 22.0%H/aspect 2.30 vs reference 13.1-16.7%H/3.04-3.37.
-	# burst-a-02 shows a clearly raked blade, leaning outward as it rises, not
-	# a vertical rod. Tip now kicks out to x=0.445 (~20 deg off vertical) and
-	# stops at y=-0.545 — below the canopy's -0.590 apex — so shortening the
-	# fin further would no longer move the jet's total-height ceiling at all;
-	# the canopy is now the tallest feature, matching the reference envelope.
-	var fin_r := [Vector2(0.300, -0.145), Vector2(0.445, -0.545), Vector2(0.420, -0.536), Vector2(0.258, -0.140)]
-	var fin_hi_r := [Vector2(0.300, -0.145), Vector2(0.445, -0.545), Vector2(0.432, -0.541), Vector2(0.292, -0.148)]
+	# --- Tail fins: a triangular blade rising from the nacelle shoulder, wide
+	# at the base and tapering to a single point tip — NOT a constant-width
+	# stick. #112 round-7 feedback: the round-6 fin was a near-parallel-edged
+	# quad (root width 0.042, tip width 0.025 — barely tapered), reading as a
+	# "straight constant-width stick crossing the wings". burst-c-03 shows a
+	# clearly wedge-shaped fin: wide where it meets the nacelle shoulder,
+	# narrowing continuously to a sharp point. Rebuilt as a true triangle (base
+	# width 0.115, tip is a single coincident point) rooted at the new, smaller
+	# fuselage shoulder (0.100, -0.170) and reaching out toward the nozzle's
+	# inner edge (nozzle center 0.315 - radius 0.095 = 0.220) without crossing
+	# into it. Tip kept at y=-0.530, still below the canopy apex (-0.590) so
+	# the canopy remains the tallest feature and the envelope is unchanged.
+	var fin_r := [Vector2(0.115, -0.150), Vector2(0.230, -0.160), Vector2(0.400, -0.530)]
+	var fin_hi_r := [Vector2(0.230, -0.160), Vector2(0.400, -0.530), Vector2(0.385, -0.522), Vector2(0.205, -0.155)]
 	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_hi_r))
 	_draw_fin(origin, rad, fin_r, fin_hi_r)
 
@@ -293,91 +294,98 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	_draw_tailplane(origin, rad, tail_r, tail_le_r)
 
 	# --- Fuselage body: symmetric closed polygon, right half authored top-to-bottom ---
-	# A slender spine from the canopy down to the nozzle line. #112 round-5
-	# feedback (first pass): cutting the max half-width from 0.400 to 0.305
-	# alone wasn't enough — a render check against the reference showed the
-	# shape STILL read as "a smooth toy shuttle" even at the narrower width,
-	# because 12 closely-spaced points approximated a continuous curve. Per
-	# the wrong-shape rule this needed fewer, sharper-angled straight edges,
-	# not another width tweak: cut down to 7 points so the neck-to-shoulder
-	# taper, the shoulder break, the nacelle wall, and the waist pull-in are
-	# each one distinct straight facet, matching the reference's angular,
-	# panelled silhouette instead of a rounded capsule.
+	# #112 round-7 feedback: the round-6 body (max half-width 0.295*HS, bottom
+	# point at y=0.048) was "a large near-uniform flat WHITE wedge... widening
+	# downward into a belly that hangs BELOW the nozzles" — burst-c-03/c-11 both
+	# show the opposite: a slim spine that NARROWS as it descends, tapering to a
+	# thin tailcone tucked BETWEEN the nozzle nacelles, never reaching their
+	# bottom edge (nozzle disc bottom is at y=0.055; the old point-7 at y=0.048
+	# sat almost flush with it, reading as "hanging below"). Max half-width cut
+	# from 0.290 to 0.100 (measured against burst-c-11: spine width is ~0.6x a
+	# single nozzle's diameter, not 1.5x), and the bottom point pulled up to
+	# y=-0.015 — well clear of the nozzle bottom, roughly level with the nozzle
+	# centers. This also fixes round-7 finding #4 (wing/fuselage seam): the old
+	# 0.290-wide nacelle plate cut a hard rectangular step across the inner 30%
+	# of the wing's span; at 0.100 wide the fuselage no longer reaches the wing
+	# root band at all (wing root sits at x=0.090-0.100, y=-0.355..-0.250; the
+	# fuselage there is only 0.045-0.055 wide), so there's nothing left to blend.
 	var fuselage_half := [
-		Vector2(0.040, -0.530),  # neck top — flush with the canopy base, no nose cap above it
-		Vector2(0.095, -0.220),  # single straight taper to the nacelle shoulder — fin roots sit just outside this
-		Vector2(0.290, -0.150),  # sharp break out to the nacelle's max width
-		Vector2(0.295, -0.075),  # near-vertical nacelle wall, well short of the nozzle outer edge
-		Vector2(0.190, -0.010),  # sharp break back in — the waist, above the nozzle line
-		Vector2(0.095, 0.040), Vector2(0.000, 0.048),
+		Vector2(0.030, -0.530),  # neck top — flush with the (now smaller) canopy base
+		Vector2(0.055, -0.300),  # slender neck, slight widen
+		Vector2(0.100, -0.170),  # shoulder — max width, well inside the wing root and nozzle inner edge
+		Vector2(0.090, -0.110),  # nacelle wall, pulling back in already
+		Vector2(0.055, -0.050),  # waist, narrowing toward the tailcone
+		Vector2(0.000, -0.015),  # tailcone tip — above nozzle center (-0.040), far above nozzle bottom (0.055)
 	]
 	var fuselage: Array = _symmetric_poly(fuselage_half)
 	_draw_hs_poly(origin, rad, fuselage, V0_HILITE)
 	_stroke_hs_poly(origin, rad, fuselage, OUTLINE, OUTLINE_W)
 
 	# Panel lines — thin engraved strokes following the spine's contour, not
-	# filled bars. #112 round-5 feedback: the previous filled-quad seams read
-	# as "a row of dark rectangles — a ventilation grille".
-	_draw_hs_line(origin, rad, Vector2(0.0, -0.500), Vector2(0.0, -0.235), V2_MID, 1.5)
-	for sx in [-0.035, 0.035]:
-		_draw_hs_line(origin, rad, Vector2(sx, -0.460), Vector2(sx, -0.240), V1_LIT, 1.0)
-	for sx in [-0.120, -0.032, 0.032, 0.120]:
-		_draw_hs_line(origin, rad, Vector2(sx, -0.140), Vector2(sx, -0.070), V2_MID, 1.2)
+	# filled bars. #112 round-7: endpoints pulled in to match the narrower spine.
+	_draw_hs_line(origin, rad, Vector2(0.0, -0.500), Vector2(0.0, -0.170), V2_MID, 1.5)
+	for sx in [-0.020, 0.020]:
+		_draw_hs_line(origin, rad, Vector2(sx, -0.460), Vector2(sx, -0.180), V1_LIT, 1.0)
+	for sx in [-0.045, 0.045]:
+		_draw_hs_line(origin, rad, Vector2(sx, -0.100), Vector2(sx, -0.050), V2_MID, 1.2)
 
-	# (a) Lower-fuselage tone
+	# (a) Lower-fuselage tone — traces the nacelle wall down to the tailcone tip
 	_draw_hs_poly(origin, rad, [
-		Vector2(-0.295, -0.075), Vector2(0.295, -0.075), Vector2(0.190, -0.010),
-		Vector2(0.095, 0.040), Vector2(0.000, 0.048), Vector2(-0.095, 0.040), Vector2(-0.190, -0.010),
+		Vector2(-0.090, -0.110), Vector2(0.090, -0.110), Vector2(0.055, -0.050),
+		Vector2(0.000, -0.015), Vector2(-0.055, -0.050),
 	], V1_LIT)
 
-	# (b) Nacelle outer-wall shading, both sides — hugs the angular shoulder/wall facets
-	var nacelle_r := [Vector2(0.220, -0.140), Vector2(0.290, -0.150), Vector2(0.295, -0.075), Vector2(0.230, -0.075)]
+	# (b) Nacelle outer-wall shading, both sides — small shadow quad at the shoulder
+	var nacelle_r := [Vector2(0.075, -0.165), Vector2(0.100, -0.170), Vector2(0.090, -0.110), Vector2(0.070, -0.110)]
 	_draw_hs_poly(origin, rad, _mirror(nacelle_r), V3_SHADOW)
 	_draw_hs_poly(origin, rad, nacelle_r, V3_SHADOW)
 
-	# (c) Aft-deck shadow bar
+	# (c) Aft-deck shadow bar — repositioned to sit just above the tailcone tip
 	_draw_hs_poly(origin, rad, [
-		Vector2(-0.050, -0.030), Vector2(0.028, -0.030), Vector2(0.028, -0.005), Vector2(-0.050, -0.005),
+		Vector2(-0.030, -0.045), Vector2(0.030, -0.045), Vector2(0.030, -0.025), Vector2(-0.030, -0.025),
 	], V3_SHADOW)
 
 	# (d) Glove chevrons — darkest marks on the airframe, tucked inside the
-	# shoulder-break facet so they no longer sit against the (now larger)
-	# nozzle discs and read as part of a "rectangular housing" around them.
-	var chevron_r := [Vector2(0.100, -0.205), Vector2(0.140, -0.195), Vector2(0.155, -0.175), Vector2(0.115, -0.180)]
+	# (now much smaller) shoulder, well clear of the nozzle discs.
+	var chevron_r := [Vector2(0.040, -0.150), Vector2(0.068, -0.144), Vector2(0.072, -0.128), Vector2(0.045, -0.132)]
 	_draw_hs_poly(origin, rad, _mirror(chevron_r), BLACK)
 	_draw_hs_poly(origin, rad, chevron_r, BLACK)
 
-	# --- Canopy: a small dark wedge nestled into the fuselage spine, not a bright
-	# cyan bulb on a stick. #112 round-5 feedback: reference (burst-a-02/03) shows
-	# a small DARK purple-blue wedge, noticeably smaller than our previous bubble.
-	# Base stays flush with the trimmed neck top (-0.530) per the zero-nose-extent
-	# rule; apex is pulled in from -0.605 to -0.590 and narrowed.
+	# --- Canopy: a tiny dot, not a "prominent navy nub on a spike". #112 round-7
+	# feedback: the round-5 canopy (width 0.080*HS at its widest) still read as
+	# a nub. burst-c-11 shows it as barely more than a dot on the spine. Width
+	# cut to 0.036*HS (55% narrower). The apex y (-0.590) is UNCHANGED — Rule
+	# Zero: the gate's own envelope measurement (35.0%W/17.0%H/2.95) passed at
+	# this apex height, and the canopy is the tallest feature that sets it, so
+	# shrinking height would silently break the envelope the gate said to leave
+	# alone. Only width/bulk was cut, matching "shrink further" without moving
+	# the ceiling.
 	var canopy := [
-		Vector2(-0.032, -0.530), Vector2(-0.040, -0.550), Vector2(-0.020, -0.578),
-		Vector2(0.000, -0.590), Vector2(0.020, -0.578), Vector2(0.040, -0.550), Vector2(0.032, -0.530),
+		Vector2(-0.015, -0.530), Vector2(-0.018, -0.545), Vector2(-0.008, -0.575),
+		Vector2(0.000, -0.590), Vector2(0.008, -0.575), Vector2(0.018, -0.545), Vector2(0.015, -0.530),
 	]
 	_draw_hs_poly(origin, rad, canopy, CANOPY_GLASS)
 	_draw_hs_poly(origin, rad, [
-		Vector2(-0.022, -0.568), Vector2(0.000, -0.582), Vector2(0.022, -0.568),
-		Vector2(0.014, -0.548), Vector2(-0.014, -0.548),
+		Vector2(-0.010, -0.568), Vector2(0.000, -0.582), Vector2(0.010, -0.568),
+		Vector2(0.006, -0.548), Vector2(-0.006, -0.548),
 	], CANOPY_HI)
 	_stroke_hs_poly(origin, rad, canopy, OUTLINE, OUTLINE_W)
 
-	# --- Nozzles: near-black discs with a small hot ember core, not the reverse.
-	# #112 round-6 feedback: round-5's outer glow alone reached 82% of the housing
-	# radius, leaving only a thin dark rim — a light-brown-rimmed, mostly-orange
-	# disc. Reference (burst-a-02, burst-c-11) shows the opposite balance: a
-	# near-black housing that stays dark out to ~47% of its radius before the
-	# ember starts, with the brightest core topping out at 24% of the housing.
-	# Housing size/position unchanged (0.095*HS) — only the internal balance
-	# between dark rim and hot core is inverted.
+	# --- Nozzles: thin dark rim, hot orange core filling most of the disc — the
+	# brightest thing on the aircraft. #112 round-7 feedback: round-6 over-corrected
+	# — the housing measured as "two tyres with dim hubcaps" (core only ~35% of the
+	# disc and dim). Re-measured burst-c-03/c-11 directly: the core fills ~55-60% of
+	# the disc radius, not 24-47%. Outer glow radius raised 0.045->0.057*HS (60% of
+	# the 0.095*HS housing radius) and all three layers brightened. Housing
+	# size/position unchanged (0.095*HS @ x=+-0.315) — only the dark/hot balance
+	# and brightness shifted back toward the hot end.
 	for x_n in [-0.315, 0.315]:
 		var housing: Vector2 = Vector2(x_n, -0.040) * HS
 		_draw_rotated_circle(origin, rad, housing, 0.095 * HS, NOZZLE_RIM)
 		var glow: Vector2 = Vector2(x_n, -0.015) * HS
-		_draw_rotated_circle(origin, rad, glow, 0.045 * HS, Color8(150, 60, 15))
-		_draw_rotated_circle(origin, rad, glow, 0.032 * HS, Color8(230, 120, 25))
-		_draw_rotated_circle(origin, rad, glow, 0.023 * HS, Color8(255, 190, 90))
+		_draw_rotated_circle(origin, rad, glow, 0.057 * HS, Color8(190, 75, 15))
+		_draw_rotated_circle(origin, rad, glow, 0.041 * HS, Color8(245, 135, 30))
+		_draw_rotated_circle(origin, rad, glow, 0.029 * HS, Color8(255, 205, 110))
 
 
 func _draw_tailplane(origin: Vector2, rad: float, silhouette: Array, le_strip: Array) -> void:

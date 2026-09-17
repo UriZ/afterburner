@@ -1,5 +1,20 @@
 # Session Log
 
+### [2026-09-17] — developer — #112 (round-7 gate: fuselage wedge, nozzle cores, fin taper, wing seam)
+**Task**: Round-7 gate findings — fuselage a flat white wedge hanging below the nozzles; nozzle core only ~35% of the disc and dim; tail fins constant-width sticks instead of base-wide/tip-pointed blades; visible seam between wing root and outer bar; canopy still a "prominent navy nub on a spike".
+**Result**: COMPLETED
+**Files changed**: `scripts/player/player_jet_2d.gd` only.
+**Key changes**:
+- `fuselage_half` (line ~306) — max half-width cut 0.290→0.100*HS; bottom point pulled from y=0.048 (nearly flush with nozzle bottom edge y=0.055) to y=-0.015 (above nozzle center). Dependent shading polys (lower-fuselage tone, nacelle wall, aft-deck bar, glove chevrons) repositioned to match.
+- Tail fin — rebuilt from a 4-point near-parallelogram (root width ≈ tip width) into a true 3-point triangle: base 0.115*HS wide at the nacelle shoulder, tapering to a single point tip at y=-0.530 (still below canopy apex -0.590, so canopy remains the tallest feature and the envelope is unchanged).
+- Nozzle glow — outer radius 0.045→0.057*HS (60% of housing radius) and all three color layers brightened, fixing the "70% black ring / 35% dim core" measurement.
+- Canopy — width cut 0.080→0.036*HS; apex y left unchanged (it sets the envelope ceiling).
+- Wing/fuselage seam fixed as a side effect of the fuselage shrink: the old wide nacelle plate cut a rectangular step across the inner ~30% of the wing span; the new fuselage no longer reaches the wing-root y-band at all.
+**Testing**: `tests/test_player_jet_2d.gd` 25/25 passed (no test touches this geometry). Python simple-polygon check on every modified part — all non-self-intersecting.
+**Visual verification**: Zoomed reference crops (`burst-c-03.jpg`, `burst-c-11.jpg`) studied first per Rule Zero. Live capture on dedicated port 9662 (killed after), full frame + 4x zoomed crop compared side-by-side against `burst-c-11.jpg`. Pixel-sampled the actual rendered nozzle: hot orange region is 18px of a 32px disc = 56.25% diameter fraction, inside the 55-60% target.
+**Improvement Insights**:
+- **workflow**: for a "shrink this wedge / it hangs below the nozzles" finding, checking the numeric relationship between the new geometry's extreme point and the fixed neighboring part (here: fuselage tip y vs. nozzle bottom edge y = center + radius) catches the regression algebraically before ever rendering — cheaper than iterating on screenshots alone.
+
 ### [2026-09-17] — developer — #97 (round-6 gate: death fireball rounded lobes, fix-explosion-shape-2)
 **Task**: Round-6 gate finding #3 — death fireball regressed to a geometric starburst (14 straight-sided "tongues" with deep V-notch valleys exposing the ground between rays). Fix must produce irregular ROUNDED lobes, fully opaque, 2-4px internal mottle, per criteria.md rule 12 (reworded).
 **Result**: COMPLETED
@@ -3823,3 +3838,33 @@ Caveat: my blob/feature-size metric uses simple median-threshold connected-compo
 **Improvement Insights**:
 - **criteria.md**: rule 16 and hard rule 8 can now be verified for real via `hold`/`key_down`/`key_up` — worth updating the rule text so future judges use these instead of repeated single `key` presses (which still don't exercise level-triggered input).
 - **SKILL.md** (game-video, if it also sends raw key commands): same `call_deferred` edge-vs-level gap likely applies there too if it does its own key sends outside `game-capture`'s helpers — worth a quick grep to confirm it doesn't need the same fix.
+
+---
+### [2026-09-17 12:05] — judge — combined visual state, round 7
+**Gate type**: final (combined state)
+**Verdict**: FAIL
+**Score**: 4/10 (threshold 9)
+**Evidence**: mandatory video 120/120 frames @8fps = 15.0s (port 9650, own instance, killed after). Plus: 40-frame vulcan-hold capture (13.6s, `hold Z 5000` x3), 30-frame movement capture (hold Left/Up/Right/Down), 30-frame invincible-OFF death capture, 24-frame 100ms tracer capture. `capture_invincible` ON except the death run.
+
+**Verified claims**: jet envelope at LEVEL pose 35.0%W / 17.0%H / aspect 2.95 (PASS). Weapons work — SCORE 200→2600, HIT 2→8 over 13.6s of held Z (rule 16 PASS, first time). Free movement cx 8.8%→92.2%, cy 28.9%→82.7% (hard rule 8 PASS). Player occupancy 120/120 = 100% (rule 13 PASS). Horizon 65.0%. Sky S 0.934 V 0.898 vs ref 1.000/0.902.
+
+**Key gaps** (ranked by screen area):
+1. Ground (~35% of screen) — hue split 37% olive / 34% pink-red / 29% orange vs reference's 89.2% in ONE hue bin. Reads as pink/green confetti. mean V 0.474 vs ref 0.580. Luminance feature scale 7.9%W vs ref 5.0%W. Stage 09/10 ground is purple/mauve; stage 08 is grey-on-grey.
+2. Death fireball — three nested FLAT fills (`explosion_2d.gd:338` draw_colored_polygon single Color) + ~15 isolated specks. Reference is a dense textured fire mass. Reads as a bell pepper.
+3. Player jet — flat white wedge fuselage dominates; nozzles read as two black tyres with a small dim core; fins are two straight ungraduated sticks; wing has a visible inner/outer seam; belly bulges below the nozzles. Round-6 nozzle inversion made the tyre read worse.
+4. Kill puff — ~16-facet regular polygon rim, no internal mottle, neutral grey-white; translucent during dissipation (v_065).
+5. HUD — top-right bracketed scope box (in 100% of reference frames) absent, replaced by non-AB2 "HI" readout. Labels plain white, not red/blue banners. Missile icons illegible. No lives jet silhouettes.
+6. Vulcan tracer is a single round glowing ball, not a stream of dashes from the gun position. Enemy fire is flat orange discs.
+
+**Screenshot honest assessment**: Orange sky, a white paper-glider jet with two black tyres, and a carpet of pink-and-green candy blobs below the horizon. The jet's proportions are now right and the guns finally work, but the two largest-area elements on screen still do not read as After Burner II.
+
+**Criteria contradictions found**:
+- Rule 11 requires ">=3 distinct hue clusters per band". The reference measures 89.2% of saturated near-band pixels in a single 20-degree hue bin. This rule directly caused the confetti ground. It should require ONE dominant hue with variation in VALUE.
+- Rule 14's round-6 amendment ("it is NOT fixed furniture") is wrong. burst-a-05 and burst-a-02 show BOTH a fixed top-right scope box AND in-field brackets. The amendment caused the fixed box to be dropped.
+- Rule 12 lists shape requirements (rounded lobes, opaque, mottle) that a 2-flat-fill implementation satisfies on paper while looking nothing like fire. Needs an internal value-variation requirement.
+
+**Improvement Insights**:
+- criteria.md rule 11: replace ">=3 hue clusters" with "one dominant hue holding >=80% of saturated band pixels; variation expressed as value steps" — measured from the reference at gate time.
+- criteria.md rule 14: restore the fixed top-right scope box AND keep the in-field brackets; both exist.
+- criteria.md rule 12: add "explosion bodies must contain >=8 distinct value levels measured by histogram; a 2-3 flat-fill construction is an automatic FAIL".
+- workflow: the bridge `hold` primitive worked. Make `hold`-driven fire/movement part of every visual gate from now on.
