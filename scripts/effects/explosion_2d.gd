@@ -3,11 +3,13 @@ extends Node2D
 ## 2D explosion effect. Two distinct visual types (criteria.md rule 10):
 ##
 ## - Fireball (is_kill=false): player death, ground impacts, large hits.
-##   A 14-tongue radiating sunburst (ab2-arcade-huge-explosion.jpg): a dark
-##   orange-red outer star with a brighter yellow-orange inner star nested
-##   inside it, dark maroon mottle blotches scattered through the mid-body,
-##   and an irregular white-hot core. Phases: flash -> fire -> trailing
-##   smoke -> debris sparks. Duration 1.0s.
+##   A billowing cauliflower cloud (ab2-arcade-huge-explosion.jpg, motion
+##   frame burst-c-10): a dark orange-red outer body with a brighter
+##   yellow-orange inner body nested inside it, made of a handful of large
+##   overlapping ROUNDED lobes (never straight-sided spikes, never a
+##   geometric starburst), dark maroon mottle blotches scattered through the
+##   mid-body, and an irregular white-hot core. Phases: flash -> fire ->
+##   trailing smoke -> debris sparks. Duration 1.0s.
 ## - Kill puff (is_kill=true): enemy aircraft kills. A single dense
 ##   cauliflower-edged cream/white polygon — per ab2-arcade-desert-
 ##   explosions.png / ab2-arcade-closeup-enemies.jpg, aircraft kills read as
@@ -16,16 +18,22 @@ extends Node2D
 ##
 ## Both bodies are OPAQUE for nearly all of their life (alpha only fades in
 ## the final stretch) and built from simple (non-self-intersecting) radial
-## polygons — per-vertex jittered angle/radius, angles generated in
-## monotonic order with jitter capped below half the angular step, so every
-## polygon is star-shaped and can never self-intersect (Godot rejects bowtie
-## polygon data at draw time). Round 5 gate (criteria.md rule 12) found the
-## previous design translucent, with visible gaps between separate offset
-## lobes, and facets far coarser than the reference's fine fringe — fixed by
-## drawing each body as ONE simple polygon (gapless by construction) with a
-## high vertex count, then layering smaller uniform scalings of that SAME
-## polygon on top for shading. A smaller scaling of a star-shaped polygon is
-## always strictly inside the larger one, so the nested layers can never
+## polygons at evenly-spaced angles (zero angle jitter needed — radius alone
+## varies smoothly from vertex to vertex, which is what keeps every edge
+## reading as curved rather than faceted). Round 5 gate (criteria.md rule 12)
+## found the previous design translucent, with visible gaps between separate
+## offset lobes, and facets far coarser than the reference's fine fringe —
+## fixed by drawing each body as ONE simple polygon (gapless by construction)
+## with a high vertex count, then layering smaller uniform scalings of that
+## SAME polygon on top for shading. Round 6 gate found the fireball body had
+## regressed into a literal straight-sided starburst with deep V-notch
+## valleys exposing background between the points — fixed by generating the
+## fireball's radius as a small number of large overlapping raised-cosine
+## bumps on top of a shallow base (never dipping near zero), producing round
+## puffy bulges with full background coverage, plus fine per-vertex jitter
+## for surface texture. A smaller scaling of a star-shaped polygon is always
+## strictly inside the larger one, so the nested layers (and the fireball's
+## inner/outer bodies, which reuse the exact same scaled radii) can never
 ## open a gap either.
 
 ## Defaults to true (kill puff) because the two aircraft-kill call sites
@@ -59,10 +67,33 @@ const KILL_RADIUS_SCALE := 0.35
 # vertex polygons that used to read as giant flat facets.
 const KILL_BLOB_VERTS := 40
 
-# Number of radiating tongues on the fireball's sunburst silhouette, per
-# ab2-arcade-huge-explosion.jpg. Each tongue is a tip vertex + a valley
-# vertex, so the underlying star polygon has TONGUE_COUNT * 2 vertices.
-const TONGUE_COUNT := 14
+# Vertex count for the fireball's outer/inner lobed-cloud body. High enough
+# that the per-vertex jitter (fine surface texture) and the raised-cosine
+# lobe bumps (large rounded bulges) both read as curved rather than as
+# straight polygon facets at the fireball's on-screen radius.
+const FIRE_BLOB_VERTS := 80
+
+# Number of large rounded bulges summed onto the fireball's body, per the
+# billowing cauliflower silhouette in ab2-arcade-huge-explosion.jpg / motion
+# frame burst-c-10 — a handful of big round lobes, not a many-pointed star.
+const FIRE_LOBE_COUNT := 6
+
+# Base radius (valley floor, no lobe influence) and additional peak amplitude
+# for the outer fireball body, both as a fraction of r_base. The valley
+# floor is kept high (0.5) so there is no deep V-notch between lobes that
+# would expose the background — the body reads as one solid puffy cloud with
+# bulges on top of it, never separated rays with gaps between them.
+const FIRE_OUTER_BASE := 0.5
+const FIRE_OUTER_AMP := 0.55
+
+# Inner (brighter) body is the outer body's exact radii scaled down by this
+# ratio at every vertex — guarantees strict nesting inside the outer body
+# the same way the kill puff's nested scalings do.
+const FIRE_CORE_RATIO := 0.6
+
+# Fine per-vertex radius noise (fraction of r_base) layered on top of the
+# smooth lobe bumps — the fireball's fringe/mottle texture (rule 12).
+const FIRE_EDGE_JITTER := 0.02
 
 var base_radius: float = 60.0:  # set by spawner based on enemy depth
 	set(value):
@@ -73,8 +104,8 @@ var _duration: float = FIRE_DURATION
 var _sparks: Array[Dictionary] = []
 var _smoke_puffs: Array[Dictionary] = []
 var _puff_blob: Dictionary       # kill puff: single cauliflower silhouette
-var _center_outer: Dictionary    # fireball: outer (darker) tongue star
-var _center_core: Dictionary     # fireball: inner (brighter) tongue star
+var _center_outer: Dictionary    # fireball: outer (darker) lobed cloud body
+var _center_core: Dictionary     # fireball: inner (brighter) lobed cloud body
 var _mottle_patches: Array[Dictionary] = []  # fireball: dark internal blotches
 var _hot_core: Dictionary        # fireball: irregular white-hot core blob
 
@@ -105,34 +136,52 @@ func _make_blob(num_verts: int, r_min: float, r_max: float, spike_chance: float,
 	return {"angles": angles, "radii": radii}
 
 
-## Builds the angle set for a tongue star: two vertices per tongue (tip,
-## then valley), evenly spaced with small monotonic-safe jitter.
-func _make_star_angles(num_tongues: int) -> PackedFloat32Array:
-	var n := num_tongues * 2
-	var step: float = TAU / n
-	var ang_jitter: float = step * 0.3
+## Builds an evenly-spaced angle set (zero jitter needed — a lobed blob's
+## irregularity comes from its smoothly-varying radius, not from angle
+## jitter, so this is trivially monotonic and always yields a simple
+## polygon).
+func _make_even_angles(num_verts: int) -> PackedFloat32Array:
+	var step: float = TAU / num_verts
 	var angles := PackedFloat32Array()
-	for i in range(n):
-		angles.append(step * i + randf_range(-ang_jitter, ang_jitter))
+	for i in range(num_verts):
+		angles.append(step * i)
 	return angles
 
 
-## Builds radii for a tongue star over a pre-built angle set: even indices
-## are tongue tips (reaching tip_min..tip_max, occasionally an elongated
-## tongue), odd indices are the concave valleys between tongues. Passing the
-## SAME angles array to both the outer and inner star, with the inner
-## star's tip/valley ranges kept strictly below the outer star's, guarantees
-## every inner tongue lines up with — and nests inside — its outer tongue.
-func _make_star_radii(angles: PackedFloat32Array, valley_min: float, valley_max: float, tip_min: float, tip_max: float, elongate_chance: float, elongate_min: float, elongate_max: float) -> PackedFloat32Array:
+## Picks random center angle / width / amplitude for each of the fireball's
+## rounded lobes. Widths overlap generously (up to 95% of the average
+## angular spacing) so neighbouring lobes blend into each other rather than
+## reading as separate bumps with a notch between them.
+func _make_fire_lobes(num_lobes: int) -> Array:
+	var avg_spacing: float = TAU / num_lobes
+	var lobes := []
+	for i in range(num_lobes):
+		lobes.append({
+			"center": randf() * TAU,
+			"half_width": randf_range(0.55, 0.95) * avg_spacing,
+			"amp": randf_range(0.6, 1.0),
+		})
+	return lobes
+
+
+## Builds fireball body radii over an evenly-spaced angle set: at each
+## vertex, sums a raised-cosine bump for every lobe whose half-width covers
+## that angle (smooth, zero at the lobe's edge — never a sharp point), adds
+## fine per-vertex jitter for surface texture, and floors the result well
+## above zero so the body never pinches down to an exposed-background notch.
+func _lobed_radii(num_verts: int, lobes: Array, base_r: float, amp_scale: float, jitter: float) -> PackedFloat32Array:
+	var step: float = TAU / num_verts
 	var radii := PackedFloat32Array()
-	for i in range(angles.size()):
-		if i % 2 == 0:
-			var r: float = randf_range(tip_min, tip_max)
-			if randf() < elongate_chance:
-				r = randf_range(elongate_min, elongate_max)
-			radii.append(r)
-		else:
-			radii.append(randf_range(valley_min, valley_max))
+	for i in range(num_verts):
+		var a: float = step * i
+		var r: float = base_r
+		for lobe in lobes:
+			var d: float = wrapf(a - lobe["center"], -PI, PI)
+			var hw: float = lobe["half_width"]
+			if absf(d) < hw:
+				r += amp_scale * lobe["amp"] * 0.5 * (1.0 + cos(PI * d / hw))
+		r += randf_range(-jitter, jitter)
+		radii.append(maxf(r, base_r * 0.5))
 	return radii
 
 
@@ -174,24 +223,36 @@ func _init_shapes() -> void:
 		# scallops — keep every vertex in the same narrow radius band.
 		_puff_blob = _make_blob(KILL_BLOB_VERTS, 0.86, 1.0, 0.0, 1.0, 1.0)
 		return
-	var angles := _make_star_angles(TONGUE_COUNT)
-	_center_outer = {"angles": angles, "radii": _make_star_radii(angles, 0.30, 0.46, 0.85, 1.05, 0.22, 1.15, 1.35)}
-	_center_core = {"angles": angles, "radii": _make_star_radii(angles, 0.16, 0.28, 0.55, 0.72, 0.15, 0.72, 0.80)}
+	var angles := _make_even_angles(FIRE_BLOB_VERTS)
+	var lobes := _make_fire_lobes(FIRE_LOBE_COUNT)
+	var outer_radii := _lobed_radii(FIRE_BLOB_VERTS, lobes, FIRE_OUTER_BASE, FIRE_OUTER_AMP, FIRE_EDGE_JITTER)
+	# Inner (brighter) body is the outer body's radii scaled down by a fixed
+	# ratio at every vertex — an exact scaled copy nests strictly inside the
+	# outer silhouette by construction, no independent generation needed.
+	var core_radii := PackedFloat32Array()
+	core_radii.resize(outer_radii.size())
+	for i in range(outer_radii.size()):
+		core_radii[i] = outer_radii[i] * FIRE_CORE_RATIO
+	_center_outer = {"angles": angles, "radii": outer_radii}
+	_center_core = {"angles": angles, "radii": core_radii}
 	_init_mottle()
 	_hot_core = _make_blob(10, 0.8, 1.0, 0.0, 1.0, 1.0)
 
 
 func _init_mottle() -> void:
-	# Dark maroon blotches scattered through the fireball's mid-body — the
-	# internal detail rule 12c asks for, kept close enough to center that
-	# they stay inside the outer tongue star's tightest valley (0.30).
-	var count := 6
+	# Dark maroon speckle scattered through the fireball's mid-body — rule
+	# 12c calls for FINE mottle (2-4px), not large blotches. A round-6 gate
+	# composite render measured the previous 6-patch/0.08-0.15 size_frac
+	# setup at 24-60px across on a typical death-fireball r_base (~300px) —
+	# an order of magnitude too coarse. Many more, much smaller patches read
+	# as grainy internal texture instead of separate dark blobs.
+	var count := 30
 	for i in range(count):
 		var angle := randf() * TAU
 		_mottle_patches.append({
 			"dir": Vector2(cos(angle), sin(angle)),
-			"dist_frac": randf_range(0.05, 0.18),
-			"size_frac": randf_range(0.08, 0.15),
+			"dist_frac": randf_range(0.10, 0.42),
+			"size_frac": randf_range(0.012, 0.025),
 			"blob": _make_blob(7, 0.7, 1.0, 0.0, 1.0, 1.0),
 		})
 
@@ -262,24 +323,24 @@ func _draw_fire(t: float) -> void:
 	# so the burst reads as a solid mass, never a translucent haze (rule 12a).
 	var alpha: float = 1.0 - smoothstep(0.6, 1.0, t)
 
-	# Radiating tongue-star silhouette (14 tongues), matching the sunburst
-	# shape in ab2-arcade-huge-explosion.jpg (rule 12c). Outer/inner stars
-	# share one angle set so tongues line up; the inner star's radii are
-	# always smaller, so it's guaranteed to nest inside the outer silhouette
-	# rather than poking out through a valley at a mismatched angle.
+	# Billowing lobed-cloud silhouette (FIRE_LOBE_COUNT rounded bulges),
+	# matching the cauliflower fireball in ab2-arcade-huge-explosion.jpg /
+	# burst-c-10 (rule 12c) — never a straight-sided starburst. The inner
+	# body's radii are an exact scaled-down copy of the outer body's, so it's
+	# guaranteed to nest inside the outer silhouette at every angle.
 	#
 	# Colors are pushed well away from every stage's ground/sky hue (desert
 	# skies measure ~(0.85, 0.45, 0.05) — nearly identical to a naive "dark
-	# orange" tongue fill, which made the whole sunburst vanish into a
-	# desert background). Outer goes deep saturated RED (not orange), inner
-	# goes bright yellow, so the burst reads as a bright hot mass against
-	# any stage background, not just a blue sky.
+	# orange" fill, which made the whole fireball vanish into a desert
+	# background). Outer goes deep saturated RED (not orange), inner goes
+	# bright yellow, so the burst reads as a bright hot mass against any
+	# stage background, not just a blue sky.
 	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_outer), Color(0.85, 0.14, 0.02, alpha))
 	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_core), Color(1.0, 0.68, 0.04, alpha))
 
 	# Dark mottled patches scattered through the mid-body — the reference
-	# shows blotchy maroon patches between the tongues and the hot core, not
-	# a smooth gradient (rule 12c).
+	# shows blotchy maroon patches between the outer bulges and the hot core,
+	# not a smooth gradient (rule 12c).
 	for patch in _mottle_patches:
 		var center: Vector2 = patch["dir"] * patch["dist_frac"] * r_base
 		var pr: float = patch["size_frac"] * r_base

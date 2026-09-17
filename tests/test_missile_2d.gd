@@ -38,7 +38,7 @@ func _initialize() -> void:
 	test_raw_script_default_is_kill_puff()
 	test_scene_default_is_fireball()
 	test_kill_puff_is_single_opaque_blob()
-	test_fireball_tongue_star_nests_correctly()
+	test_fireball_body_is_rounded_lobes_and_nests_correctly()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -250,23 +250,30 @@ func test_kill_puff_is_single_opaque_blob() -> void:
 	e.queue_free()
 
 
-func test_fireball_tongue_star_nests_correctly() -> void:
-	# Round 5 gate (rule 12c): outer/inner tongue stars used to be generated
-	# independently, so their tongues didn't line up and the brighter inner
-	# layer could poke out past the outer silhouette through a valley.
-	# Sharing one angle set and keeping inner radii strictly below outer at
-	# every vertex guarantees the inner layer always nests inside.
+func test_fireball_body_is_rounded_lobes_and_nests_correctly() -> void:
+	# Round 6 gate (rule 12c): the fireball body regressed into a literal
+	# straight-sided starburst with deep V-notch valleys exposing background
+	# between the points. Now a small number of large overlapping rounded
+	# bulges on a shallow (never-near-zero) base, so the silhouette is a
+	# puffy cloud, not a many-pointed star, and never exposes background
+	# through a notch. The inner (brighter) body is an exact scaled-down
+	# copy of the outer body's radii, so it always nests inside.
 	var e := _make_explosion(false)
 	var outer_angles: PackedFloat32Array = e._center_outer["angles"]
 	var inner_angles: PackedFloat32Array = e._center_core["angles"]
-	assert_true(outer_angles.size() == e.TONGUE_COUNT * 2, "outer star has 2 vertices per tongue")
-	assert_true(inner_angles.size() == outer_angles.size(), "inner star shares the outer star's angle count")
+	assert_true(outer_angles.size() == e.FIRE_BLOB_VERTS, "outer body has the dense vertex count")
+	assert_true(inner_angles.size() == outer_angles.size(), "inner body shares the outer body's angle count")
 	var outer_radii: PackedFloat32Array = e._center_outer["radii"]
 	var inner_radii: PackedFloat32Array = e._center_core["radii"]
 	var nested := true
+	var no_deep_notch := true
 	for i in range(outer_radii.size()):
 		if inner_radii[i] >= outer_radii[i]:
 			nested = false
-			break
-	assert_true(nested, "inner tongue star radius is smaller than outer at every vertex")
+		# Valley floor never dips below half the base radius fraction — no
+		# thin-ray silhouette with background showing through the gaps.
+		if outer_radii[i] < e.FIRE_OUTER_BASE * 0.5:
+			no_deep_notch = false
+	assert_true(nested, "inner body radius is smaller than outer at every vertex")
+	assert_true(no_deep_notch, "outer body never pinches down to a deep notch between lobes")
 	e.queue_free()
