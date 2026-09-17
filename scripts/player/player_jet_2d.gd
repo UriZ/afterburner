@@ -29,10 +29,12 @@ const V3_SHADOW := Color8(150, 120, 120)  # warm-tinted grey (R > G=B), NOT brow
 # of the orange sky without reintroducing that G>B cream cast.
 const OUTLINE := Color8(70, 48, 40)  # dark warm neutral silhouette line — NOT saturated red
 const BLACK := Color8(0, 0, 0)
-const NOZZLE_RIM := Color8(58, 46, 42)  # dark warm grey, NOT pure black — #112 round-4:
-# a pure-black perfect circle read as a "car tire", the single most prominent thing on
-# the jet. Reference nozzles (dorsal pixel art + burst-a captures) are a small hot core
-# with only a thin dark transition ring that blends into the airframe/shadow tones.
+const NOZZLE_RIM := Color8(24, 19, 17)  # near-black housing — #112 round-6: the round-5
+# values (light-brown rim + orange annulus + pale-yellow core filling 82% of the housing)
+# were inverted from the reference. burst-a-02/c-11 both show a housing that is mostly
+# dark/near-black with only a SMALL hot orange ember at the centre, not the reverse. The
+# round-4 note below (pure black read as a "car tire") was about a small housing with a
+# large core; this housing keeps its size but the core is now a minority of its area.
 const CANOPY_GLASS := Color8(58, 52, 108)  # dark blue-violet wedge — #112 round-5: reference
 # (burst-a-02/03, ref_jet.png) shows a small DARK purple-blue wedge nestled into the
 # fuselage spine, not a bright cyan bulb on a stick.
@@ -261,15 +263,19 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	_draw_wing(origin, rad, _mirror(wing_r), _mirror(wing_le_r), _mirror(wing_te_r))
 	_draw_wing(origin, rad, wing_r, wing_le_r, wing_te_r)
 
-	# --- Tail fins: slim vertical blades rising from directly above/behind each
-	# nozzle, taller than the wing's vertical band and reaching roughly canopy
-	# height. #112 round-5 feedback: the previous parallelogram silhouette (root
-	# near the centerline, filled with a V3_SHADOW half) read as "a thick grey
-	# slab laid over the wing". Reference (burst-a-02/03, ref_jet.png) shows a
-	# thin blade — root anchored on the nacelle shoulder right at the nozzle's
-	# outer edge, tapering to a near-point tip, no shadow fill at all.
-	var fin_r := [Vector2(0.300, -0.145), Vector2(0.340, -0.615), Vector2(0.322, -0.610), Vector2(0.258, -0.140)]
-	var fin_hi_r := [Vector2(0.300, -0.145), Vector2(0.340, -0.615), Vector2(0.332, -0.612), Vector2(0.292, -0.148)]
+	# --- Tail fins: short blades canted outward from the nacelle shoulder,
+	# tip trimmed below the canopy apex so the canopy (not the fin) sets the
+	# jet's total height. #112 round-6 feedback: the round-5 fin (tip at
+	# x=0.340, only 0.040 outboard of its root) rose almost straight up past
+	# the canopy (-0.615 vs canopy apex -0.590) — two near-vertical parallel
+	# posts, measured 22.0%H/aspect 2.30 vs reference 13.1-16.7%H/3.04-3.37.
+	# burst-a-02 shows a clearly raked blade, leaning outward as it rises, not
+	# a vertical rod. Tip now kicks out to x=0.445 (~20 deg off vertical) and
+	# stops at y=-0.545 — below the canopy's -0.590 apex — so shortening the
+	# fin further would no longer move the jet's total-height ceiling at all;
+	# the canopy is now the tallest feature, matching the reference envelope.
+	var fin_r := [Vector2(0.300, -0.145), Vector2(0.445, -0.545), Vector2(0.420, -0.536), Vector2(0.258, -0.140)]
+	var fin_hi_r := [Vector2(0.300, -0.145), Vector2(0.445, -0.545), Vector2(0.432, -0.541), Vector2(0.292, -0.148)]
 	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_hi_r))
 	_draw_fin(origin, rad, fin_r, fin_hi_r)
 
@@ -357,21 +363,21 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	], CANOPY_HI)
 	_stroke_hs_poly(origin, rad, canopy, OUTLINE, OUTLINE_W)
 
-	# --- Nozzles: large black-rimmed discs whose hot core fills most of the ring,
-	# not small dark ellipses in a rectangular housing. #112 round-5 feedback:
-	# the previous housing (0.085*HS) with a core topping out at 0.057*HS (67%
-	# of housing radius) plus the adjacent glove chevron read as "two tyres on
-	# an axle" in a boxy black mass. The housing is now larger and rounder
-	# (0.095*HS), the outer glow alone reaches 82% of the housing radius —
-	# leaving only a thin dark rim visible — and the chevron above has been
-	# moved off the nacelle shoulder so it no longer merges with the ring.
+	# --- Nozzles: near-black discs with a small hot ember core, not the reverse.
+	# #112 round-6 feedback: round-5's outer glow alone reached 82% of the housing
+	# radius, leaving only a thin dark rim — a light-brown-rimmed, mostly-orange
+	# disc. Reference (burst-a-02, burst-c-11) shows the opposite balance: a
+	# near-black housing that stays dark out to ~47% of its radius before the
+	# ember starts, with the brightest core topping out at 24% of the housing.
+	# Housing size/position unchanged (0.095*HS) — only the internal balance
+	# between dark rim and hot core is inverted.
 	for x_n in [-0.315, 0.315]:
 		var housing: Vector2 = Vector2(x_n, -0.040) * HS
 		_draw_rotated_circle(origin, rad, housing, 0.095 * HS, NOZZLE_RIM)
 		var glow: Vector2 = Vector2(x_n, -0.015) * HS
-		_draw_rotated_circle(origin, rad, glow, 0.078 * HS, Color8(90, 45, 10))
-		_draw_rotated_circle(origin, rad, glow, 0.058 * HS, Color8(225, 150, 25))
-		_draw_rotated_circle(origin, rad, glow, 0.036 * HS, Color8(255, 220, 100))
+		_draw_rotated_circle(origin, rad, glow, 0.045 * HS, Color8(150, 60, 15))
+		_draw_rotated_circle(origin, rad, glow, 0.032 * HS, Color8(230, 120, 25))
+		_draw_rotated_circle(origin, rad, glow, 0.023 * HS, Color8(255, 190, 90))
 
 
 func _draw_tailplane(origin: Vector2, rad: float, silhouette: Array, le_strip: Array) -> void:
