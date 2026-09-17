@@ -191,29 +191,52 @@ func _calculate_formation(count: int, formation: String) -> Array:
 
 func _v_formation(count: int, cx: float, cd: float) -> Array:
 	var result: Array = []
-	var x_spacing := 0.15
-	var d_spacing := 0.02
+	# x_spacing/d_spacing raised (#100 round-6 gate: two stacks of 3-4 at
+	# identical scale). Root cause: get_screen_scale() is a pure function of
+	# depth, and DepthUtil.to_screen()'s lateral spread factor scales with
+	# both x_offset AND depth, so a small FIXED x_spacing that looked fine
+	# at spawn (small d, spread factor near its 0.1 floor) becomes visually
+	# negligible once the formation is close (large d, spread factor near 1,
+	# and the sprite's own wingspan has grown past 250px) — wingmen collapse
+	# into an overlapping same-size blob right as they'd otherwise read as
+	# distinct jets closing in. Old x_spacing=0.15/d_spacing=0.02 needed the
+	# combined near-approach wingspan (3.1*s px) to fit inside ~2*0.15's
+	# screen delta; it didn't. 0.30/0.06 keeps the V shape recognizable at
+	# spawn while giving wingmen enough final-approach separation in both
+	# axes to read as separate aircraft instead of stacked duplicates.
+	var x_spacing := 0.30
+	var d_spacing := 0.06
 	# Leader
 	result.append([cx, cd, randf_range(-0.05, 0.05)])
 	for i in range(1, count):
 		var side: float = 1.0 if i % 2 == 1 else -1.0
 		var rank: int = ceili(float(i) / 2.0)
 		var x: float = cx + side * rank * x_spacing
-		var d: float = cd + rank * d_spacing  # each rank a little closer/bigger
-		var drift: float = randf_range(-0.08, 0.08)
+		# Left/right wingmen at the same rank used to compute the exact same
+		# depth (cd + rank*d_spacing) — same input to get_screen_scale(),
+		# same output, i.e. bit-identical size (the "identical within-stack
+		# scale" gate finding). The side*0.02 term plus a wider per-member
+		# jitter breaks that tie so no two on-screen enemies are ever an
+		# exact size match, even within one rank.
+		var d: float = cd + rank * d_spacing + side * 0.02 + randf_range(-0.02, 0.02)
+		var drift: float = randf_range(-0.10, 0.10)
 		result.append([x, d, drift])
 	return result
 
 
 func _line_formation(count: int, cx: float, cd: float) -> Array:
 	var result: Array = []
-	var spacing := 0.2
+	# spacing 0.2->0.35 and depth jitter +-0.02->+-0.06 for the same
+	# collapse-at-close-range reason as _v_formation above: a line-abreast
+	# formation with near-equal depth reads as one same-size row rather than
+	# reference (burst-a-02/03) enemies at wildly varied depths.
+	var spacing := 0.35
 	var total_w: float = (count - 1) * spacing
 	var start_x: float = cx - total_w / 2.0
 	for i in range(count):
 		var x: float = start_x + i * spacing
-		var d: float = cd + randf_range(-0.02, 0.02)
-		var drift: float = randf_range(-0.05, 0.05)
+		var d: float = cd + randf_range(-0.06, 0.06)
+		var drift: float = randf_range(-0.07, 0.07)
 		result.append([x, d, drift])
 	return result
 
@@ -221,8 +244,8 @@ func _line_formation(count: int, cx: float, cd: float) -> Array:
 func _scattered_formation(count: int, cx: float, cd: float) -> Array:
 	var result: Array = []
 	for i in range(count):
-		var x: float = cx + randf_range(-0.4, 0.4)
-		var d: float = cd + randf_range(-0.03, 0.05)
+		var x: float = cx + randf_range(-0.5, 0.5)
+		var d: float = cd + randf_range(-0.06, 0.10)
 		var drift: float = randf_range(-0.12, 0.12)
 		result.append([x, d, drift])
 	return result

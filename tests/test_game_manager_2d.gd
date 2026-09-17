@@ -29,6 +29,11 @@ func _initialize() -> void:
 	test_stage_timer_halts_when_game_over()
 	test_stage_timer_advances_when_playing()
 
+	print("\n=== Formation Depth/Lateral Stagger Tests (#100 round-6 gate) ===")
+	test_v_formation_same_rank_wingmen_never_share_depth()
+	test_v_formation_wingmen_spread_wider_than_wingspan_at_close_range()
+	test_line_formation_members_vary_in_depth()
+
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
 
@@ -120,6 +125,52 @@ func test_stage_timer_halts_when_game_over() -> void:
 	assert_eq(gs.current_stage, stage_before, "Stage does not advance while phase is GAME_OVER")
 	mgr.queue_free()
 	gs.reset()
+
+
+# --- Formation dispersal (#100 round-6 gate: "two stacks of 3-4 at identical
+# within-stack scale" — left/right wingmen at the same V rank used to compute
+# the exact same depth, and thus the exact same get_screen_scale() output) ---
+
+func test_v_formation_same_rank_wingmen_never_share_depth() -> void:
+	print("\ntest_v_formation_same_rank_wingmen_never_share_depth:")
+	var mgr := _make_manager()
+	var all_distinct := true
+	for trial in range(50):
+		var positions: Array = mgr._v_formation(5, 0.0, 0.1)
+		for i in range(positions.size()):
+			for j in range(i + 1, positions.size()):
+				if absf(positions[i][0] - positions[j][0]) < 0.0001 and absf(positions[i][1] - positions[j][1]) < 0.0001:
+					all_distinct = false
+	assert_true(all_distinct, "no two V-formation members ever share the exact same (x, depth) across 50 trials")
+	mgr.queue_free()
+
+
+func test_v_formation_wingmen_spread_wider_than_wingspan_at_close_range() -> void:
+	print("\ntest_v_formation_wingmen_spread_wider_than_wingspan_at_close_range:")
+	# At close range (d~0.85) the two rank-1 wingmen's own sprite footprint
+	# is already large; their x-separation must be big enough that they read
+	# as distinct aircraft, not an overlapping blob (#100 gate finding 2).
+	var mgr := _make_manager()
+	var positions: Array = mgr._v_formation(3, 0.0, 0.83)  # leader + rank-1 pair
+	var x_left: float = positions[1][0]
+	var x_right: float = positions[2][0]
+	assert_true(absf(x_left - x_right) >= 0.4, "rank-1 wingmen x-separation is wide enough to avoid close-range overlap (%.3f)" % absf(x_left - x_right))
+	mgr.queue_free()
+
+
+func test_line_formation_members_vary_in_depth() -> void:
+	print("\ntest_line_formation_members_vary_in_depth:")
+	var mgr := _make_manager()
+	var spread_seen := false
+	for trial in range(20):
+		var positions: Array = mgr._line_formation(4, 0.0, 0.1)
+		var depths: Array = []
+		for p in positions:
+			depths.append(p[1])
+		if depths.max() - depths.min() > 0.05:
+			spread_seen = true
+	assert_true(spread_seen, "line formation depths vary enough across members to read as staggered, not one flat row")
+	mgr.queue_free()
 
 
 func test_stage_timer_advances_when_playing() -> void:

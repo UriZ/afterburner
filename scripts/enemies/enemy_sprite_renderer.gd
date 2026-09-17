@@ -7,6 +7,10 @@ extends RefCounted
 ## Enemy type index: 0=FIGHTER (olive green), 1=INTERCEPTOR (blue-grey), 2=BOMBER (charcoal)
 ## All colors derived from ab2-arcade-closeup-enemies.jpg reference.
 
+# Cream leading-edge highlight, shared across all 3 enemy types — AB2's
+# reference sprites use the same rim color regardless of fuselage tint.
+const LEADING_EDGE_COLOR := Color(0.949, 0.918, 0.784, 0.85)  # #F2EAC8
+
 const ENEMY_COLORS: Array[Dictionary] = [
 	# Type 0: FIGHTER — dark olive green
 	{
@@ -92,6 +96,20 @@ static func draw_enemy(canvas: CanvasItem, type: int, pos: Vector2, s: float, ba
 		Vector2(s * 1.30, s * 0.50),
 		Vector2(s * 0.10, s * 0.10),
 	]), [c["wing_base"]])
+
+	# Leading-edge highlight — AB2's signature cream rim tracing the front
+	# edge of every wing (#100 round-6 gate: our sprites were flat single-
+	# tone cutouts). Drawn as a stroked line on top of the wing polygons
+	# rather than a 3rd fill layer — a straight highlight along the same
+	# leading-edge vertices used by Layer 2 above, cheaper than another
+	# polygon and reads as a lit edge rather than a paint blotch. Width is
+	# held close to a real "1-2px" screen highlight (not scaled with s like
+	# the fill layers) so it stays a thin rim at any distance instead of
+	# growing into a bar up close.
+	if s >= 4.0:
+		var edge_w: float = clampf(s * 0.03, 1.0, 2.4)
+		canvas.draw_line(Vector2(-s * 0.14, -s * 0.05), Vector2(-s * 1.45, s * 0.32), LEADING_EDGE_COLOR, edge_w)
+		canvas.draw_line(Vector2(s * 0.14, -s * 0.05), Vector2(s * 1.45, s * 0.32), LEADING_EDGE_COLOR, edge_w)
 
 	# Layer 3: Fuselage (7-vertex polygon)
 	canvas.draw_polygon(PackedVector2Array([
