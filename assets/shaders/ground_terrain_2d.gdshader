@@ -24,18 +24,20 @@ render_mode unshaded;
 
 uniform vec4 color_a : source_color = vec4(0.88, 0.65, 0.30, 1.0);
 uniform vec4 color_b : source_color = vec4(0.50, 0.30, 0.12, 1.0);
-// Third stage-specific accent hue (soil on forest, foam on ocean, olive
-// scrub on desert...). One of four material clusters the round-6 patch
-// system in fragment() scatters across the ground — see the cluster
-// selection block there. The round-5 "desert shows 0% olive" finding that
-// used to zero this out for desert/sunset was measured against a single
-// frame; a closer zoomed crop of burst-a-02/03 clearly shows golden/olive
-// scrub texture alongside grey stone and reddish rock (#42 round-6 gate,
-// "irregular multi-hue rubble"), so stage_data.gd restores a real olive
-// value here for desert/sunset. Kept as its own uniform (not derived from
-// color_a/color_b) since it's the one hue genuinely stage-specific rather
-// than mechanically derivable — grey and pink, the other two clusters, ARE
-// derived from color_a/color_b at render time (see fragment()).
+// Third stage-tuned VALUE cluster (a richer/deeper tone within the same
+// stage hue — e.g. shaded scrub on desert, deep foam-shadow on ocean).
+// Round-7 gate CORRECTED the round-6 rule this uniform was built for: the
+// reference desert near-band holds 89.2% of saturated pixels in ONE 20°
+// hue bin (mean V 0.580) and varies by VALUE within that hue, not by
+// scattering unrelated hues (grey stone / olive scrub / pink rock) the way
+// round-6 called for and this shader shipped with — that read as
+// salmon/olive/grey "confetti", not rock. fragment() now derives every
+// cluster's HUE from color_a (all clusters share one hue per stage) and
+// uses color_c only for its S/V "personality" (how saturated/dark that
+// value step is), not its hue. Kept as its own per-stage uniform rather
+// than a fixed offset from color_a/color_b since stages still want
+// different amounts of value contrast (mountain wants a subtle step,
+// volcanic wants a strong ember-dark step).
 uniform vec4 color_c : source_color = vec4(0.55, 0.55, 0.10, 1.0);
 uniform vec4 haze_color : source_color = vec4(1.0, 0.72, 0.10, 1.0);
 
@@ -84,7 +86,17 @@ const float REGION_FREQ = 1.6;
 // the reference's finer salt-and-pepper mixing. 5.5 (third pass) roughly
 // halves the patch size again for a more interspersed look, still well
 // below CELL_FREQ so a patch still spans several rock cells, not one.
-const float PATCH_FREQ = 5.5;
+// Raised again 5.5 -> 8.8 (#42 round-7 gate, ~1.6x): this patch scale, not
+// CELL_FREQ (already tuned above), is what the round-7 measurement caught
+// at 7.92% of screen width against a 4.96% reference target — these
+// same-hue VALUE patches (see the cluster-selection block in fragment())
+// are the "feature" that was still too large, not the individual rock
+// cells within them. An earlier version of this fix mistakenly scaled
+// CELL_FREQ_X/D instead, which shrank the rock grain rather than the
+// patch blobs the gate actually measured, and a matched-scale crop
+// against burst-a-02 confirmed that made the grain visibly finer than the
+// reference while leaving patch size untouched — reverted.
+const float PATCH_FREQ = 8.8;
 
 float hash1(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -219,30 +231,49 @@ void fragment() {
 	float aa_horizon = 1.0 - smoothstep(0.0, 0.20, UV.y);
 	aa = max(aa, aa_horizon);
 
-	// Material-cluster selection (#42 round-6 gate: "shape regularity" —
-	// matching feature size/edge/brightness while every feature is the same
-	// two-hue lozenge still fails; needs varied outline AND >=3 hue clusters
-	// per band). A second, lower-frequency noise field (PATCH_FREQ, well
-	// below CELL_FREQ so a patch spans many rock cells) picks one of four
-	// material clusters per pixel: grey stone / the tuned base tan-brown rock
-	// / the stage's own accent hue (olive scrub, foam, ember...) / a
-	// hue-rotated "pink" rock. Grey and pink are DERIVED from ground_a/
-	// ground_b via HSV at render time rather than two more per-stage
-	// uniforms threaded through 23 stage_data.gd entries and the
-	// GameWorld->update() call site (out of this task's file ownership) —
-	// every stage automatically gets a biome-appropriate 4-hue spread from
-	// its own existing palette. Each cluster also gets its own warp/crevice/
-	// grain tuning below so different regions don't all read as the same
-	// bright-center/dark-edge "bead" (the literal round-6 gate complaint).
+	// Material-cluster selection (#42 round-7 gate CORRECTION of round-6).
+	// Round-6 required ">=3 hue clusters per band" and this shader picked
+	// one of four DIFFERENT-HUE materials per patch: grey stone, the tuned
+	// base rock, a stage accent hue (olive scrub/foam/ember...), and a
+	// hue-rotated "pink" rock. Round-7 pixel-measured the actual reference
+	// desert near-band and found that rule was wrong: 89.2% of its
+	// saturated pixels sit in ONE 20-degree hue bin (mean V 0.580) — it's
+	// one rock material shaded light-to-dark, not a mosaic of differently
+	// coloured rocks. What shipped instead reads as salmon/olive/grey
+	// confetti. The old pink cluster's -0.07 hue ROTATION from an
+	// already-low sunset hue (~10deg) wrapped past red into magenta/purple
+	// (~345deg) — that is the direct cause of the "sunset ground reads
+	// purple/mauve" defect flagged alongside this fix, not a separate bug.
+	//
+	// Every cluster below now shares ONE hue (base_hue, taken from
+	// color_a — ground_a/ground_b are already the same stage hue at
+	// different S/V, see stage_data.gd) and only varies saturation/value: a
+	// bleached highlight, the tuned base rock (color_a/color_b, unchanged),
+	// a stage-tuned mid accent (color_c's own S/V, hue PINNED instead of
+	// following color_c's own hue), and a deep shadow step. A second,
+	// lower-frequency noise field (PATCH_FREQ, well below CELL_FREQ so a
+	// patch spans many rock cells) still picks which value step covers each
+	// patch, and each keeps its own warp/crevice/grain tuning so different
+	// regions don't all read as the same bright-center/dark-edge "bead" —
+	// that part of round-6 (shape variety) was correct and is kept; only
+	// the HUE variety is gone.
 	vec3 hsv_a = rgb2hsv(color_a.rgb);
 	vec3 hsv_b = rgb2hsv(color_b.rgb);
-	vec3 grey_light = hsv2rgb(vec3(hsv_a.x, hsv_a.y * 0.18, clamp(hsv_a.z * 0.92, 0.0, 1.0)));
-	vec3 grey_dark = hsv2rgb(vec3(hsv_b.x, hsv_b.y * 0.18, clamp(hsv_b.z * 1.05, 0.0, 1.0)));
-	vec3 pink_hsv = hsv_b;
-	pink_hsv.x = fract(pink_hsv.x - 0.07);
-	pink_hsv.y *= 0.60;
-	vec3 pink_light = hsv2rgb(vec3(pink_hsv.x, pink_hsv.y, clamp(pink_hsv.z * 1.9 + 0.15, 0.0, 1.0)));
-	vec3 pink_dark = pink_light * 0.55;
+	vec3 hsv_c = rgb2hsv(color_c.rgb);
+	float base_hue = hsv_a.x;
+	vec3 highlight_light = hsv2rgb(vec3(base_hue, hsv_a.y * 0.55, clamp(hsv_a.z * 1.10, 0.0, 1.0)));
+	vec3 highlight_dark = hsv2rgb(vec3(base_hue, hsv_b.y * 0.55, clamp(hsv_b.z * 1.25, 0.0, 1.0)));
+	// Scaling V inside HSV (not multiplying the final RGB) matters here:
+	// ground_c runs pale/near-white on some stages (e.g. mountain's snow
+	// fleck at V~0.89), and a flat *1.25 on RGB clips all three channels to
+	// 1.0 — collapsing that patch to pure white (S=0), which is the same
+	// "flat/washed out" defect as the confetti fix was chasing, just at the
+	// opposite (white) extreme instead of a stray hue. Clamping V in HSV
+	// keeps the patch's own saturation intact at any brightness.
+	vec3 accent_light = hsv2rgb(vec3(base_hue, hsv_c.y, clamp(hsv_c.z * 1.25, 0.0, 1.0)));
+	vec3 accent_dark = hsv2rgb(vec3(base_hue, hsv_c.y, clamp(hsv_c.z * 0.85, 0.0, 1.0)));
+	vec3 shadow_light = hsv2rgb(vec3(base_hue, clamp(hsv_b.y * 1.05, 0.0, 1.0), clamp(hsv_b.z * 0.95, 0.0, 1.0)));
+	vec3 shadow_dark = shadow_light * 0.60;
 
 	float patch_n = value_noise(world_p * PATCH_FREQ + vec2(300.0, -150.0));
 	float patch_idx = floor(clamp(patch_n * 4.0, 0.0, 3.9999));
@@ -250,36 +281,28 @@ void fragment() {
 	vec3 cluster_light;
 	vec3 cluster_dark;
 	// warp_extra: per-cluster boundary jaggedness (multiplies the domain warp
-	// below) — grey stone is smoother/rounder, the accent/scrub cluster is
-	// spikier, matching how those materials actually look in the reference.
+	// below) — the highlight step is smoother/rounder, the accent/shadow
+	// steps are spikier, matching how lit vs. shaded rock faces actually
+	// read in the reference.
 	float warp_extra;
 	// thresh_bias: shifts the crevice threshold band (below) per cluster so
-	// each material gets its own amount of visible crevice/mottle instead of
-	// the identical "bright fill, dark rim" treatment on every feature.
+	// each value step gets its own amount of visible crevice/mottle instead
+	// of the identical "bright fill, dark rim" treatment on every feature.
 	float thresh_bias;
 	float grain_lo;
 	float grain_hi;
 	if (patch_idx < 0.5) {
-		cluster_light = grey_light; cluster_dark = grey_dark;
-		warp_extra = 0.55; thresh_bias = 0.05; grain_lo = 0.78; grain_hi = 1.22;
+		cluster_light = highlight_light; cluster_dark = highlight_dark;
+		warp_extra = 0.55; thresh_bias = 0.12; grain_lo = 0.78; grain_hi = 1.22;
 	} else if (patch_idx < 1.5) {
 		cluster_light = color_a.rgb; cluster_dark = color_b.rgb;
-		warp_extra = 1.0; thresh_bias = 0.0; grain_lo = 0.60; grain_hi = 1.40;
+		warp_extra = 1.0; thresh_bias = 0.04; grain_lo = 0.60; grain_hi = 1.40;
 	} else if (patch_idx < 2.5) {
-		// dark 0.50->0.68 and thresh_bias -0.07->-0.03 (in-session brightness
-		// check): the first pass's light/dark ratio (~0.43) was much lower
-		// than every other cluster's (~0.6-0.7), and its own dark tone then
-		// also feeds crevice = cluster_dark*0.50, so the scrub cluster's
-		// crevices approached near-black. Since it also gets more crevice
-		// AREA (negative thresh_bias) and visually dominates the field, that
-		// combination pulled the whole-frame mean V well below the passing
-		// round-5 band. Matching the light/dark ratio to the other clusters
-		// keeps the still-hue-distinct look without the brightness drop.
-		cluster_light = color_c.rgb * 1.15; cluster_dark = color_c.rgb * 0.68;
-		warp_extra = 1.55; thresh_bias = -0.03; grain_lo = 0.45; grain_hi = 1.55;
+		cluster_light = accent_light; cluster_dark = accent_dark;
+		warp_extra = 1.55; thresh_bias = 0.02; grain_lo = 0.55; grain_hi = 1.45;
 	} else {
-		cluster_light = pink_light; cluster_dark = pink_dark;
-		warp_extra = 1.25; thresh_bias = 0.02; grain_lo = 0.65; grain_hi = 1.35;
+		cluster_light = shadow_light; cluster_dark = shadow_dark;
+		warp_extra = 1.25; thresh_bias = 0.0; grain_lo = 0.65; grain_hi = 1.35;
 	}
 
 	// Domain warp: perturb the sample point before evaluating Worley. A
@@ -355,11 +378,21 @@ void fragment() {
 	float grain_mul = mix(grain_lo, grain_hi, grain);
 
 	// Crevice tone: proportionally darker than each cluster's own dark tone
-	// (not one fixed color_b-derived constant) so grey stone gets a grey
-	// crevice, olive scrub gets an olive crevice, etc. 0.50 factor carried
-	// over unchanged from the round-5 gate's brightness-band tuning (#42) —
-	// see the base-rock cluster's V=0.564 target history below.
-	vec3 crevice = cluster_dark * 0.50;
+	// (not one fixed color_b-derived constant) so each value step gets its
+	// own hue-matched crevice. Raised 0.50 -> 0.58 -> 0.64 across two
+	// in-session measurement passes (#42 round-7 gate): after collapsing to
+	// one hue per stage, a live capture first measured mean V 0.41-0.52
+	// against the 0.580 reference target, short mainly because crevice
+	// pixels (the majority of area, see thresh_mid below) were still tuned
+	// dark for the old 4-different-hue field, where hue contrast alone
+	// separated materials and crevices could run darker without flattening
+	// everything toward one tone. 0.58 (paired with the thresh_mid and
+	// per-cluster bias changes below) brought it to 0.51-0.60 across
+	// non-VFX-obstructed frames; 0.64 is the second pass closing the rest
+	// of that gap. With one hue now, crevice depth needs its own smaller
+	// step to keep mean V in band without giving up the light/dark contrast
+	// that reads as rock relief.
+	vec3 crevice = cluster_dark * 0.64;
 
 	// Per-cell tint biased toward mid-tones (avoid pure-light/pure-dark
 	// extremes so the field reads as one terrain, not scattered confetti).
@@ -415,14 +448,19 @@ void fragment() {
 	// threshold + crevice depth together, not either alone, is what closes
 	// the rest of that gap.
 	//
-	// thresh_bias (#42 round-6 gate) shifts this whole band per material
-	// cluster — set above, e.g. the scrub cluster gets a negative bias
-	// (more crevice coverage, breaks up into mottle rather than a clean
-	// bead) while grey stone gets a positive bias (fewer, rounder crevices).
-	// A small per-cell jitter derived from the same cell_seed used for the
-	// warp above adds one more layer of "not every feature is identical".
+	// thresh_bias shifts this whole band per value cluster — set above, now
+	// all >=0 (#42 round-7 gate: every cluster got MORE crevice-free area,
+	// not less, as part of the same brightness fix as the crevice-color
+	// raise above) so the highlight step stays mostly lit and even the
+	// darkest (shadow) step no longer piles extra dark area on top of its
+	// already-darker tone the way the old grey/scrub bias split did. Base
+	// 0.40 -> 0.43: a small further uniform lift, measured alongside the
+	// crevice-color change above rather than either alone (#42 round-5 gate
+	// established this is a two-knob problem, not one). A small per-cell
+	// jitter derived from the same cell_seed used for the warp above adds
+	// one more layer of "not every feature is identical".
 	float thresh_jitter = (hash1(floor(cell_p) * 3.0 + 71.0) - 0.5) * 0.10;
-	float thresh_mid = 0.40 + thresh_bias + thresh_jitter;
+	float thresh_mid = 0.43 + thresh_bias + thresh_jitter;
 	vec3 terrain = mix(base_color, crevice_color, smoothstep(thresh_mid - 0.08 * aa, thresh_mid + 0.06 + 0.08 * aa, cell_dist_stable));
 	// Regional tonal wash cut from 0.25 to 0.15 (#42 round-4 gate): a strong
 	// low-frequency wash wins uniformly over the sharpened crevice edge
