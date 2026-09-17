@@ -3432,3 +3432,47 @@ Return to developer with feedback on all gaps. The most critical fix is player j
 **Posted to**: GitHub issue #97 comment.
 **Improvement Insights**:
 - **workflow**: "the alpha is highest right when the puffs are least spread out" is a timing-vs-visibility mismatch that pure code-reading almost missed — the spread *range* looked fine on paper (`max_dist` 0-0.5 seemed like a reasonable design choice), and only computing what `drift` actually evaluates to at the moment of peak alpha (t≈0) revealed it was ~0 regardless of the configured range. Worth flagging as a pattern: when an animated property has both a fade curve and a growth curve, always check their *product* at a few sample times, not each curve's asymptotic value.
+
+---
+### [2026-09-17 01:20] — judge — combined visual state (round 4)
+**Gate type**: per-agent (combined visual state, round 4)
+**Verdict**: FAIL
+**Score**: 5/10 (threshold 9)
+**Key gaps**:
+- RULE ZERO: side-by-side vs burst-a-03 does not read as the same game
+- Ground features ~5-8x too large, soft-edged, ~25% too dark (V 0.51 vs ref 0.68); reads as camouflage fabric, not scree
+- Player jet nozzles read as two black car tires; fuselage has zero panel-line detail; canopy is a cyan chimney block
+- Explosions built entirely from `draw_circle` at fixed angles (`scripts/effects/explosion_2d.gd:138-150`) — perfect-circle "flower", not a ragged fireball
+- Screen empty for ~40% of capture (player dead/absent, frames f_0062-f_0086)
+- 3 player deaths in 18s idle, all lives gone by ~22s; score stayed 00000000 for 90/96 frames
+- Lock-on reticle offset down-right of its target (f_0062)
+- Title screen is a white page with default sans-serif "AFTER BURNER"
+- Persistent centred red "STAGE 01" overlay on the ground for the whole capture
+**Screenshot honest assessment**: Palette, horizon (61.8%), jet proportions (36.0%W x 18.3%H, aspect 2.81) and enemies-in-sky all now measure inside their targets. But the whole frame still reads as a hobby remake: a smeared two-tone blob field for ground, a toy jet with tire nozzles, clip-art circle explosions, and long stretches of empty orange sky. Measurable proxies passed; the picture did not.
+**Evidence**: 96 frames / 18s at `scratchpad/frames/`, video `scratchpad/judge-video-r4.mp4`, side-by-sides `scratchpad/sbs.png`, `scratchpad/sbs_ground.png`. Private port 9571 via temp cfg (deleted post-startup), own PID killed, no blanket pkill.
+**Not verified (BLOCKED)**: vulcan tracer / missile-trail / hit-reaction appearance — bridge cannot hold keys and the interactive fire-capture command was denied by the permission system. Treat weapon visuals as unverified, not as passing.
+**Improvement Insights**:
+- **criteria.md**: add a ground FEATURE-SIZE rule with a number. Near-field terrain feature median diameter must be 1-2% of screen width (ref: ~8px of 686 = 1.2%); ours is ~7%. This is the defect RULE ZERO was written for and it still has no measurable backstop, so it keeps surviving "recolour the ground" fixes.
+- **criteria.md**: add a ground BRIGHTNESS rule tied to the stage reference (desert V_gnd 0.67-0.69). Saturation alone passed while the ground was 25% too dark.
+- **criteria.md**: add an explicit anti-primitive rule for effects — "no effect may be composed solely of `draw_circle`; explosion silhouettes must be irregular/noisy." Three explosion fixes in a row tuned radii and alpha curves while the primitive stayed a circle.
+- **workflow**: judging on a build where the player dies every ~6s wastes most of the capture. Ship a `--judge-mode` invincibility flag so visual gates get uninterrupted gameplay frames; otherwise composition criteria are being scored against a corpse-less empty sky.
+- **workflow**: `game-video/capture-video.sh` still hardcodes `pkill -f Godot` (line 33) and port 9501. In a multi-agent session that is a landmine; it forced me to hand-roll the capture. Parameterise `--port` and kill only the PID it spawned.
+
+---
+### [2026-09-17 07:40] — developer — #112
+**Task**: Round-4 gate fixes — nozzles, panel lines, canopy, player occupancy
+**Result**: COMPLETED
+**Files changed**: scripts/player/player_jet_2d.gd (only file touched, per round ownership)
+**Key changes**:
+- player_jet_2d.gd:29-33 — added NOZZLE_RIM (dark warm grey), DEATH_DURATION 2.0->1.0, INVINCIBILITY_DURATION 6.0->2.0
+- player_jet_2d.gd:148-156 — clamp death-fall to MOVE_MAX.y so the tumble animation stays on-camera instead of falling off the visible viewport
+- player_jet_2d.gd:285-292 — trimmed fuselage neck top from (0.030,-0.622) to (0.048,-0.530), removing the nose-cap sliver that poked above the canopy ("chimney")
+- player_jet_2d.gd:297-304 — added neck spine + side-seam panel lines (V2_MID/V1_LIT) across the previously flat canopy-to-nacelle run
+- player_jet_2d.gd:335-349 — rebuilt canopy as a 7-point rounded bubble, apex unchanged at -0.605 (now the true topmost feature)
+- player_jet_2d.gd:321-332 — nozzle housing 0.135*HS->0.085*HS, BLACK->NOZZLE_RIM, glow layers scaled up in the same ratio so the golden core fills more of the housing
+**Testing**: tests/test_player_jet_2d.gd 21/21 pass (no test referenced changed constants — verified via grep first). Full suite run, no regressions; pre-existing test_jet_mesh_builder.gd failures (13, legacy 3D system) confirmed identical via git stash with/without my diff.
+**Visual verification**: Own Godot instance on private port 9612 (mcp_ports.cfg deleted after startup, own PID killed after, no blanket pkill). Full-frame + 2x zoomed screenshot confirms: nozzles now small dark-grey discs with visible gold core (not black tires); visible panel-line breaks down the neck; canopy reads as a seated rounded bubble, no spike. Side-by-side against burst-a-02.jpg posted to issue.
+**Occupancy verification**: deterministic scratch harness (not committed) instantiated the real player_jet_2d.tscn, called the actual hit() at t=1s, stepped _process(dt) at 60fps for 15s, measured visible+on-screen frame fraction using the production state machine. Pre-fix (via git stash, same harness): 79.8% (FAIL). Post-fix: 93.0% (PASS, >=90% threshold).
+**Improvement Insights**:
+- **workflow**: the deterministic-harness pattern (drive real _process()/public API through simulated time, measure a boolean condition per frame) is a good fit for timing-based occupancy/duration bugs where live capture can't reliably reproduce the exact death timing window. Worth naming as a third verification mode alongside live capture and composite parameter-sweep render.
+- **game-video/capture-video.sh, game-capture/capture.sh**: still hardcode PORT=9501 and `pkill -f Godot` with no --port flag. Every agent doing visual verification in a multi-agent session has to hand-roll the private-port dance instead of just passing --port. Worth fixing once centrally.
