@@ -20,6 +20,12 @@ const HORIZON_Y: float = _DepthUtil.HORIZON_Y
 var sky_top_color: Color = Color(0.08, 0.04, 0.28)
 var sky_horizon_color: Color = Color(1.00, 0.72, 0.10)
 var ground_color_a: Color = Color(0.88, 0.65, 0.30)
+# NOTE: these three are only the pre-stage-1 fallback. game_manager_2d.gd
+# overwrites all three from StageData.get_stage() as soon as a stage starts
+# (including stage 1, at game start), so tuning ground brightness/hue means
+# editing stage_data.gd's per-stage ground_a/ground_b/ground_c, not these
+# defaults — traced during #42's round-4 gate fix after an edit here had no
+# visible effect in actual gameplay captures.
 var ground_color_b: Color = Color(0.50, 0.30, 0.12)
 var ground_color_c: Color = Color(0.55, 0.55, 0.10)
 

@@ -51,11 +51,18 @@ uniform float world_scroll = 0.0;
 // Player parallax offset — see GameWorld._player_lateral_offset().
 uniform float lateral = 0.0;
 
-// Cell frequency chosen so a rock cell spans ~30px on screen near the
-// camera (bottom of frame) — measured against burst-a-02/burst-a-03, where
-// near-camera rocks are ~4-5% of frame height, vs the old model's ~10-13%.
-const float CELL_FREQ_X = 14.0;
-const float CELL_FREQ_D = 15.0;
+// Cell frequency chosen so a rock cell spans ~17px on screen near the
+// camera (bottom of frame) — round-4 gate measured reference rocks at ~8px
+// in a 686px frame (~1.2% width, 10-20px at 960 wide) with hard edges, vs
+// our prior 40-90px soft blobs. The 14/15 pair this replaces gave a ~32px
+// theoretical pitch that STILL measured 40-90px in practice — the actual
+// culprit was the domain warp amplitude below being large enough (up to 0.7
+// cell units) to walk a sample across neighboring cells' boundaries,
+// visually merging them into blobs bigger than the nominal grid. Frequency
+// and warp amplitude were both wrong; fixing only one would not have hit
+// the 10-20px target.
+const float CELL_FREQ_X = 26.0;
+const float CELL_FREQ_D = 28.0;
 // Low-frequency broad tonal patches (the mottled light/dark regions visible
 // across the reference beyond individual rock cells).
 const float REGION_FREQ = 1.6;
@@ -153,7 +160,17 @@ void fragment() {
 	// grows is the standard fix — it does NOT touch world-space identity or
 	// the persistent-translation guarantee, it only widens/softens how a
 	// pixel that can no longer resolve individual cells gets shaded.
-	float aa = clamp(length(fwidth(cell_p)) * 0.14, 0.0, 1.0);
+	float aa = clamp(length(fwidth(cell_p)) * 0.22, 0.0, 1.0);
+	// The fwidth term above is directional (it grows fastest toward the
+	// screen edges at low d, since world_x = off/x_spread blows up there
+	// fastest) — round-4 gate caught this as a visible band of streaks
+	// radiating from the horizon vanishing point, not a uniform haze. A pure
+	// UV.y floor forces the whole near-horizon strip flat regardless of x,
+	// which can't produce an x-dependent (radial) pattern by construction —
+	// it matches the reference anyway, where the far ground is a smooth haze
+	// with no resolvable rock detail near the horizon line.
+	float aa_horizon = 1.0 - smoothstep(0.0, 0.20, UV.y);
+	aa = max(aa, aa_horizon);
 
 	// Domain warp: perturb the sample point before evaluating Worley. A
 	// single low-frequency warp still reads as a too-regular round-pebble
@@ -163,9 +180,17 @@ void fragment() {
 	// edges instead of just displacing a still-round cell. Its amplitude
 	// fades under aa since it's the higher-frequency (more alias-prone) of
 	// the two warp layers.
+	//
+	// Amplitudes cut roughly 4x from the previous 1.4/0.7 (#42 round-4 gate):
+	// displacing a sample by more than half a cell unit does not just
+	// "jaggify" its boundary, it can walk the sample across a neighboring
+	// cell's Worley region entirely, visually fusing two adjacent rocks into
+	// one blob — measured as 40-90px features against a ~32px nominal grid.
+	// Small warp still breaks up the round Worley boundary into an irregular
+	// one without merging cells.
 	vec2 warp1 = vec2(value_noise(cell_p * 0.5 + 11.0), value_noise(cell_p * 0.5 + 47.0)) - 0.5;
 	vec2 warp2 = vec2(value_noise(cell_p * 1.8 + 91.0), value_noise(cell_p * 1.8 + 23.0)) - 0.5;
-	cell_p += warp1 * 1.4 + warp2 * 0.7 * (1.0 - aa);
+	cell_p += warp1 * 0.35 + warp2 * 0.18 * (1.0 - aa);
 
 	float cell_id;
 	float cell_dist = worley(cell_p, cell_id);
@@ -175,10 +200,21 @@ void fragment() {
 	// noisy even within a single rock, not a flat fill. Fades toward a
 	// neutral 1.0 multiplier under aa for the same reason as warp2.
 	float grain = mix(value_noise(cell_p * 3.3), 0.5, aa);
+	// Floor raised 0.82->0.90 (#42 round-4 gate, brightness pass): grain
+	// multiplies the FINAL terrain color, so its low end darkens the
+	// majority-light base tone too, on top of the crevice-threshold fix
+	// above. 0.90-1.1 keeps visible per-pixel noise without dragging mean V
+	// down.
+	float grain_mul = mix(0.90, 1.1, grain);
 
 	vec3 dark = color_b.rgb;
 	vec3 light = color_a.rgb;
-	vec3 crevice = color_b.rgb * 0.5;
+	// 0.72, not 0.5 (#42 round-4 gate): crevices cover a meaningful fraction
+	// of every frame, so a crevice this much darker than color_b alone pulls
+	// the whole-ground mean brightness down hard — measured V=0.51 against a
+	// 0.67-0.69 target. Still visibly darker than the rock face (per-feature
+	// shadow), just not black-seam dark.
+	vec3 crevice = color_b.rgb * 0.72;
 
 	// Vegetation clumps (#42 colour-variety follow-up): a second, decorrelated
 	// noise field selects patches of color_c instead of rock tones — reference
@@ -225,17 +261,26 @@ void fragment() {
 	// pixel-independent blend, which cannot moire no matter how undersampled
 	// the underlying cell grid is.
 	float cell_dist_stable = mix(cell_dist, 0.5, aa);
-	// Sharper crevice band (was 0.34-0.58) — a narrower transition reads as a
-	// thin, jagged crack between rock faces instead of a broad soft-shaded
-	// round bevel, which is the other half of the "leopard print" defect: the
-	// warp fixed the outline, this fixes the shading gradient inside it. The
-	// band widens under aa so undersampled far terrain blurs smoothly instead
-	// of aliasing — sharp only where the pixel grid can actually resolve it.
-	vec3 terrain = mix(base_color, crevice_color, smoothstep(0.30 - 0.28 * aa, 0.40 + 0.28 * aa, cell_dist_stable));
-	// Regional tonal wash stays rock-only (scaled by 1.0-veg) so it doesn't
-	// desaturate the vegetation clumps' distinct hue back toward rock tan.
-	terrain = mix(terrain, mix(dark, light, region), 0.25 * (1.0 - veg));
-	terrain *= mix(0.82, 1.1, grain);
+	// Threshold moved from 0.33 to 0.65 (#42 round-4 gate, second pass): F1
+	// Worley cell_dist keeps growing across nearly the WHOLE cell, not just
+	// near its boundary — only a small core close to each feature point sits
+	// below ~0.3-0.4. A 0.33 cutoff therefore classified most of the field
+	// as "crevice", which is backwards from the reference (lit rock/sand is
+	// the majority tone, dark seams are a minority accent) and was the real
+	// reason ground mean V measured 0.51 even after color_b was brightened —
+	// no amount of raising color_b fixes a threshold that paints most pixels
+	// with the darker of the two colors. 0.65 keeps only the genuinely
+	// far-from-any-center pixels (true valley bottoms) dark. Band still 0.06
+	// wide at aa=0 for a hard edge, widening under aa same as before.
+	vec3 terrain = mix(base_color, crevice_color, smoothstep(0.65 - 0.28 * aa, 0.71 + 0.28 * aa, cell_dist_stable));
+	// Regional tonal wash cut from 0.25 to 0.15 (#42 round-4 gate): a strong
+	// low-frequency wash wins uniformly over the sharpened crevice edge
+	// above and reads as softening it back out — this blend is meant to hide
+	// aliasing in undersampled far terrain (aa handles that via the mix
+	// weight implicitly through cell_dist_stable/base_color already), not to
+	// flatten near-camera contrast where edges must stay crisp.
+	terrain = mix(terrain, mix(dark, light, region), 0.15 * (1.0 - veg));
+	terrain *= grain_mul;
 
 	// Haze: ground fades into the sky's horizon tone as UV.y -> 0 (the
 	// horizon), replacing the old hard white stroke with a density falloff —

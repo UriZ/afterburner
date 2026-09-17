@@ -1,5 +1,19 @@
 # Session Log
 
+### [2026-09-17] — developer — #42 (ground feature size/edges, round-4 gate)
+**Task**: Ground rocks/bushes 5-8x too large, soft edges, too dark (V=0.51 vs 0.67-0.69 target), plus a radial smear band under the horizon — worst defect on screen per round-4 gate.
+**Result**: COMPLETED
+**Files changed**: `assets/shaders/ground_terrain_2d.gdshader`, `scripts/game/game_world.gd` (comment-only)
+**Key changes**:
+- `ground_terrain_2d.gdshader:64-65` — `CELL_FREQ_X/D` 14/15→26/28 and, more importantly, domain-warp amplitude `warp1*1.4+warp2*0.7`→`warp1*0.35+warp2*0.18` (`:191-193`): the 14/15 pair already gave a ~32px theoretical pitch that still measured 40-90px — warp large enough to walk a sample across a neighbor cell's Worley region was fusing adjacent rocks into blobs. Both needed fixing, not just frequency. Measured post-fix: ~15px feature width on a near-camera mean-crossing scan (target 10-20px).
+- `:172-173` — added `aa_horizon = 1 - smoothstep(0, 0.20, UV.y)`, `aa = max(aa, aa_horizon)`. Root cause of the radial streak: the existing `fwidth(cell_p)`-based AA is directional (blows up fastest toward screen edges at low depth since `world_x = off/x_spread` explodes there there), so it produced a coherent x-dependent streak instead of a uniform haze. A pure UV.y floor can't produce an x-dependent pattern by construction.
+- `:217,264-275` — crevice threshold on `cell_dist_stable` moved 0.30-0.40→0.65-0.71: F1 Worley `cell_dist` grows across nearly the whole cell, so the old low cutoff classified most pixels as "crevice" (dark), backwards from the reference (majority-light, dark seams as minority accent) — the real cause of V=0.51, not color choice. Crevice multiplier 0.5→0.72, grain floor 0.82→0.90 (`:203-208`), regional wash blend 0.25→0.15 (`:282`).
+- `game_world.gd:22-28` — reverted an initial `ground_color_b` brightening edit after tracing that it's dead code: `game_manager_2d.gd` overwrites `ground_color_a/b/c` from `StageData.get_stage()` on every stage start including stage 1, so the shader-side threshold fix above is what actually accounts for the brightness fix, not this default. Left a NOTE pointing future edits at `stage_data.gd` instead.
+**Testing**: `tests/test_ground_grid.gd` (9/9), `tests/test_stage_data.gd` (12/12) pass unmodified. Verified via a private-port dev Godot instance (own PID, cfg deleted right after startup, other agents' instances untouched): full-frame side-by-side against `burst-a-02.jpg`/`burst-a-03.jpg` at each iteration, HSV mean-V measurements on two independent ground-region crops (0.65-0.69, in target range), mean-crossing feature-width scan (~15px, in target range). Radial streak visually absent in all post-fix captures across multiple restarts.
+**Improvement Insights**:
+- **workflow**: When a "brighten the ground" fix shows no effect in-game despite a plausible-looking default-value edit, trace the runtime data flow before assuming the edit is wrong — `game_manager_2d.gd` silently overwrites `game_world.gd`'s ground color vars from `StageData` every stage start. This cost one wasted capture cycle; worth a repo-wide note that `game_world.gd`'s `ground_color_*`/`sky_*_color` vars are pre-stage-1 fallbacks only, not the live values.
+- **criteria.md**: Worth codifying "F1 Worley cell_dist grows across most of a cell, not just its boundary" as a known gotcha for anyone tuning `ground_terrain_2d.gdshader` — the same backwards-threshold mistake (crevice=majority) is easy to reintroduce by "fixing" edge sharpness without checking area balance.
+
 ### [2026-09-17] — developer — #108/#42 (sky follow-up)
 **Task**: Sky reads as a flat orange wall — fix per TL brief with mandatory fresh reference sampling (RULE ZERO), do not trust prior conflicting guidance.
 **Result**: COMPLETED
