@@ -8,10 +8,12 @@ extends Control
 const BlockFont = preload("res://scripts/ui/block_font.gd")
 
 const LABEL_PX := 3.0
-const SCORE_DIGIT_PX := 4.0
+const SCORE_DIGIT_PX := 5.0
 const HI_DIGIT_PX := 3.0
 const STAGE_DIGIT_PX := 4.0
 const COUNT_DIGIT_PX := 3.0
+const HIT_LABEL_PX := 2.5
+const HIT_DIGIT_PX := 3.0
 
 const SPEED_BAR_SEGMENTS := 10
 const SPEED_SEG_SIZE := Vector2(14.0, 16.0)
@@ -40,7 +42,8 @@ const SCREEN_H := 672.0
 
 func _draw() -> void:
 	var hud: Node = get_parent()
-	_draw_score(hud.score)
+	var score_end_x := _draw_score(hud.score)
+	_draw_hit(hud.hit_count, score_end_x + 24.0)
 	_draw_hi_score(hud.high_score)
 	_draw_speed_bar(hud.speed_ratio)
 	_draw_stage(hud.current_stage)
@@ -48,13 +51,25 @@ func _draw() -> void:
 	_draw_lives(hud.lives)
 
 
-func _draw_score(score: int) -> void:
+## Draws the SCORE banner + digits, returns the digits' end x (for HIT placement).
+func _draw_score(score: int) -> float:
 	var label_w := BlockFont.text_width(5, LABEL_PX)
 	var banner := Rect2(16, 10, label_w + 16, 7.0 * LABEL_PX + 12.0)
 	draw_rect(banner, COLOR_SCORE_BANNER)
 	draw_rect(banner, COLOR_SCORE_BORDER, false, 2.0)
 	BlockFont.draw_text(self, "SCORE", banner.position + Vector2(8, 6), LABEL_PX, COLOR_WHITE)
-	BlockFont.draw_text(self, "%08d" % score, Vector2(banner.end.x + 12, 12), SCORE_DIGIT_PX, COLOR_WHITE)
+	var digits_y := banner.position.y + (banner.size.y - 7.0 * SCORE_DIGIT_PX) / 2.0
+	return BlockFont.draw_text(self, "%08d" % score, Vector2(banner.end.x + 12, digits_y), SCORE_DIGIT_PX, COLOR_GOLD) + banner.end.x + 12.0
+
+
+func _draw_hit(count: int, x: float) -> void:
+	var label_w := BlockFont.text_width(3, HIT_LABEL_PX)
+	var banner := Rect2(x, 16, label_w + 12, 7.0 * HIT_LABEL_PX + 8.0)
+	draw_rect(banner, COLOR_SCORE_BANNER)
+	draw_rect(banner, COLOR_SCORE_BORDER, false, 2.0)
+	BlockFont.draw_text(self, "HIT", banner.position + Vector2(6, 4), HIT_LABEL_PX, COLOR_WHITE)
+	var digits_y := banner.position.y + (banner.size.y - 7.0 * HIT_DIGIT_PX) / 2.0
+	BlockFont.draw_text(self, str(count), Vector2(banner.end.x + 10, digits_y), HIT_DIGIT_PX, COLOR_WHITE)
 
 
 func _draw_hi_score(hi: int) -> void:

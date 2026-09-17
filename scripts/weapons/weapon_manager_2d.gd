@@ -10,6 +10,23 @@ const MISSILE_FIRE_COOLDOWN := 0.4
 const LOCK_RADIUS := 80.0             # screen pixels — lock-on detection radius
 const LOCK_BREAK_DELAY := 0.5
 
+# Bracket sizing/centering must derive from the enemy's ACTUAL drawn sprite,
+# not an independent depth curve (#49 gate) — otherwise the bracket floats
+# around at a size and position unrelated to what's on screen. 35.0 mirrors
+# game_world.gd's `enemy.get_screen_scale() * 35.0`, the exact "s" the
+# enemy sprite is drawn at (see enemy_sprite_renderer.gd draw_enemy).
+const BRACKET_SPRITE_SCALE := 35.0
+const BRACKET_SIZE_FACTOR := 2.0      # loose fit around the sprite, not snug
+const BRACKET_SIZE_MIN := 24.0
+const BRACKET_SIZE_MAX := 220.0
+# enemy_sprite_renderer.gd draws the fuselage nose tip at pos.y - 1.10*s and
+# its lowest point (wing underside) at pos.y + 0.52*s — the sprite's visual
+# centroid sits at (-1.10+0.52)/2 = -0.29*s relative to `pos` (get_screen_
+# position()), not AT pos. Without this correction the bracket centers on
+# `pos` while the sprite's visible mass sits well above it, reading as a
+# bracket offset down from the target.
+const BRACKET_CENTER_Y_OFFSET := -0.29
+
 # Crosshair lead offsets (screen pixels from player)
 const SIGHT_AHEAD_Y := 120.0
 const SIGHT_LEAD_X := 100.0
@@ -84,8 +101,6 @@ func _update_lockon(delta: float) -> void:
 		if best_enemy != locked_enemy:
 			_on_new_lock()
 		locked_enemy = best_enemy
-		locked_enemy_screen_pos = best_enemy.get_screen_position()
-		locked_enemy_bracket_size = _bracket_size_for_enemy(best_enemy)
 		_lock_break_timer = 0.0
 	elif locked_enemy != null:
 		if not is_instance_valid(locked_enemy):
@@ -97,6 +112,16 @@ func _update_lockon(delta: float) -> void:
 				locked_enemy = null
 				_lock_break_timer = 0.0
 
+	# Bracket must track the locked enemy's CURRENT screen position every
+	# frame it's still valid — including during the lock-break grace window
+	# above. Updating this only inside the `best_enemy != null` branch left
+	# it frozen at a stale position for up to LOCK_BREAK_DELAY (0.5s) while
+	# the enemy sprite kept moving, visibly desyncing the bracket from the
+	# jet it's supposed to be enclosing (#49 gate).
+	if is_instance_valid(locked_enemy):
+		locked_enemy_screen_pos = locked_enemy.get_screen_position() + _bracket_center_offset(locked_enemy)
+		locked_enemy_bracket_size = _bracket_size_for_enemy(locked_enemy)
+
 
 func _on_new_lock() -> void:
 	var am: Node = get_node_or_null("/root/AudioManager")
@@ -105,10 +130,17 @@ func _on_new_lock() -> void:
 
 
 func _bracket_size_for_enemy(enemy: Node) -> float:
-	if "logical_depth" in enemy:
-		# Scale bracket 60px (near d=1) → 36px (far d=0.3)
-		return clampf(remap(enemy.logical_depth, 0.3, 1.0, 36.0, 60.0), 36.0, 60.0)
-	return 48.0
+	if not enemy.has_method("get_screen_scale"):
+		return 48.0
+	var s: float = enemy.get_screen_scale() * BRACKET_SPRITE_SCALE
+	return clampf(s * BRACKET_SIZE_FACTOR, BRACKET_SIZE_MIN, BRACKET_SIZE_MAX)
+
+
+func _bracket_center_offset(enemy: Node) -> Vector2:
+	if not enemy.has_method("get_screen_scale"):
+		return Vector2.ZERO
+	var s: float = enemy.get_screen_scale() * BRACKET_SPRITE_SCALE
+	return Vector2(0.0, BRACKET_CENTER_Y_OFFSET * s)
 
 
 func _fire_vulcan() -> void:

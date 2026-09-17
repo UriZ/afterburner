@@ -11,6 +11,7 @@ var high_score: int = 0
 var current_stage: int = 1
 var missile_count: int = 0
 var lives: int = 0
+var hit_count: int = 0
 var speed_ratio: float = 0.5  ## 0.0 to 1.0, for future throttle integration
 
 
@@ -21,6 +22,7 @@ func _ready() -> void:
 	current_stage = GameState.current_stage
 	missile_count = GameState.missile_count
 	lives = GameState.lives
+	hit_count = GameState.hit_count
 	canvas.queue_redraw()
 
 
@@ -29,6 +31,7 @@ func _connect_signals() -> void:
 	GameState.lives_changed.connect(_update_lives)
 	GameState.missile_count_changed.connect(_update_missiles)
 	GameState.stage_changed.connect(_update_stage)
+	GameState.hit_count_changed.connect(_update_hit_count)
 
 
 func _update_score(new_score: int) -> void:
@@ -50,6 +53,11 @@ func _update_missiles(new_count: int) -> void:
 
 func _update_lives(new_lives: int) -> void:
 	lives = new_lives
+	canvas.queue_redraw()
+
+
+func _update_hit_count(new_count: int) -> void:
+	hit_count = new_count
 	canvas.queue_redraw()
 
 

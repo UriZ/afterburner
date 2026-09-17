@@ -35,7 +35,6 @@ var _spawning_enabled: bool = true
 var _stage_timer: float = 0.0
 var _announce_timer: float = 0.0
 var _is_announcing: bool = false
-var _announce_label: Label = null
 
 
 func _ready() -> void:
@@ -49,7 +48,6 @@ func _ready() -> void:
 	# If launched directly (not from title screen), ensure phase is PLAYING
 	if GameState.phase == GameState.Phase.TITLE:
 		GameState.phase = GameState.Phase.PLAYING
-	_create_announce_label()
 	_apply_stage(GameState.current_stage)
 	_dispense_timer = 0.0  # start dispensing immediately when announcement clears
 
@@ -58,12 +56,13 @@ func _process(delta: float) -> void:
 	if GameState.phase != GameState.Phase.PLAYING and GameState.phase != GameState.Phase.BONUS_STAGE:
 		return
 
-	# Stage announcement
+	# Brief pause at stage start before spawning resumes. No visual overlay —
+	# the reference has no centered banner; the persistent bottom-bar
+	# "STAGE NN" text (hud_canvas.gd) is the only stage indicator AB2 shows.
 	if _is_announcing:
 		_announce_timer -= delta
 		if _announce_timer <= 0.0:
 			_is_announcing = false
-			_announce_label.visible = false
 		return
 
 	# Stage timer
@@ -110,42 +109,14 @@ func _apply_stage(stage_number: int) -> void:
 	if data["is_bonus"]:
 		GameState.phase = GameState.Phase.BONUS_STAGE
 		GameState.add_missiles(BONUS_MISSILE_REWARD)
-		_show_announcement("BONUS STAGE")
 	else:
 		GameState.phase = GameState.Phase.PLAYING
-		_show_announcement("STAGE %02d" % stage_number)
+	_show_announcement()
 
 
-func _show_announcement(text: String) -> void:
-	_announce_label.text = text
-	_announce_label.visible = true
+func _show_announcement() -> void:
 	_is_announcing = true
 	_announce_timer = STAGE_ANNOUNCE_DURATION
-
-
-func _create_announce_label() -> void:
-	var canvas := CanvasLayer.new()
-	canvas.layer = 15
-	canvas.name = "StageAnnounceLayer"
-	add_child(canvas)
-
-	_announce_label = Label.new()
-	_announce_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_announce_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_announce_label.anchors_preset = Control.PRESET_FULL_RECT
-	_announce_label.anchor_right = 1.0
-	_announce_label.anchor_bottom = 1.0
-
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Courier New", "Courier", "monospace"])
-	_announce_label.add_theme_font_override("font", font)
-	_announce_label.add_theme_font_size_override("font_size", 48)
-	_announce_label.add_theme_color_override("font_color", Color(1, 1, 0))
-	_announce_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
-	_announce_label.add_theme_constant_override("shadow_offset_x", 3)
-	_announce_label.add_theme_constant_override("shadow_offset_y", 3)
-	_announce_label.visible = false
-	canvas.add_child(_announce_label)
 
 
 # --- Enemy spawning ---

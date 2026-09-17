@@ -97,7 +97,7 @@ func _make_manager() -> Node:
 	var mgr := Node.new()
 	mgr.set_script(load("res://scripts/game/game_manager_2d.gd"))
 	get_root().add_child(mgr)
-	if mgr._announce_label == null:
+	if mgr._stage_timer == 0.0:
 		mgr._ready()
 	return mgr
 

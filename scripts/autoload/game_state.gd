@@ -7,6 +7,7 @@ signal score_changed(new_score: int)
 signal lives_changed(new_lives: int)
 signal missile_count_changed(new_count: int)
 signal stage_changed(new_stage: int)
+signal hit_count_changed(new_count: int)
 
 enum Phase { TITLE, PLAYING, GAME_OVER, BONUS_STAGE }
 
@@ -34,6 +35,13 @@ var current_stage: int = DEFAULT_STAGE:
 		current_stage = value
 		stage_changed.emit(current_stage)
 
+## Enemies destroyed since the current life started (AB2's "HIT" counter).
+## Resets on death (lose_life), not on stage change.
+var hit_count: int = 0:
+	set(value):
+		hit_count = value
+		hit_count_changed.emit(hit_count)
+
 var phase: Phase = Phase.TITLE
 
 
@@ -42,11 +50,13 @@ func reset() -> void:
 	lives = DEFAULT_LIVES
 	missile_count = DEFAULT_MISSILES
 	current_stage = DEFAULT_STAGE
+	hit_count = 0
 	phase = Phase.TITLE
 
 
 func add_score(points: int) -> void:
 	score += points
+	hit_count += 1
 
 
 func use_missile() -> bool:
@@ -62,4 +72,5 @@ func add_missiles(count: int) -> void:
 
 func lose_life() -> bool:
 	lives -= 1
+	hit_count = 0
 	return lives >= 0
