@@ -164,7 +164,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 12. **Effects must be OPAQUE with fine-grained fringes.** Banning draw_circle was too narrow — polygons reproduced the same defect. The real requirements: (a) explosion bodies are opaque (background must not show through centres or gaps — reference puffs are solid cream), (b) perimeter detail at the 4-6px bump scale, not 40px facets, (c) death fireballs have radiating tongues and internal mottle. Measure fringe bump scale against the reference explosion crops.
 
-14. **HUD furniture parity.** Any HUD element present in 100% of reference frames must exist in ours. The top-right target/scope box (~13% of screen width, present in every reference static and burst frame) was missing for five evaluation rounds because no rule named it.
+14. **HUD element parity.** Any HUD element present in 100% of reference frames must exist in ours. Example: the bracketed target box (~13% of screen width) was missing for five rounds because no rule named it. NOTE it is NOT fixed furniture — pixel evidence shows it moves, tracking the nearest enemy anywhere on screen (implemented as tracked_enemy). Verify parity by behaviour across consecutive frames, not by assuming a fixed position.
 
 15. **Sky population.** Enemies-above-horizon is not enough: the reference shows 4-6 enemy silhouettes simultaneously at varied sizes and bank angles, plus flak and tracer fire. Measure enemy pixel counts in the sky region across a capture; a sky that is empty or near-empty in a meaningful fraction of frames = FAIL.
 
