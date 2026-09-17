@@ -17,26 +17,33 @@ const HS := 171.0          # half-span in px; full span 342 px = 35.6% of 960
 const ANCHOR_Y := 28.0     # local origin offset so on-screen placement is unchanged
 const OUTLINE_W := 2.0     # thin silhouette definition line, not a decal border
 
-const V0_HILITE := Color8(255, 255, 255)
-const V1_LIT := Color8(205, 205, 205)
-const V2_MID := Color8(168, 168, 168)
+const V0_HILITE := Color8(255, 250, 246)
+const V1_LIT := Color8(210, 200, 196)
+const V2_MID := Color8(173, 161, 157)
 const V3_SHADOW := Color8(150, 120, 120)  # warm-tinted grey (R > G=B), NOT brown — matches
 # the discrete in-game palette sampled from ab2-arcade-desert.png (native, uncompressed):
 # (255,255,255) hilite / (164,164,164) mid / (164,132,132) shadow. #112 feedback: our
 # airframe was reading beige because these tones carried a G>B cream cast (240,220,165
-# etc.) that isn't in the source palette at all.
+# etc.) that isn't in the source palette at all. #112 round-5: the lit stops now carry a
+# small warm bias (R raised a few points, G=B held EQUAL) so the airframe picks up a hint
+# of the orange sky without reintroducing that G>B cream cast.
 const OUTLINE := Color8(70, 48, 40)  # dark warm neutral silhouette line — NOT saturated red
 const BLACK := Color8(0, 0, 0)
 const NOZZLE_RIM := Color8(58, 46, 42)  # dark warm grey, NOT pure black — #112 round-4:
 # a pure-black perfect circle read as a "car tire", the single most prominent thing on
 # the jet. Reference nozzles (dorsal pixel art + burst-a captures) are a small hot core
 # with only a thin dark transition ring that blends into the airframe/shadow tones.
-const CANOPY_GLASS := Color8(132, 197, 247)
-const CANOPY_HI := Color8(197, 247, 247)
+const CANOPY_GLASS := Color8(58, 52, 108)  # dark blue-violet wedge — #112 round-5: reference
+# (burst-a-02/03, ref_jet.png) shows a small DARK purple-blue wedge nestled into the
+# fuselage spine, not a bright cyan bulb on a stick.
+const CANOPY_HI := Color8(100, 92, 165)
 
 const DEATH_DURATION := 1.0
 const INVINCIBILITY_DURATION := 2.0
 const FLASH_INTERVAL := 0.1
+const FLASH_MIN_ALPHA := 0.35  # #112 round-5: respawn flash now dims via modulate.a instead
+# of toggling full invisibility — a 50/50 fully-invisible blink measured only 79.2% frame
+# occupancy over 15s (below the 90% target). The jet is never literally absent mid-flash.
 
 @export var move_speed: float = 720.0
 @export var acceleration: float = 2200.0
@@ -50,7 +57,8 @@ var _is_invincible: bool = true
 var _death_timer: float = 0.0
 var _invincibility_timer: float = 0.0
 var _flash_timer: float = 0.0
-var _visible_flag: bool = true  # separate from node .visible to allow flash
+var _flash_dim: bool = false    # alternates the respawn flash between full and dim alpha
+var _visible_flag: bool = true  # only for the permanent hide once all lives are exhausted
 var _is_respawn: bool = false   # flash only on respawn, not initial spawn
 
 
@@ -120,6 +128,8 @@ func _update_banking(input_x: float, delta: float) -> void:
 
 func hit() -> void:
 	## Called by GameWorld collision detection when the player is struck.
+	if GameState.capture_invincible:
+		return  # #112 round-5: judge/QA capture sessions opt out of death entirely
 	if _is_dying or _is_invincible:
 		return
 	_start_death()
@@ -177,7 +187,9 @@ func _respawn() -> void:
 	_is_respawn = true
 	_invincibility_timer = INVINCIBILITY_DURATION
 	_flash_timer = 0.0
+	_flash_dim = false
 	_visible_flag = true
+	modulate.a = 1.0
 
 
 func _process_invincibility(delta: float) -> void:
@@ -186,11 +198,12 @@ func _process_invincibility(delta: float) -> void:
 		_flash_timer -= delta
 		if _flash_timer <= 0.0:
 			_flash_timer = FLASH_INTERVAL
-			_visible_flag = not _visible_flag
+			_flash_dim = not _flash_dim
+		modulate.a = FLASH_MIN_ALPHA if _flash_dim else 1.0
 	if _invincibility_timer <= 0.0:
 		_is_invincible = false
 		_is_respawn = false
-		_visible_flag = true
+		modulate.a = 1.0
 
 
 func _game_over() -> void:
@@ -248,6 +261,18 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	_draw_wing(origin, rad, _mirror(wing_r), _mirror(wing_le_r), _mirror(wing_te_r))
 	_draw_wing(origin, rad, wing_r, wing_le_r, wing_te_r)
 
+	# --- Tail fins: slim vertical blades rising from directly above/behind each
+	# nozzle, taller than the wing's vertical band and reaching roughly canopy
+	# height. #112 round-5 feedback: the previous parallelogram silhouette (root
+	# near the centerline, filled with a V3_SHADOW half) read as "a thick grey
+	# slab laid over the wing". Reference (burst-a-02/03, ref_jet.png) shows a
+	# thin blade — root anchored on the nacelle shoulder right at the nozzle's
+	# outer edge, tapering to a near-point tip, no shadow fill at all.
+	var fin_r := [Vector2(0.300, -0.145), Vector2(0.340, -0.615), Vector2(0.322, -0.610), Vector2(0.258, -0.140)]
+	var fin_hi_r := [Vector2(0.300, -0.145), Vector2(0.340, -0.615), Vector2(0.332, -0.612), Vector2(0.292, -0.148)]
+	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_hi_r))
+	_draw_fin(origin, rad, fin_r, fin_hi_r)
+
 	# --- Tailplanes ---
 	# Tucked to a small stub at the tail-cone/nozzle shoulder (y > 0, well
 	# below the wing's -0.355..-0.095 band and far short of its span). #112
@@ -261,109 +286,92 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	_draw_tailplane(origin, rad, _mirror(tail_r), _mirror(tail_le_r))
 	_draw_tailplane(origin, rad, tail_r, tail_le_r)
 
-	# --- Vertical tail fins (drawn before the fuselage so it covers their roots) ---
-	# Splayed outward (root x 0.095 -> tip x 0.235-0.275, nearly 2.5x the tip
-	# spread of the previous shape) so the gap between the two fins is a clear
-	# widening valley, not a near-parallel pair reading as one white mass.
-	# #112 feedback: previous root/tip x-range (0.075-0.165) kept both fins
-	# too close together through their full height.
-	var fin_r := [Vector2(0.095, -0.225), Vector2(0.235, -0.555), Vector2(0.275, -0.500), Vector2(0.175, -0.195)]
-	var fin_shadow_r := [Vector2(0.095, -0.225), Vector2(0.222, -0.542), Vector2(0.235, -0.532), Vector2(0.108, -0.222)]
-	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_shadow_r))
-	_draw_fin(origin, rad, fin_r, fin_shadow_r)
-
 	# --- Fuselage body: symmetric closed polygon, right half authored top-to-bottom ---
-	# A slender neck from the canopy down to the wing root, flaring sharply into
-	# the engine-nacelle bulge only in the last stretch above the nozzles. The
-	# old design flared immediately below the canopy, filling the whole span
-	# with one wide oval and burying the tail fins — see #112 feedback.
-	# #112 round-4: the neck used to peak in a narrow (0.030, -0.622) nose cap that
-	# poked out above the canopy top (-0.605) — an uncovered white sliver reading as
-	# a "chimney" the canopy sat on. The neck now starts flush with the canopy's base
-	# so the canopy bubble (drawn below) is unambiguously the topmost feature, per the
-	# player-jet zero-nose-extent rule.
+	# A slender spine from the canopy down to the nozzle line. #112 round-5
+	# feedback (first pass): cutting the max half-width from 0.400 to 0.305
+	# alone wasn't enough — a render check against the reference showed the
+	# shape STILL read as "a smooth toy shuttle" even at the narrower width,
+	# because 12 closely-spaced points approximated a continuous curve. Per
+	# the wrong-shape rule this needed fewer, sharper-angled straight edges,
+	# not another width tweak: cut down to 7 points so the neck-to-shoulder
+	# taper, the shoulder break, the nacelle wall, and the waist pull-in are
+	# each one distinct straight facet, matching the reference's angular,
+	# panelled silhouette instead of a rounded capsule.
 	var fuselage_half := [
-		Vector2(0.048, -0.530),  # neck top — flush with the canopy base, no nose cap above it
-		Vector2(0.070, -0.480), Vector2(0.090, -0.420), Vector2(0.105, -0.350),
-		Vector2(0.115, -0.280), Vector2(0.120, -0.220),  # narrow neck — fin tips clear this
-		Vector2(0.390, -0.155),  # sharp flare into the nacelle bulge
-		Vector2(0.400, -0.080), Vector2(0.355, -0.005),
-		Vector2(0.230, 0.035), Vector2(0.120, 0.048), Vector2(0.000, 0.052),
+		Vector2(0.040, -0.530),  # neck top — flush with the canopy base, no nose cap above it
+		Vector2(0.095, -0.220),  # single straight taper to the nacelle shoulder — fin roots sit just outside this
+		Vector2(0.290, -0.150),  # sharp break out to the nacelle's max width
+		Vector2(0.295, -0.075),  # near-vertical nacelle wall, well short of the nozzle outer edge
+		Vector2(0.190, -0.010),  # sharp break back in — the waist, above the nozzle line
+		Vector2(0.095, 0.040), Vector2(0.000, 0.048),
 	]
 	var fuselage: Array = _symmetric_poly(fuselage_half)
 	_draw_hs_poly(origin, rad, fuselage, V0_HILITE)
 	_stroke_hs_poly(origin, rad, fuselage, OUTLINE, OUTLINE_W)
 
-	# Neck panel lines — a centerline spine shadow plus two side seams break up the
-	# long canopy-to-nacelle run. #112 round-4 feedback: this stretch was a flat
-	# white blob with zero panel-line breaks; the only shading lived near the
-	# nacelle bulge. Kept subtle (thin, mid-tone) per the reference, not cartoon
-	# outlines.
-	_draw_hs_poly(origin, rad, _seam_quad(0.0, -0.500, -0.235, 0.008), V2_MID)
-	for sx in [-0.055, 0.055]:
-		_draw_hs_poly(origin, rad, _seam_quad(sx, -0.460, -0.240, 0.006), V1_LIT)
+	# Panel lines — thin engraved strokes following the spine's contour, not
+	# filled bars. #112 round-5 feedback: the previous filled-quad seams read
+	# as "a row of dark rectangles — a ventilation grille".
+	_draw_hs_line(origin, rad, Vector2(0.0, -0.500), Vector2(0.0, -0.235), V2_MID, 1.5)
+	for sx in [-0.035, 0.035]:
+		_draw_hs_line(origin, rad, Vector2(sx, -0.460), Vector2(sx, -0.240), V1_LIT, 1.0)
+	for sx in [-0.120, -0.032, 0.032, 0.120]:
+		_draw_hs_line(origin, rad, Vector2(sx, -0.140), Vector2(sx, -0.070), V2_MID, 1.2)
 
 	# (a) Lower-fuselage tone
 	_draw_hs_poly(origin, rad, [
-		Vector2(-0.400, -0.080), Vector2(0.400, -0.080), Vector2(0.355, -0.005), Vector2(0.230, 0.035),
-		Vector2(0.120, 0.048), Vector2(0.000, 0.052), Vector2(-0.120, 0.048), Vector2(-0.230, 0.035),
-		Vector2(-0.355, -0.005),
+		Vector2(-0.295, -0.075), Vector2(0.295, -0.075), Vector2(0.190, -0.010),
+		Vector2(0.095, 0.040), Vector2(0.000, 0.048), Vector2(-0.095, 0.040), Vector2(-0.190, -0.010),
 	], V1_LIT)
 
-	# (b) Nacelle outer-wall shading, both sides — hugs the new bulge, not the
-	# old (now-removed) high flare
-	var nacelle_r := [Vector2(0.250, -0.150), Vector2(0.395, -0.100), Vector2(0.400, -0.080), Vector2(0.310, -0.080)]
+	# (b) Nacelle outer-wall shading, both sides — hugs the angular shoulder/wall facets
+	var nacelle_r := [Vector2(0.220, -0.140), Vector2(0.290, -0.150), Vector2(0.295, -0.075), Vector2(0.230, -0.075)]
 	_draw_hs_poly(origin, rad, _mirror(nacelle_r), V3_SHADOW)
 	_draw_hs_poly(origin, rad, nacelle_r, V3_SHADOW)
 
-	# (c) Panel seams — four vertical bars, pulled down onto the bulge (the
-	# narrow neck above no longer has the width to hold them)
-	for sx in [-0.155, -0.040, 0.040, 0.155]:
-		_draw_hs_poly(origin, rad, _seam_quad(sx, -0.140, -0.060, 0.0175), V2_MID)
-
-	# (d) Aft-deck shadow bar
+	# (c) Aft-deck shadow bar
 	_draw_hs_poly(origin, rad, [
-		Vector2(-0.078, -0.101), Vector2(0.045, -0.101), Vector2(0.045, -0.076), Vector2(-0.078, -0.076),
+		Vector2(-0.050, -0.030), Vector2(0.028, -0.030), Vector2(0.028, -0.005), Vector2(-0.050, -0.005),
 	], V3_SHADOW)
 
-	# (e) Glove chevrons — darkest marks on the airframe, both sides. Moved
-	# down onto the nacelle shoulder to match the new bulge position.
-	var chevron_r := [Vector2(0.230, -0.185), Vector2(0.370, -0.145), Vector2(0.370, -0.115), Vector2(0.280, -0.115), Vector2(0.230, -0.155)]
+	# (d) Glove chevrons — darkest marks on the airframe, tucked inside the
+	# shoulder-break facet so they no longer sit against the (now larger)
+	# nozzle discs and read as part of a "rectangular housing" around them.
+	var chevron_r := [Vector2(0.100, -0.205), Vector2(0.140, -0.195), Vector2(0.155, -0.175), Vector2(0.115, -0.180)]
 	_draw_hs_poly(origin, rad, _mirror(chevron_r), BLACK)
 	_draw_hs_poly(origin, rad, chevron_r, BLACK)
 
-	# --- Canopy: a rounded bubble seated into the fuselage neck, not a rectangle on
-	# a spike. #112 round-4 feedback: the previous 5-point shape (flat top, pointed
-	# bottom) read as "a cyan rectangle on a white spike" — the spike was the old
-	# fuselage nose cap poking out above the canopy top. The canopy is now the true
-	# topmost feature (apex -0.605, same height as before) and its base (-0.530)
-	# is flush with the trimmed neck top, so it reads as seated rather than perched.
+	# --- Canopy: a small dark wedge nestled into the fuselage spine, not a bright
+	# cyan bulb on a stick. #112 round-5 feedback: reference (burst-a-02/03) shows
+	# a small DARK purple-blue wedge, noticeably smaller than our previous bubble.
+	# Base stays flush with the trimmed neck top (-0.530) per the zero-nose-extent
+	# rule; apex is pulled in from -0.605 to -0.590 and narrowed.
 	var canopy := [
-		Vector2(-0.045, -0.530), Vector2(-0.060, -0.560), Vector2(-0.038, -0.592),
-		Vector2(0.000, -0.605), Vector2(0.038, -0.592), Vector2(0.060, -0.560), Vector2(0.045, -0.530),
+		Vector2(-0.032, -0.530), Vector2(-0.040, -0.550), Vector2(-0.020, -0.578),
+		Vector2(0.000, -0.590), Vector2(0.020, -0.578), Vector2(0.040, -0.550), Vector2(0.032, -0.530),
 	]
 	_draw_hs_poly(origin, rad, canopy, CANOPY_GLASS)
 	_draw_hs_poly(origin, rad, [
-		Vector2(-0.032, -0.575), Vector2(0.000, -0.593), Vector2(0.032, -0.575),
-		Vector2(0.020, -0.550), Vector2(-0.020, -0.550),
+		Vector2(-0.022, -0.568), Vector2(0.000, -0.582), Vector2(0.022, -0.568),
+		Vector2(0.014, -0.548), Vector2(-0.014, -0.548),
 	], CANOPY_HI)
 	_stroke_hs_poly(origin, rad, canopy, OUTLINE, OUTLINE_W)
 
-	# --- Nozzles: small hot-cored glow with a thin dark warm-grey transition ring,
-	# not a large black disc. #112 round-4 feedback: the previous 0.135*HS housing
-	# (27% of half-span) in pure black was the first thing the eye landed on —
-	# "car tires". Reference nozzles (dorsal pixel art, burst-a captures) are
-	# mostly the hot core itself with only a 1-2px dark AA transition into the
-	# nacelle; the golden core now fills most of the housing footprint instead of
-	# ~2/3 of it, and the rim uses NOZZLE_RIM (dark warm grey) so it blends with
-	# the airframe's shadow tones instead of stamping a black circle over it.
+	# --- Nozzles: large black-rimmed discs whose hot core fills most of the ring,
+	# not small dark ellipses in a rectangular housing. #112 round-5 feedback:
+	# the previous housing (0.085*HS) with a core topping out at 0.057*HS (67%
+	# of housing radius) plus the adjacent glove chevron read as "two tyres on
+	# an axle" in a boxy black mass. The housing is now larger and rounder
+	# (0.095*HS), the outer glow alone reaches 82% of the housing radius —
+	# leaving only a thin dark rim visible — and the chevron above has been
+	# moved off the nacelle shoulder so it no longer merges with the ring.
 	for x_n in [-0.315, 0.315]:
 		var housing: Vector2 = Vector2(x_n, -0.040) * HS
-		_draw_rotated_circle(origin, rad, housing, 0.085 * HS, NOZZLE_RIM)
-		var glow: Vector2 = Vector2(x_n, 0.005) * HS
-		_draw_rotated_circle(origin, rad, glow, 0.057 * HS, Color8(90, 45, 10))
-		_draw_rotated_circle(origin, rad, glow, 0.041 * HS, Color8(225, 150, 25))
-		_draw_rotated_circle(origin, rad, glow, 0.025 * HS, Color8(255, 220, 100))
+		_draw_rotated_circle(origin, rad, housing, 0.095 * HS, NOZZLE_RIM)
+		var glow: Vector2 = Vector2(x_n, -0.015) * HS
+		_draw_rotated_circle(origin, rad, glow, 0.078 * HS, Color8(90, 45, 10))
+		_draw_rotated_circle(origin, rad, glow, 0.058 * HS, Color8(225, 150, 25))
+		_draw_rotated_circle(origin, rad, glow, 0.036 * HS, Color8(255, 220, 100))
 
 
 func _draw_tailplane(origin: Vector2, rad: float, silhouette: Array, le_strip: Array) -> void:
@@ -379,14 +387,12 @@ func _draw_wing(origin: Vector2, rad: float, silhouette: Array, le_band: Array, 
 	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
 
 
-func _draw_fin(origin: Vector2, rad: float, silhouette: Array, shadow: Array) -> void:
+## A slim white blade, not a filled slab: silhouette in V1_LIT with a V0_HILITE
+## leading-edge sliver, no shadow fill. #112 round-5.
+func _draw_fin(origin: Vector2, rad: float, silhouette: Array, leading_edge: Array) -> void:
 	_draw_hs_poly(origin, rad, silhouette, V1_LIT)
-	_draw_hs_poly(origin, rad, shadow, V3_SHADOW)
+	_draw_hs_poly(origin, rad, leading_edge, V0_HILITE)
 	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
-
-
-func _seam_quad(x: float, y0: float, y1: float, half_width: float) -> Array:
-	return [Vector2(x - half_width, y0), Vector2(x + half_width, y0), Vector2(x + half_width, y1), Vector2(x - half_width, y1)]
 
 
 ## Mirrors a right-side part to its left-side counterpart: negate x, reverse the
@@ -425,6 +431,18 @@ func _draw_hs_poly(origin: Vector2, rad: float, pts: Array, color: Color) -> voi
 
 func _stroke_hs_poly(origin: Vector2, rad: float, pts: Array, color: Color, width: float) -> void:
 	_stroke_rotated_poly(origin, rad, _scale(pts, HS), color, width)
+
+
+## Draws a single open segment (panel line), unlike _stroke_hs_poly which
+## always closes the loop. #112 round-5: panel lines are thin strokes, not
+## filled quads.
+func _draw_hs_line(origin: Vector2, rad: float, p0: Vector2, p1: Vector2, color: Color, width: float) -> void:
+	var cs: float = cos(rad)
+	var sn: float = sin(rad)
+	var pts: PackedVector2Array = PackedVector2Array()
+	for p in [p0 * HS, p1 * HS]:
+		pts.append(Vector2(origin.x + p.x * cs - p.y * sn, origin.y + p.x * sn + p.y * cs))
+	draw_polyline(pts, color, width, false)
 
 
 func _draw_rotated_poly(center: Vector2, angle: float, local_pts: Array, color: Color) -> void:

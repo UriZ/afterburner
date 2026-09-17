@@ -89,6 +89,12 @@ func _handle_request(client: StreamPeerTCP, data: String) -> void:
 		"key":
 			var key_name: String = request.get("key", "")
 			_send_response(client, _cmd_key(key_name))
+		"set_capture_invincible":
+			var enabled: bool = request.get("enabled", true)
+			var game_state := get_node_or_null("/root/GameState")
+			if game_state:
+				game_state.capture_invincible = enabled
+			_send_response(client, {"ok": game_state != null, "capture_invincible": enabled})
 		_:
 			_send_response(client, {"error": "Unknown command: %s" % cmd})
 

@@ -44,6 +44,11 @@ var hit_count: int = 0:
 
 var phase: Phase = Phase.TITLE
 
+## When true, the player ignores all hits. Off by default; only meant to be
+## flipped on for judge/QA capture sessions via the MCP bridge so captures
+## don't end in GAME OVER mid-recording. #112 round-5.
+var capture_invincible: bool = false
+
 
 func reset() -> void:
 	score = 0
