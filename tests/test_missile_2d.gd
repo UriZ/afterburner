@@ -37,6 +37,8 @@ func _initialize() -> void:
 	test_blob_polygon_is_simple()
 	test_raw_script_default_is_kill_puff()
 	test_scene_default_is_fireball()
+	test_kill_puff_is_single_opaque_blob()
+	test_fireball_tongue_star_nests_correctly()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -232,4 +234,39 @@ func test_scene_default_is_fireball() -> void:
 	var e := scene.instantiate()
 	get_root().add_child(e)
 	assert_true(not e.is_kill, "explosion_2d.tscn overrides is_kill to false (fireball)")
+	e.queue_free()
+
+
+func test_kill_puff_is_single_opaque_blob() -> void:
+	# Round 5 gate (rule 12a/b): kill puffs used 4 offset, low-vertex lobes
+	# that left visible gaps and translucent bodies, and blew the true
+	# extent well past the radius cap. Now a single high-vertex polygon —
+	# gapless by construction, with neighbouring vertices a few px apart at
+	# the puff's max radius instead of ~6-9 vertex giant flat facets.
+	var e := _make_explosion(true)
+	assert_true(e._puff_blob.has("angles"), "kill puff builds a single cauliflower blob")
+	var angles: PackedFloat32Array = e._puff_blob["angles"]
+	assert_true(angles.size() == e.KILL_BLOB_VERTS, "puff blob has the dense vertex count")
+	e.queue_free()
+
+
+func test_fireball_tongue_star_nests_correctly() -> void:
+	# Round 5 gate (rule 12c): outer/inner tongue stars used to be generated
+	# independently, so their tongues didn't line up and the brighter inner
+	# layer could poke out past the outer silhouette through a valley.
+	# Sharing one angle set and keeping inner radii strictly below outer at
+	# every vertex guarantees the inner layer always nests inside.
+	var e := _make_explosion(false)
+	var outer_angles: PackedFloat32Array = e._center_outer["angles"]
+	var inner_angles: PackedFloat32Array = e._center_core["angles"]
+	assert_true(outer_angles.size() == e.TONGUE_COUNT * 2, "outer star has 2 vertices per tongue")
+	assert_true(inner_angles.size() == outer_angles.size(), "inner star shares the outer star's angle count")
+	var outer_radii: PackedFloat32Array = e._center_outer["radii"]
+	var inner_radii: PackedFloat32Array = e._center_core["radii"]
+	var nested := true
+	for i in range(outer_radii.size()):
+		if inner_radii[i] >= outer_radii[i]:
+			nested = false
+			break
+	assert_true(nested, "inner tongue star radius is smaller than outer at every vertex")
 	e.queue_free()

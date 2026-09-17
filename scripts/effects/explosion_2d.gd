@@ -3,21 +3,30 @@ extends Node2D
 ## 2D explosion effect. Two distinct visual types (criteria.md rule 10):
 ##
 ## - Fireball (is_kill=false): player death, ground impacts, large hits.
-##   Ragged orange/red/yellow burst with a dark smoke fringe, matching
-##   assets/reference/ab2-arcade-huge-explosion.jpg. Phases: flash -> fire ->
-##   trailing smoke -> debris sparks. Duration 1.0s.
-## - Kill puff (is_kill=true): enemy aircraft kills. Small pale cream/white
-##   cauliflower cloud with NO orange or red anywhere — per
-##   ab2-arcade-desert-explosions.png / ab2-arcade-closeup-enemies.jpg, aircraft
-##   kills read as pale puffs, not fireballs. Duration 0.55s.
+##   A 14-tongue radiating sunburst (ab2-arcade-huge-explosion.jpg): a dark
+##   orange-red outer star with a brighter yellow-orange inner star nested
+##   inside it, dark maroon mottle blotches scattered through the mid-body,
+##   and an irregular white-hot core. Phases: flash -> fire -> trailing
+##   smoke -> debris sparks. Duration 1.0s.
+## - Kill puff (is_kill=true): enemy aircraft kills. A single dense
+##   cauliflower-edged cream/white polygon — per ab2-arcade-desert-
+##   explosions.png / ab2-arcade-closeup-enemies.jpg, aircraft kills read as
+##   pale opaque puffs, not fireballs, with NO orange or red anywhere.
+##   Duration 0.55s.
 ##
-## Silhouettes are irregular polygons — per-vertex jittered angle/radius, with
-## occasional long "tongue" spikes — not overlapping circles. A ring of
-## circles at randomized phase still reads as a symmetric flower; the
-## primitive itself was the defect (criteria.md rule 12). Vertex angles are
-## generated in monotonic order (jitter capped below half the angular step)
-## so every polygon is simple/star-shaped and can never self-intersect —
-## Godot rejects bowtie polygon data at draw time.
+## Both bodies are OPAQUE for nearly all of their life (alpha only fades in
+## the final stretch) and built from simple (non-self-intersecting) radial
+## polygons — per-vertex jittered angle/radius, angles generated in
+## monotonic order with jitter capped below half the angular step, so every
+## polygon is star-shaped and can never self-intersect (Godot rejects bowtie
+## polygon data at draw time). Round 5 gate (criteria.md rule 12) found the
+## previous design translucent, with visible gaps between separate offset
+## lobes, and facets far coarser than the reference's fine fringe — fixed by
+## drawing each body as ONE simple polygon (gapless by construction) with a
+## high vertex count, then layering smaller uniform scalings of that SAME
+## polygon on top for shading. A smaller scaling of a star-shaped polygon is
+## always strictly inside the larger one, so the nested layers can never
+## open a gap either.
 
 ## Defaults to true (kill puff) because the two aircraft-kill call sites
 ## (enemy_jet_2d.gd, missile_2d.gd) instantiate this script directly and
@@ -44,6 +53,17 @@ const KILL_MAX_RADIUS := 40.0
 const KILL_MIN_RADIUS := 22.0
 const KILL_RADIUS_SCALE := 0.35
 
+# Vertex count for the kill-puff cauliflower blob. At the puff's max radius
+# (~40px) this puts neighbouring vertices a few px apart around the
+# perimeter — the fine bump scale rule 12b asks for, instead of the ~6-9
+# vertex polygons that used to read as giant flat facets.
+const KILL_BLOB_VERTS := 40
+
+# Number of radiating tongues on the fireball's sunburst silhouette, per
+# ab2-arcade-huge-explosion.jpg. Each tongue is a tip vertex + a valley
+# vertex, so the underlying star polygon has TONGUE_COUNT * 2 vertices.
+const TONGUE_COUNT := 14
+
 var base_radius: float = 60.0:  # set by spawner based on enemy depth
 	set(value):
 		base_radius = clampf(value, MIN_BASE_RADIUS, MAX_BASE_RADIUS)
@@ -52,9 +72,11 @@ var _lifetime: float = 0.0
 var _duration: float = FIRE_DURATION
 var _sparks: Array[Dictionary] = []
 var _smoke_puffs: Array[Dictionary] = []
-var _fire_lobes: Array[Dictionary] = []
-var _center_outer: Dictionary
-var _center_core: Dictionary
+var _puff_blob: Dictionary       # kill puff: single cauliflower silhouette
+var _center_outer: Dictionary    # fireball: outer (darker) tongue star
+var _center_core: Dictionary     # fireball: inner (brighter) tongue star
+var _mottle_patches: Array[Dictionary] = []  # fireball: dark internal blotches
+var _hot_core: Dictionary        # fireball: irregular white-hot core blob
 
 
 func _ready() -> void:
@@ -62,13 +84,13 @@ func _ready() -> void:
 	_duration = KILL_DURATION if is_kill else FIRE_DURATION
 	_init_sparks()
 	_init_smoke()
-	_init_fire_lobes()
+	_init_shapes()
 
 
 ## Builds a simple (non-self-intersecting) irregular radial polygon: one
 ## radius jitter value per evenly-spaced angle step, with occasional longer
-## "spike" vertices for ragged flame tongues. Angle jitter is capped below
-## half the angular step so vertex order stays monotonic.
+## "spike" vertices for ragged edges. Angle jitter is capped below half the
+## angular step so vertex order stays monotonic.
 func _make_blob(num_verts: int, r_min: float, r_max: float, spike_chance: float, spike_min: float, spike_max: float) -> Dictionary:
 	var step: float = TAU / num_verts
 	var ang_jitter: float = step * 0.35
@@ -81,6 +103,37 @@ func _make_blob(num_verts: int, r_min: float, r_max: float, spike_chance: float,
 		else:
 			radii.append(randf_range(r_min, r_max))
 	return {"angles": angles, "radii": radii}
+
+
+## Builds the angle set for a tongue star: two vertices per tongue (tip,
+## then valley), evenly spaced with small monotonic-safe jitter.
+func _make_star_angles(num_tongues: int) -> PackedFloat32Array:
+	var n := num_tongues * 2
+	var step: float = TAU / n
+	var ang_jitter: float = step * 0.3
+	var angles := PackedFloat32Array()
+	for i in range(n):
+		angles.append(step * i + randf_range(-ang_jitter, ang_jitter))
+	return angles
+
+
+## Builds radii for a tongue star over a pre-built angle set: even indices
+## are tongue tips (reaching tip_min..tip_max, occasionally an elongated
+## tongue), odd indices are the concave valleys between tongues. Passing the
+## SAME angles array to both the outer and inner star, with the inner
+## star's tip/valley ranges kept strictly below the outer star's, guarantees
+## every inner tongue lines up with — and nests inside — its outer tongue.
+func _make_star_radii(angles: PackedFloat32Array, valley_min: float, valley_max: float, tip_min: float, tip_max: float, elongate_chance: float, elongate_min: float, elongate_max: float) -> PackedFloat32Array:
+	var radii := PackedFloat32Array()
+	for i in range(angles.size()):
+		if i % 2 == 0:
+			var r: float = randf_range(tip_min, tip_max)
+			if randf() < elongate_chance:
+				r = randf_range(elongate_min, elongate_max)
+			radii.append(r)
+		else:
+			radii.append(randf_range(valley_min, valley_max))
+	return radii
 
 
 func _blob_polygon(center: Vector2, radius: float, blob: Dictionary) -> PackedVector2Array:
@@ -112,24 +165,35 @@ func _init_sparks() -> void:
 		})
 
 
-func _init_fire_lobes() -> void:
-	# Offset lobe clusters (chunky lumps), each an irregular blob rather than
-	# a fixed-position concentric-circle stack — reused for both the fireball
-	# burst and the kill-puff cauliflower cloud.
-	var count := 4 if is_kill else 5
+func _init_shapes() -> void:
+	if is_kill:
+		# One dense simple polygon — gapless by construction, unlike the old
+		# 4 separately-offset low-vertex lobes (rule 12a/b). No spike chance:
+		# a handful of enlarged vertices among many small ones reads as a
+		# few sharp points, not the reference's uniform fine cauliflower
+		# scallops — keep every vertex in the same narrow radius band.
+		_puff_blob = _make_blob(KILL_BLOB_VERTS, 0.86, 1.0, 0.0, 1.0, 1.0)
+		return
+	var angles := _make_star_angles(TONGUE_COUNT)
+	_center_outer = {"angles": angles, "radii": _make_star_radii(angles, 0.30, 0.46, 0.85, 1.05, 0.22, 1.15, 1.35)}
+	_center_core = {"angles": angles, "radii": _make_star_radii(angles, 0.16, 0.28, 0.55, 0.72, 0.15, 0.72, 0.80)}
+	_init_mottle()
+	_hot_core = _make_blob(10, 0.8, 1.0, 0.0, 1.0, 1.0)
+
+
+func _init_mottle() -> void:
+	# Dark maroon blotches scattered through the fireball's mid-body — the
+	# internal detail rule 12c asks for, kept close enough to center that
+	# they stay inside the outer tongue star's tightest valley (0.30).
+	var count := 6
 	for i in range(count):
-		var angle: float = (float(i) / float(count)) * TAU + randf_range(-0.3, 0.3)
-		_fire_lobes.append({
+		var angle := randf() * TAU
+		_mottle_patches.append({
 			"dir": Vector2(cos(angle), sin(angle)),
-			"dist_frac": randf_range(0.18, 0.45),
-			"size_frac": randf_range(0.55, 0.85),
-			"outer": _make_blob(9, 0.6, 0.95, 0.22, 1.1, 1.4),
-			"mid": _make_blob(8, 0.55, 0.9, 0.15, 1.0, 1.2),
-			"core": _make_blob(7, 0.5, 0.85, 0.0, 1.0, 1.0),
+			"dist_frac": randf_range(0.05, 0.18),
+			"size_frac": randf_range(0.08, 0.15),
+			"blob": _make_blob(7, 0.7, 1.0, 0.0, 1.0, 1.0),
 		})
-	if not is_kill:
-		_center_outer = _make_blob(12, 0.6, 0.95, 0.2, 1.05, 1.3)
-		_center_core = _make_blob(10, 0.55, 0.9, 0.0, 1.0, 1.0)
 
 
 func _init_smoke() -> void:
@@ -194,26 +258,36 @@ func _draw_fire(t: float) -> void:
 	var growth: float = smoothstep(0.0, 0.4, t)
 	var shrink: float = smoothstep(0.4, 1.0, t)
 	var r_base: float = base_radius * (1.8 + growth * 1.0 - shrink * 1.0)
+	# Opaque for nearly all of the fire phase — only fades in the final 40%,
+	# so the burst reads as a solid mass, never a translucent haze (rule 12a).
 	var alpha: float = 1.0 - smoothstep(0.6, 1.0, t)
 
-	# Ragged, spiky lobe clusters — dark smoke fringe -> red-orange -> yellow
-	# core. No straight edges or radial symmetry, matching the jagged
-	# silhouette in ab2-arcade-huge-explosion.jpg (rule 12).
-	for lobe in _fire_lobes:
-		var center: Vector2 = lobe["dir"] * lobe["dist_frac"] * r_base
-		var lr: float = lobe["size_frac"] * r_base * 0.65
-		draw_colored_polygon(_blob_polygon(center, lr, lobe["outer"]), Color(0.22, 0.05, 0.02, alpha * 0.85))
-		draw_colored_polygon(_blob_polygon(center, lr * 0.72, lobe["mid"]), Color(0.85, 0.24, 0.02, alpha))
-		draw_colored_polygon(_blob_polygon(center, lr * 0.42, lobe["core"]), Color(1.0, 0.72, 0.12, alpha))
+	# Radiating tongue-star silhouette (14 tongues), matching the sunburst
+	# shape in ab2-arcade-huge-explosion.jpg (rule 12c). Outer/inner stars
+	# share one angle set so tongues line up; the inner star's radii are
+	# always smaller, so it's guaranteed to nest inside the outer silhouette
+	# rather than poking out through a valley at a mismatched angle.
+	#
+	# Colors are pushed well away from every stage's ground/sky hue (desert
+	# skies measure ~(0.85, 0.45, 0.05) — nearly identical to a naive "dark
+	# orange" tongue fill, which made the whole sunburst vanish into a
+	# desert background). Outer goes deep saturated RED (not orange), inner
+	# goes bright yellow, so the burst reads as a bright hot mass against
+	# any stage background, not just a blue sky.
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_outer), Color(0.85, 0.14, 0.02, alpha))
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _center_core), Color(1.0, 0.68, 0.04, alpha))
 
-	# Central mass fills the gaps between lobes — also irregular, its own
-	# blob shape (not a plain circle).
-	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.58, _center_outer), Color(0.85, 0.24, 0.02, alpha))
-	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.34, _center_core), Color(1.0, 0.85, 0.35, alpha))
+	# Dark mottled patches scattered through the mid-body — the reference
+	# shows blotchy maroon patches between the tongues and the hot core, not
+	# a smooth gradient (rule 12c).
+	for patch in _mottle_patches:
+		var center: Vector2 = patch["dir"] * patch["dist_frac"] * r_base
+		var pr: float = patch["size_frac"] * r_base
+		draw_colored_polygon(_blob_polygon(center, pr, patch["blob"]), Color(0.4, 0.04, 0.01, alpha))
 
-	# Bright white-hot core point — small enough that a circle here doesn't
-	# affect the overall ragged silhouette.
-	draw_circle(Vector2.ZERO, r_base * 0.14, Color(1.0, 1.0, 0.9, alpha))
+	# Bright white-hot core — an irregular blob, not a perfect circle, so it
+	# reads as part of the mottled interior rather than a flat disc.
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.24, _hot_core), Color(1.0, 0.97, 0.82, alpha))
 
 
 func _draw_smoke(t: float) -> void:
@@ -250,27 +324,36 @@ func _draw_smoke(t: float) -> void:
 func _draw_kill_puff() -> void:
 	var t: float = _lifetime / _duration
 	var r_cap: float = clampf(base_radius * KILL_RADIUS_SCALE, KILL_MIN_RADIUS, KILL_MAX_RADIUS)
-	var growth: float = smoothstep(0.0, 0.25, t)
+	var growth: float = smoothstep(0.0, 0.2, t)
 	var shrink: float = smoothstep(0.55, 1.0, t)
-	var r_base: float = r_cap * (0.7 + growth * 0.5 - shrink * 0.3)
-	var alpha: float = 1.0 - smoothstep(0.7, 1.0, t)
+	# Peaks at exactly r_cap (growth contributes up to 0.22, matching the
+	# 0.78 baseline) rather than overshooting past it — composite-render
+	# measurement showed a 0.3 growth term put the peak diameter at ~12.2%
+	# of screen height, right at the edge of rule 10's 10-12% band.
+	var r_base: float = r_cap * (0.78 + growth * 0.22 - shrink * 0.22)
+	# Opaque for nearly all of the puff's life — only fades in the final
+	# quarter, so it reads as a solid cream cloud, never a translucent haze
+	# (rule 12a).
+	var alpha: float = 1.0 - smoothstep(0.75, 1.0, t)
 
 	if _lifetime < 0.4:
 		_draw_sparks()
 
-	# Cauliflower lobes — irregular cream/white polygons only. NO orange or
-	# red anywhere (rule 10: aircraft kills are pale puffs, not fireballs).
-	for lobe in _fire_lobes:
-		var center: Vector2 = lobe["dir"] * lobe["dist_frac"] * r_base
-		var lr: float = lobe["size_frac"] * r_base
-		draw_colored_polygon(_blob_polygon(center, lr, lobe["outer"]), Color(0.784, 0.769, 0.722, alpha * 0.9))
-		draw_colored_polygon(_blob_polygon(center, lr * 0.68, lobe["mid"]), Color(0.910, 0.894, 0.847, alpha))
+	# Single cohesive cauliflower silhouette — one simple polygon, no offset
+	# lobe scatter (that used to blow the puff's true extent well past
+	# r_cap and leave gaps of sky between lobes, rule 12a/b). Three nested
+	# scalings of the SAME shape give it shading/depth while guaranteeing
+	# full coverage — a smaller scaling of a star-shaped polygon can never
+	# open a gap against a larger scaling of itself.
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _puff_blob), Color(0.78, 0.76, 0.69, alpha))
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.86, _puff_blob), Color(0.92, 0.90, 0.86, alpha))
+	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.52, _puff_blob), Color(0.99, 0.98, 0.95, alpha))
 
 	# Brief white ignition point — white is not a fireball color, still
 	# permitted on a kill puff.
-	var flash_a: float = alpha * (1.0 - smoothstep(0.0, 0.3, t))
+	var flash_a: float = alpha * (1.0 - smoothstep(0.0, 0.25, t))
 	if flash_a > 0.0:
-		draw_circle(Vector2.ZERO, r_base * 0.32, Color(1.0, 1.0, 0.97, flash_a))
+		draw_circle(Vector2.ZERO, r_base * 0.26, Color(1.0, 1.0, 0.97, flash_a))
 
 
 func _draw_sparks() -> void:
