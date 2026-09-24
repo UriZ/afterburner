@@ -43,7 +43,7 @@ If no set exists, extract one using an AB2 URL from CLAUDE.md:
 ```bash
 bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay URL>" --name ab2-longplay
 ```
-Read the `burst-*` frames **in order** from `assets/reference/motion/<name>/`. They are 0.25s apart. This is your ground truth for speed, scaling rate, and pacing.
+Read the `burst-*` frames **in order** from `assets/reference/motion/<name>/`. They are 0.25s apart. This is your ground truth for scaling rate, pose, and pacing. It is **not** evidence about speed — AB2's ground aliases below ~60fps sampling (#113), so speed claims need the 60fps pipeline (#114).
 
 ### Step 1: Capture OUR gameplay video (mp4) — ALWAYS
 ```bash
@@ -63,6 +63,7 @@ bash .claude/skills/game-capture/capture.sh --start-game --frames 12 --interval 
 Then read ALL frames in `/tmp/game-capture/frame_*.png` with the Read tool.
 
 ### Key points:
+- **Port-conflict tests on macOS**: confirm the occupier is actually bound to the same address family via `lsof -i tcp:PORT` BEFORE launching the process under test — bare `nc -l PORT` can bind a different family than Godot's explicit `127.0.0.1` and produce a false "no conflict" that looks like a hang (#117 QA).
 - **Always use `--start-game`** — this restarts Godot fresh, avoiding stale GAME OVER states
 - **Read EVERY frame** — a single frame can be misleading. Look at the sequence for movement, scaling, and gameplay feel
 - **Video reveals what screenshots can't**: speed sensation, enemy approach timing, screen busyness over time

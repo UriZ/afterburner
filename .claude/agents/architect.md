@@ -38,7 +38,10 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
 
 1. **Design system architecture** — module boundaries, shared packages, API contracts, data models
 2. **Create implementation specs** — detailed enough that a developer can implement without ambiguity
-   - **For tooling/algorithm issues: prototype before speccing.** Run the candidate approach against the real inputs and derive defaults, thresholds, and test tolerances from measurements, not guesses. Put the measured numbers in the spec so the judge can independently check them. (~20 min that has caught spec-breaking wrong defaults.)
+   - **For tooling/algorithm issues: prototype before speccing — against the REAL artifact the tool will consume, including a case where you already know the right answer.** Synthetic happy-path data flatters estimators (#113: extensive synthetic calibration still shipped a metric with zero real-world sensitivity). Derive defaults, thresholds, and tolerances from measurements, and put the numbers in the spec so the judge can independently check them.
+   - **Any measurement tool needs a known-answer control, specified BEFORE the measurement**: name the input whose correct output is known a priori, and the tolerance beyond which the measurement is abandoned (not tuned until it agrees). For motion metrics, fps-decimation of one window gives an assumption-free ground truth (displacement ∝ 1/fps) in ~5 minutes. This single test is what turned #113 around.
+   - **Verify every external capability the spec assumes is present by running it** — not just measurements. (#113: this build's ffmpeg has no `drawtext` filter; two minutes of checking stopped a spec resting on it.)
+   - **When a spec defers part of its own scope, add a mechanical assertion that the deferred part hasn't crept back in** (e.g. a selftest that greps the output for forbidden content) — cheaper than a judge catching it two gates later.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

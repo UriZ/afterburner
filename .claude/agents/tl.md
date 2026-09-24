@@ -86,6 +86,7 @@ After EVERY agent completes:
 1. Read the agent's Improvement Insights from their TLDR
 2. Evaluate each suggestion — is it valid? Would it prevent the same issue next time?
 3. Apply valid suggestions IMMEDIATELY — edit agent defs, CLAUDE.md, criteria.md, workflow docs
+   - If an insight describes a concrete, reproducible FAILURE (not a preference), file it as a GitHub issue on the spot — three agents logged the shared mcp_ports.cfg hazard across retros before it was finally filed and fixed (#117)
 4. Insert the agent's TLDR + what you applied at the TOP of SESSION_LOG.md (newest-first) under a "Retrospective" heading
 
 **This is not optional.** If you skip retros, the team never improves and the same bugs repeat. The 2 minutes spent on retro saves 20 minutes of repeated failures.

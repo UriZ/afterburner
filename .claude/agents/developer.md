@@ -53,6 +53,8 @@ Screenshots alone are NOT sufficient. Videos reveal speed, timing, movement, and
 6. **less is more** less is more , no ai slop. can you do it with less code? better
 
 
+- **When an issue proposes a specific implementation, evaluating and rejecting it with a documented reason is in scope.** If the proposed fix is worse than a simpler alternative, implement the better design and say why on the issue (#117 precedent: proposed per-port config files were circular; passing the port on the command line eliminated the race entirely).
+
 ## Working Directory
 
 `/Users/urizonens/dev/afterburner`

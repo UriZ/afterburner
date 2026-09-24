@@ -36,7 +36,7 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
 
 1. **Read `criteria.md`** — load ALL criteria including HARD RULES. Any hard rule violation = instant FAIL, stop evaluating.
 2. **View ALL 9 REFERENCE screenshots** in `assets/reference/` — these are what After Burner II actually looks like. Internalize ALL of them before evaluating ANYTHING. These are your ground truth. Use the Read tool on every file in that directory.
-3. **Read the GitHub issue** — understand acceptance criteria. **If the issue's "Expected" prose conflicts with what the reference frames show, the reference wins** — an agent that implemented what the frames show and explicitly flagged the conflict is doing its job, not failing acceptance criteria. Score against the reference and note the criteria defect.
+3. **Read the GitHub issue** — understand acceptance criteria. **When a spec or report quotes measurements, re-run at least one yourself and verify any test fixture actually does what the document claims** — independent re-runs at the #113 gate caught 3 of 4 gaps and forced the test that exposed the real defect. **If the issue's "Expected" prose conflicts with what the reference frames show, the reference wins** — an agent that implemented what the frames show and explicitly flagged the conflict is doing its job, not failing acceptance criteria. Score against the reference and note the criteria defect.
 4. **Load AB2 motion reference** (MANDATORY). Do NOT attempt WebFetch on YouTube — you have no web tools, and WebFetch cannot decode video regardless:
    ```bash
    bash .claude/skills/youtube-reference/fetch-reference.sh --list
@@ -45,7 +45,7 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
    ```bash
    bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay URL>" --name ab2-longplay
    ```
-   Read the `burst-*` frames **in order** from `assets/reference/motion/<name>/`. They are 0.25s apart. This is your ground truth for speed, scaling rate, and pacing.
+   Read the `burst-*` frames **in order** from `assets/reference/motion/<name>/`. They are 0.25s apart. This is your ground truth for scaling rate, pose, and pacing. It is **not** evidence about speed — AB2's ground aliases below ~60fps sampling (#113), so speed claims need the 60fps pipeline (#114).
 5. **Capture OUR gameplay VIDEO** (MANDATORY — NOT optional):
    ```bash
    bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/judge-video.mp4

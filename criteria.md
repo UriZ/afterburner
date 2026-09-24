@@ -52,12 +52,14 @@ The judge and QA MUST view ALL reference images and videos (Read tool) before ev
 - After Burner II Arcade Gameplay: `https://www.youtube.com/watch?v=8d-S1kcjieA`
 - After Burner II Arcade Longplay: `https://www.youtube.com/watch?v=W2loyeq9pDA`
 
+**Burst-frame limit (#113)**: extracted burst stills (0.25s apart) are ground truth for **scaling rate, pose, and composition only — never speed**. AB2's ground texture temporally aliases below ~60fps sampling, so no sub-60fps frame comparison supports a speed claim. Speed judgements require the 60fps pipeline (#114) or human review of real video. Do not PASS or FAIL "sense of speed" from burst frames.
+
 Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/images/7687-after-burner-ii), [Games Database](https://www.gamesdatabase.org), [Internet Archive](https://archive.org)
 
 ## Hard Rules (automatic FAIL if violated)
 
 1. **No un-dodgeable deaths** — every death preceded by a visible threat with a >=0.5s avoidance window. Idle-survival time is not itself a criterion.
-2. **Ground per-band frame-to-frame shift must increase monotonically with depth** — near bands move more than far bands. The old 'stripe positions must differ' rule passed on pure noise regeneration and must not be reinstated.
+2. **Ground must show depth-correct parallax STRUCTURE, evaluated as scale — not measured as frame-to-frame speed.** Check that texture features grow and spread correctly with depth within single frames (near features larger and coarser than far), and that features visibly persist and approach across frames rather than regenerating as noise. Do NOT measure per-band pixel shift at sub-60fps — that is a speed measurement, which temporal aliasing makes unreliable (#113: per-band flow on the ARCADE ORIGINAL at 15fps measures higher far than near, so the old monotonic-shift rule fails AB2 itself). Frame-to-frame shift measurement is gated on the 60fps pipeline (#114). The old 'stripe positions must differ' rule passed on pure noise regeneration and must not be reinstated.
 3. **Reference screenshots are the primary truth source** — written descriptions can be wrong. Always look at actual images.
 
 ## Judge Mandatory Procedure
@@ -148,7 +150,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 4. **Screen must be busy.** At any point during gameplay, the screen should feel chaotic with enemies, projectiles, or explosions. Empty sky with just one jet = FAIL.
 
-5. **Horizon at 60-65% from top.** Measured from reference burst-a-02 and burst-b-03 — the original has MORE sky than ground. The jet sits in the bottom 25%.
+5. **Horizon position must match the reference for the SAME kind of stage — it is stage-dependent, not fixed.** Level cruise stages measure 60-65% from top (burst-a-02, burst-b-03: more sky than ground), but e.g. Stage 8 desert canyon puts the horizon near 10% with ground filling ~85% of frame (#113 judge measurement at 6:00-6:10). Compare against the matching biome/flight-attitude reference, per-biome like rule 7 does for saturation. The jet sits in the bottom 25% in level cruise.
 
 6. **Sky matches the reference's real shape: flat fill + optional tight glow + hard horizon.** Measured from all 50 longplay frames (#115): AB2's sky is a FLAT fill; many stages are flat edge-to-edge with NO glow and NO haze band (snow `#b7d3d6`, blue day `#0092f7`, pixel-identical top to ground). Where a glow exists it occupies only the last ~20% of sky height and is a HUE shift at held saturation (desert H29°→H52°, S pinned 1.00, V 0.90→0.98), not a brightness ramp. The horizon is a hard 6-20px cut. Per-biome measured anchors live in the `stage_data.gd` header. A whole-sky smooth gradient, a soft/hazy horizon, or an RGB-lerp passing through desaturated grey = FAIL.
 

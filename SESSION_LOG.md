@@ -1,5 +1,174 @@
 # Session Log
 
+### [2026-09-25 01:35] — TL — Retrospective: judge re-gate #113 (revision) — PASS 9/10
+
+**Judge TLDR**: verbatim in the judge's own entry below; verdict comment 5822791667. Key: independently reproduced the aliasing finding (own venv, own runs — within 0.02 of architect on every row; true ratios 0.50/1.50/2.50 measure 0.916/0.932/0.836, estimator pinned 4.2-5.0 px/frame) PLUS its own synthetic control (0.506 vs true 0.500) proving the method works on well-sampled content and fails on AB2 specifically. Re-executed the Stage 8 window, the fixture fix, the drawtext claim, and the #113↔#116 sidecar interface. Four single-line corrections for the developer (selftest-9 pattern must be numeric-only so the report's own explanatory sentence doesn't trip it; §3.4 worked example exceeds real clip duration; §6 step 5 ambiguity; §9 keep literal commands in judge.md/criteria.md). Two criteria.md defects found while measuring.
+
+**Retrospective — applied**:
+- criteria.md hard rule 2: restated as parallax-STRUCTURE/scale check; per-band frame-shift measurement explicitly forbidden sub-60fps (it fails the arcade original itself) and gated on #114. APPLIED.
+- criteria.md hard rule 5: horizon restated as stage-dependent, matched per-biome (Stage 8 measures ~10% vs the 60-65% cruise value). APPLIED.
+- architect.md: known-answer control sharpened — specify input + abandonment tolerance BEFORE measuring. APPLIED.
+- workflow precedent recorded: a spec that deleted its own headline feature on evidence beat one that shipped it; this is the behaviour to reward even when it costs a sprint.
+- Judge's four corrections passed to developer in spawn prompt (no architect round-trip — all single-line).
+
+
+### [2026-09-25 01:28] — TL — Retrospective: qa #117 — PASS; #118 filed; fix committed a65b9c8
+
+**Agent TLDR**: verbatim in the QA agent's own entry below. Key: all 4 ACs independently reproduced (adversarial overlap with 9501 lsof-sampled throughout — never bound; 5 failure paths all exit 9 FATAL; capture-video.sh frame loop byte-identical to HEAD; 15/15 new tests). Scoped cleanup (only own PIDs/files). Found pre-existing #118: test_enemy_jet.gd compile error (Identifier not found: GameState) silently reports 0 passed/0 failed — looks clean, ran nothing; test_aiming_system.gd/test_title_screen.gd hit the same error but still report pass counts.
+
+**Retrospective — applied**:
+- qa.md: lsof-first rule for port-conflict tests on macOS (false no-conflict from address-family mismatch cost QA two attempts). APPLIED.
+- #117 committed (a65b9c8) — unblocks the #113/#116 developer (shared files now on committed state).
+- #118 queued as bug (not blocking; pre-existing). Suite-runner silent-zero behavior needs investigation when picked up.
+
+
+### [2026-09-25 01:45] — judge — #113 (re-gate, revised spec)
+
+**Gate type**: per-agent (architect revision, comment 5822688548)
+**Verdict**: PASS
+**Score**: 9/10 (threshold 9)
+**Key gaps**: 4 single-line corrections handed to the developer, no architect round-trip — (1) selftest test 9 asserts report.md matches neither `px/frame` nor `ratio`, but the §7.2 report template contains the sentence "No speed, px/frame or ratio figures", so a correct implementation fails its own scope-boundary test; assert a numeric pattern instead. (2) §3.4's worked example names a real window of 0-10s on a clip whose real duration is 8.67s — the tool's own guard rejects it; formulas are correct, example is not. (3) §6 step 5 doesn't say whether the widened "spread uniformly" interval is folded back into container_fps before extraction or subsampled after. (4) §9 gives two different instructions for the same three files (update the literal command vs replace it with a SKILL.md citation).
+
+**Independent re-runs** (judge.md step 3 measurement rule):
+- **Reproduced the decisive negative control.** Installed cv2 in a scratch venv, ran the spec's exact Farneback parameters on ab2-longplay 6:00-6:08 at four clean decimations: 30fps measured 0.916 against a true 0.50 (+83%), 10fps 0.932 vs true 1.50 (-38%), 6fps 0.836 vs true 2.50 (-67%). Within 0.02 of the architect's numbers on every row. Measured value pinned at 4.2-5.0 px/frame while true displacement varies five-fold.
+- **Ran the positive control the architect's evidence implied but I wanted for myself**: same code on a corrected synthetic pan recovers ratio 0.506 against a true 0.500 (1.2% error, -7% absolute bias). So the method works on well-sampled content and fails on AB2 specifically — the temporal-aliasing diagnosis is real and the deferral is correct, not an excuse.
+- Gap 3 window verified by extracting 360/365/370s: Stage 8 desert canyon, level flight, STAGE 8 constant, score 5130260 -> 5245360, ground targets and varied terrain.
+- Gap 4 verified: old fixture recipe gives 2 identical pairs in 15 frames, `-framerate 30 -loop 1` gives 0 of 15.
+- §2's ffmpeg claim verified: `drawtext` genuinely absent from this build, so keeping cv2 for labelled cells is justified rather than dependency inertia.
+- Cross-issue interface verified: #113 §3.4 reads `<clip>.json` -> `measured_fps`; #116 §2.4 writes exactly that. They will fit.
+- Strip geometry verified: 8x180 + 7x4 = 1468 wide; (26+96+18)x2 + 6 = 286 high.
+
+**Honest assessment**: the revision is materially better than the original, and the reason is that the architect ran a known-answer test that destroyed its own headline feature and reported that instead of shipping it. All four of my previous gaps are closed and I confirmed three of them by re-execution. What remains is fully specified: CLI table, 8-step pipeline, 8 exit codes, strip geometry to the pixel, report template, SKILL.md outline, 11 selftests plus 5 pure functions. The deferral is guarded in six independent places, five already committed in fb3aff3. The only guard that does not depend on an agent reading prose is test 9, and it cannot pass as written — hence correction 1.
+
+**Improvement Insights**:
+- criteria.md hard rule 2 (per-band frame-to-frame shift must increase monotonically with depth) is itself a sub-60fps frame-difference speed measurement, which the new burst-frame limit says is unreliable. My run shows it concretely: per-band flow on real AB2 at 15fps comes out higher FAR than NEAR, the opposite of what the rule demands. Rule 2 would fail the arcade original. Gate it on #114 or restate it as a scale/parallax check.
+- criteria.md hard rule 5 mandates a 60-65% horizon, but the Stage 8 frames I extracted put the horizon near 10% with ground filling ~85%. The reference is stage-dependent; restate per-biome as rule 7 already does for saturation.
+- architect.md: name the known-answer-control pattern explicitly — before specifying any measurement, specify the input whose correct output is known a priori and the tolerance at which the measurement is abandoned. That is what turned this issue around.
+- workflow: record the precedent — a spec that deletes its own headline feature on evidence beat one that shipped it.
+
+---
+
+---
+### [2026-09-25 00:50] — qa — #117
+**Task**: Verify senior-developer's port-collision fix for #117 (four acceptance criteria) — infrastructure QA, independent reproduction required, not taking the developer's evidence on faith.
+**Result**: PASS
+**Issues verified**: #117 (PASS)
+**New bugs filed**: #118 (test_enemy_jet.gd silently no-ops at 0/0 due to a pre-existing compile error unrelated to #117; test_aiming_system.gd/test_title_screen.gd hit the same error but mask it)
+**Video evidence**: N/A — infrastructure QA per TL's task scope, youtube-reference/game-video mandate explicitly waived for this ticket.
+**Key findings**:
+- Criterion 1 (adversarial overlap): ran A (20 frames, port 9530) and B (3 frames, port 9531) with B starting 6s into A and finishing first (exit 0 at ~t10s while A was still at frame ~10/20; A exit 0 at ~t14s). Sampled `lsof -i tcp:9501` every 0.4s throughout — never bound. No `mcp_ports.cfg` created or left over.
+- Criterion 2 (failure path): occupied port, `--mcp-port banana`, `--mcp-port` with no value, and corrupt/key-missing `mcp_ports.cfg` all produced exit 9 + FATAL stderr + 9501 free. First two occupied-port attempts gave a false alarm (Godot hung "listening" instead of failing) — root cause was my own test setup: `nc -l PORT` without `-4`/explicit loopback bound a different address family than Godot's explicit `127.0.0.1` bind, so there was no real conflict. Fixed by confirming the occupier via `lsof` before launching Godot; then the failure path worked exactly as claimed.
+- Criterion 3 (no regression): `git diff HEAD -- capture-video.sh` confirmed only launch/lock/config code changed, frame-grab loop and `--playback-fps`/ffmpeg untouched. Plain `capture.sh` with no `--port` bound 9501 (3/3 frames). `/screenshot` returned a valid 675KB PNG. `capture-video.sh --port 9535 --duration 3 --playback-fps 8` produced a real mp4 (24/24 frames, ffprobe confirmed 960x672 @ 3.0s).
+- Criterion 4 (tests): `test_mcp_port.gd` 15/15 pass. Ran the full suite (26 files individually via `--script`, no batch runner exists). Only `test_jet_mesh_builder.gd` fails (95/13, pre-existing, confirmed unrelated to this diff). Found a separate, pre-existing issue: `test_enemy_jet.gd` has a compile error (`Identifier not found: GameState`) that makes it report `0 passed, 0 failed` — looks clean but ran nothing. Confirmed via `git diff HEAD --stat` that no autoload scripts have uncommitted changes, so this predates #117 — filed as #118, not blocking.
+- Cleanup: killed only Godot PIDs I spawned (9501, 9530, 9531, 9535), removed only my own pid files under `/tmp/afterburner-capture/`, left other agents' `godot-9507.pid`/`preview-9510.log` untouched.
+**Improvement Insights**:
+- **workflow**: when reproducing an "occupied port" test case on macOS, always confirm the occupier via `lsof` *before* launching the process under test — BSD `nc -l PORT` without `-4`/explicit host can silently bind a different address family, giving a false "no conflict" result that looks like a hang. Worth a one-line note in any future port-collision test guidance.
+- **CLAUDE.md**: the port-exit-9-FATAL guidance at line 13 is accurate and matched behavior exactly once tested correctly — no change needed there.
+
+### [2026-09-25 01:20] — TL — Retrospective: architect #113 finalized (Option A) — relabeled developer
+
+**Agent TLDR**: verbatim in the architect's own entry (line 3); spec at #113 comment 5822688548 (supersedes original). Key: v1 = aligned same-rate strips + report.md; speed metric deferred to §12 follow-up gated on #114 with an objective entry gate (fps-decimation control within 10% on 60fps footage). Report forbidden from printing speed figures — machine-checked by selftest test 9. CLI halved. Time-base handling kept (--game-true-fps with NO default: sidecar → flag → exit 2). Verified ffmpeg drawtext absent (kept cv2). Rendered the final strip artifact and read it back — immediately surfaced 3 real defects: AB2 ground ~85% of frame vs our ~35%, varied rock/bush terrain vs flat noise, jet roams frame vs dead-center. All 4 judge gaps closed.
+
+**Retrospective — applied**:
+- judge.md:48 + qa.md:46: "ground truth for speed" corrected — scaling/pose/pacing yes, speed no (architect flagged the contradiction with new CLAUDE.md line). APPLIED.
+- criteria.md: burst-frame speed limit added next to the reference-video block (judges read criteria.md first). APPLIED.
+- architect.md: negative-control rule widened to "any assumed external capability — verify by running it"; scope-boundary selftest pattern added. APPLIED.
+- Next: judge re-gate on revised spec; developer spawns only after #117 commits (shared files).
+
+
+### [2026-09-25 02:20] — architect — #113
+**Task**: Finalize the #113 spec revision under TL-approved Option A (split) — aligned strips + report in v1, flow/speed metric deferred to a 60fps-gated follow-up.
+**Result**: COMPLETED. `judge-fail` removed, relabelled to `developer`. Labels now `enhancement,developer`.
+**Spec posted to**: https://github.com/UriZ/afterburner/issues/113#issuecomment-5822688548 (supersedes the original spec comment).
+**Key decisions**:
+- **v1 scope = everything involving no motion estimation.** Aligned same-rate strips are pure time-indexed compositing and are untouched by the aliasing finding. `report.md` is forbidden from printing any px/frame or ratio figure and carries a one-line explanation plus a pointer to #114, so a judge reading it does not go looking for a number. Selftest test 9 asserts this mechanically (report matches neither `px/frame` nor `ratio`) — a machine-checkable scope boundary.
+- **Dropped from the original spec**: `--fps`, `--work-width`, `--ref-mask`/`--game-mask`, `--cut-threshold`, the flow CSVs and the plot. The HUD masks existed only to exclude regions from numeric averages; with no averages they are dead weight. Net CLI surface is roughly halved.
+- **Kept the time-base handling** — the surviving and most important half of judge gap 1. AC2b's "sampled at the SAME fps from both clips" is a claim about *real* time; sampling a mislabeled bridge capture at 3fps of container time samples it at 3 x nominal/true in real time, so the two rows would not correspond. `--game-true-fps` has deliberately **no default** (sidecar → flag → exit 2), forcing a conscious statement about the time base. Spec carries the full arithmetic and a worked example.
+- **Verified OpenCV is still required** before keeping the dependency: tested whether pure ffmpeg could tile and label the strips — it cannot, this build has no `drawtext` filter (no libfreetype, confirmed by running it). Unlabelled cells would make the artifact non-self-describing. `cv2.putText` uses built-in Hershey fonts and needs no font library, and keeping cv2 makes the #114 follow-up purely additive with no dependency change.
+- **Validated the final artifact rather than assuming it.** Rendered the v1 strip against the corrected 6:00-6:10 desert window and read it back: 1468x286, cells 180x96, under the 1568px agent-downscale limit. It immediately surfaced real defects — AB2's ground fills ~85% of frame against our ~35%, AB2 has ground targets and varied rock/bush terrain where ours has a flat noise texture, and AB2's jet moves around the frame while ours sits dead centre. Confirms Option A delivers real value with no speed number attached.
+- **Follow-up section given an objective entry gate**: before any flow number is reported or cited, the fps-decimation negative control must pass on 60fps footage (true ratio 0.5, measured within 10%). Also carried forward the corrected calibration and an explicit warning that the original §4.2/§4.3 were derived from the defective fixture and must not be reused as written.
+**Judge gaps**: all four now closed — gap 1 via the time-base section (the metric it corrupted is gone; the correspondence problem it caused is fixed), gap 2 via adding `criteria.md:67` to the edit list, gap 3 via the verified desert window, gap 4 via `-framerate 30` plus the re-run sweep. Minor items (SKILL.md section outline, arm64 correction) also addressed; the row-count tolerance item disappeared with the flow tests.
+**Improvement Insights**:
+- **workflow**: the scope-boundary selftest (grep the report for the forbidden terms) is a cheap general pattern — when a spec defers part of its own scope, add a mechanical assertion that the deferred part has not crept back in. Cheaper than a judge catching it later.
+- **architect.md**: the negative-control rule that was just added to the agent file paid off immediately in reverse — checking whether ffmpeg could replace the dependency took two minutes and prevented speccing a `drawtext` pipeline that does not exist on this machine. Worth generalizing the phrasing from "measurement tools" to "any external capability the spec assumes is present, verify by running it".
+- **CLAUDE.md**: the burst-frame speed caveat has landed (line 24). The same caveat belongs in `criteria.md` next to the reference-video block, since that file is what the judge reads first and it still tells agents that burst frames are "ground truth for speed, scaling rate, and pacing" — scaling and pacing survive, speed does not.
+
+### [2026-09-25 01:12] — TL — Retrospective: architect #113 revision — aliasing finding, Option A split approved
+
+**Agent TLDR**: verbatim in the architect's own updated entry (line 3, newest-first); full evidence on #113. Key: after fixing judge gaps 2-4, a known-answer fps-decimation test proved the flow metric has near-zero speed sensitivity on real AB2 footage (true 0.50/1.50/2.50 ratios all measure ~0.82-0.93; estimator pinned at 4.2-4.8 px/frame) — temporal aliasing of the dithered ground, a Nyquist limit. Seven alternative methods exhausted, all fail the same ground truth. Correctly BLOCKED #113 rather than shipping a confident fake number. #116 spec'd and ready (paced capture loop, single python3 driver replacing 2N process spawns, encode at measured rate, sidecar JSON). Flagged file collision with #117.
+
+**TL decision**: Option A (split) — v1 ships aligned strips + report with NO speed number; flow metric deferred behind 60fps capture. #114 re-prioritized as prerequisite (comment posted). User informed, can override.
+
+**Retrospective — applied**:
+- architect.md: prototype rule sharpened (real artifact + known-answer case) + negative-control requirement for measurement tools. APPLIED.
+- judge.md: judge must re-run at least one quoted measurement and verify fixtures. APPLIED.
+- CLAUDE.md: hard limit documented — burst stills support pose/scale/composition only, NEVER speed (aliasing below ~60fps). All past speed claims from bursts are unsupported. APPLIED.
+- criteria.md criterion-4 N/A: already applied in earlier retro.
+- Sequencing: #117 commits on QA pass BEFORE #116/#113 developer starts (shared files); developer prompt must include bridge-response-shape verification.
+
+
+### [2026-09-25 01:05] — TL — Retrospective: senior-developer #117 (port collision)
+
+**Agent TLDR**: captured verbatim by the agent in its own entry below; full report on #117. Key: TWO defects — capture.sh's unconditional EXIT trap deleting the shared mcp_ports.cfg, AND mcp_bridge_game.gd silently falling through to DEFAULT_PORT when its config vanished. Fix: port passed on Godot's command line (rejected the issue's per-port-config suggestion as circular, with documented reason), unhonourable port request now FATAL exit 9, launch lock removed, parse_port_arg() extracted as pure static with 15/15 new tests. Adversarial overlap verified (run B exiting mid-run-A on the old trap point; both clean, 9501 untouched). capture-video.sh time base untouched — rebase-compatible with #113/#116.
+
+**Retrospective — applied**:
+- CLAUDE.md concurrent-capture: documented exit-9/FATAL behavior + standing rule that cleanup traps only remove the script's own /tmp/afterburner-capture/ state. APPLIED.
+- tl.md retro step: recurring concrete-failure insights must be filed as issues on the spot (this hazard was logged by THREE agents across retros before being filed). APPLIED.
+- developer.md + senior-developer.md: evaluating/rejecting an issue's proposed implementation with documented reason is explicitly in scope. APPLIED.
+- #117 → QA next.
+
+
+### [2026-09-25 01:40] — architect — #113, #116
+**Task**: Rework the #113 motion-metrics spec after judge FAIL (6/10, four blocking gaps); own the capture time-base fix (#116).
+**Result**: PARTIAL — #116 spec COMPLETED and ready for developer. #113 BLOCKED on a scope decision; `judge-fail` deliberately NOT removed and NOT relabelled to `developer`.
+**Posted to**: #113 finding comment (https://github.com/UriZ/afterburner/issues/113#issuecomment-5822584559), #116 spec comment (https://github.com/UriZ/afterburner/issues/116#issuecomment-5822601330).
+
+**The blocking finding**: while re-deriving the calibration that judge gap 4 invalidated, I ran a ground-truth test I should have run before the first spec — sample one window of footage at different frame rates, where per-frame displacement is exactly proportional to 1/fps so the true ratio is known with no modelling assumptions. The methodology validates on synthetic clips (measured 0.503 against a true 0.5). On real AB2 footage it fails completely: true ratio 0.50 measures 0.921; true 1.50 measures 0.933; true 2.50 measures 0.820. The measured value is pinned near 4.2-4.8 px/frame regardless of actual speed. **Sensitivity to the quantity it claims to measure is approximately zero.** Corroborated spatially: per-band means from far to near are 5.82/5.56/4.79/4.43 when those bands genuinely move at very different rates — the estimator is reporting its own ceiling, not the content.
+**Cause**: AB2's ground is a repetitive dithered texture moving a large fraction of its own period between frames at 15fps. Correspondence is ambiguous — temporal aliasing, the wagon-wheel effect. Nyquist, not a parameter choice.
+**Exhausted before concluding** (each validated against the same known-ratio test): Farneback across 4 parameter sets; work widths 144/192/256/320/384; prefilters area/lanczos/two Gaussian strengths (identical to 3 s.f., ruling out downscaling aliasing); resolution-proportional vs fixed winsize (proportional markedly worse, 44% vs 15% spread); `cv2.phaseCorrelate` on a ground strip (1.386 vs 0.50 true, quality 0.09-0.22); `cv2.matchTemplate` with large search (0.875 vs 2.50 true); restriction to far/mid/near/ground bands (all fail). Low correlation-quality scores independently confirm genuine ambiguity rather than estimation difficulty.
+**Prerequisite identified**: 60fps on both sides. Displacement scales with 1/fps, and the corrected synthetic sweep shows four-times-finer sampling moves a broken measurement (5.71 vs expected 8.96) into the linear band (2.09 vs expected 2.24, -6.5% bias). Both halves are already named in the issue but out of its scope: MovieWriter 60fps capture (the stated follow-up) and the 60 FPS longplay URL (already mandated; the cached copy is 30fps and still fails the test at 0.921 vs 0.50).
+**Recommended (not acted on — TL/UriZ decision)**: Option A, split. Ship the aligned strips + report + the #116 time-base fix, which are valid and unaffected; defer the flow metric to a follow-up gated on 60fps. Spec sections 2, 5, 6, 7, 8, 9 carry over unchanged. Rejected Option C (ship as specced) — a confident number with near-zero speed sensitivity inside a ±15% decision band is worse than no tool, because judges would cite it.
+
+**Judge gaps 2-4 — fixed regardless of the scope decision**:
+- Gap 2: confirmed `criteria.md:67` carries the third copy of `--playback-fps 8`; added to the edit list in the #116 spec alongside judge.md:51 and qa.md:48.
+- Gap 3: confirmed 4:55-5:05 is the cloud-bank stage with the player hard-banked. Replaced with **6:00-6:10, Stage 8 desert canyon**, verified by extracting 8 frames across 358-372s: level flight throughout, ground filling the frame, "STAGE 8" constant (no transition), score advancing 5123660->5319860, and cut detection clean (0 cuts, 0 dups, absdiff max 54.8 vs threshold 130.5). Semantically matches our desert capture.
+- Gap 4: confirmed — old fixture had 2 identical pairs in 15 frames, `-framerate 30` gives 0. Re-ran the full sweep, which **changed the calibration conclusion**: breakdown is at a fixed source speed (~3.5-4% of frame width per frame), identical at every work width, so reducing work width buys no headroom and the original §4.3 saturation guard was wrong.
+- Minor: §2.2's arm64 claim corrected to `macosx_14_0_x86_64` per the judge.
+
+**#116 spec highlights**: pace the capture loop rather than only measuring it (measurement alone fixes the mean but leaves per-frame jitter that any downstream analysis would see as a fluctuating time step); replace the per-frame `nc`+`python3` process pair with a single python3 driver, removing 2N process spawns that are themselves a large part of why the real rate is only ~17.3fps against a bridge that answers at ~37.7/s; encode at the measured rate; `<output>.mp4.json` sidecar with a versioned schema; `measured_fps` uses n-1 intervals, not n (3.4% overstatement at 30 frames otherwise); honest degraded mode on slip rather than an error.
+
+**Improvement Insights**:
+- **architect.md**: require a *negative control* for any measurement tool — a test where the tool must report a KNOWN answer it could only get right by actually measuring. My first spec had extensive calibration and still shipped a metric with zero real-world sensitivity, because every test used synthetic uniform motion that flattered the estimator. The fps-decimation trick (same footage, different sampling rate, displacement exactly proportional to 1/fps) is a general, assumption-free ground truth for any motion metric and cost about 5 minutes.
+- **architect.md**: "prototype before speccing" (my previous insight) was necessary but not sufficient — I prototyped extensively and still got it wrong by prototyping only the happy path on synthetic data. The rule should be "prototype against the REAL artifact the tool will consume, and include a case where you know the right answer".
+- **criteria.md**: Architect criterion 4 "Godot-native approach" is marked Critical but is meaningless for tooling issues; the judge correctly marked it N/A but had to reason its way there. Codify "N/A for non-game-code issues".
+- **workflow**: the judge's practice of independently re-running the spec's factual claims caught three of four gaps and was what forced the test that found the real defect. Worth making explicit in judge.md for any spec that quotes measurements: re-run at least one and check the fixture actually does what the spec says.
+- **CLAUDE.md**: "Videos Are MANDATORY" rests on agents comparing motion through 0.25s-apart stills. This investigation shows 15fps sampling is already past the aliasing limit for AB2's ground — so 4fps burst frames cannot support *any* speed judgement, only pose/scale/composition judgements. Worth stating outright so agents stop inferring speed from bursts.
+
+### [2026-09-25 00:33] — senior-developer — #117
+**Task**: capture.sh EXIT trap deletes shared mcp_ports.cfg — cross-agent port collision
+**Result**: COMPLETED
+**Files changed**: `mcp_bridge_game.gd`, `.claude/skills/game-capture/capture.sh`, `.claude/skills/game-capture/SKILL.md`, `.claude/skills/game-video/capture-video.sh`, `.claude/skills/game-video/SKILL.md`, `tests/test_mcp_port.gd` (new)
+**Key changes**:
+- `mcp_bridge_game.gd:34-52` — port resolves from `-- --mcp-port N` first, then legacy `mcp_ports.cfg`, then `DEFAULT_PORT`; an explicit request that cannot be honoured is now fatal.
+- `mcp_bridge_game.gd:55-97` — `_resolve_port()` plus pure static `parse_port_arg()`; `PORT_NOT_REQUESTED` / `PORT_REQUEST_INVALID` sentinels keep "nobody asked" distinct from "asked and we can't".
+- `mcp_bridge_game.gd:119-128` — `_fail_port_request()` prints a greppable `FATAL` line to stderr, pushes an error, and quits with code 9.
+- `capture.sh` / `capture-video.sh` — launch with `-- --mcp-port "$PORT"`; shared config write, launch lock and EXIT trap all deleted.
+- Both `SKILL.md` concurrency sections document the new guarantee.
+**Technical decisions**:
+1. **Two defects, not one.** The trap was only half of it. `mcp_bridge_game.gd` could not distinguish "my config was deleted" from "nobody asked for a port" — both hit the same silent `DEFAULT_PORT` fall-through. Fixing only the trap would have left the same silent downgrade reachable through any other config mishap, so both are fixed. The bridge change is the one that makes the class of bug non-silent.
+2. **Rejected the issue's first suggested option (per-port config files) with a reason.** `mcp_ports.<port>.cfg` does not work: Godot would still need telling *which* file to read, which requires a command-line argument, at which point the file is redundant. Passing the port directly eliminates the shared-file race instead of narrowing it, and satisfies the issue's second option trivially since there is nothing left to own.
+3. **Kept the legacy config read path.** Manual launches and anything outside the two skills keep working; it is simply no longer the mechanism the skills use.
+4. **Removed the launch lock entirely rather than hardening it.** Its only purpose was serialising writes to the shared config. With no shared file there is nothing to serialise, and the remaining same-port TOCTOU (two scripts both seeing a port free) is now caught loudly by the bridge instead of silently landing on 9501 — a strict improvement over what the lock gave.
+5. **Extracted `parse_port_arg()` as a pure static** so the precedence and validation rules are unit-testable without spawning processes — same approach as `sky_color_at()` in #115.
+**Testing**: `tests/test_mcp_port.gd` 15/15 new — both flag forms, flag among other args, range bounds including 65535, and specifically that an invalid request stays distinct from an absent one (the bug is exactly those two collapsing). Full suite otherwise unchanged; only `test_jet_mesh_builder.gd`'s 13 pre-existing failures remain (legacy 3D jet path, not in my diff). Live verification: **criterion 3** — run A (12 frames/16.5s) on 9520 with run B (2 frames) starting 6s in on 9521 and finishing first, so B's exit landed on the old trap point mid-A; both exited 0, 12/12 and 2/2 captured, 9501 stayed free throughout (under the old code B's exit is what deleted A's config), `ps` confirmed two distinct PIDs with correct `--mcp-port` args. **Criterion 2** — five failure cases (port occupied, `banana`, missing value, corrupt config, config without `game_port`) all exit 9 with a `FATAL` stderr line and leave 9501 free. **Criterion 4** — legacy config still binds its port (9522); no arg and no config still binds 9501; `capture.sh` with no `--port` captured 2/2 on 9501; `/screenshot`'s exact command returned a 500,662-byte PNG; `capture-video.sh --port 9523 --duration 3` captured 30/30 and encoded a 3.0MB mp4. Cleanup confirmed: all test ports free, no stray Godot, no `mcp_ports.cfg` left behind.
+**Scope boundary**: did not touch `capture-video.sh`'s time base per the #113/#116 split. Its diff is 30 removed lines (lock function, config write/delete, trap) plus one launch line; the only `sleep` removed was the 0.2s retry inside the deleted lock function, not the frame-grab loop. Frame grabbing, `--playback-fps` and the ffmpeg invocation are byte-identical.
+**Improvement Insights**:
+- **[workflow]**: An EXIT trap that touches a path outside the script's own temp state is the actual anti-pattern here, and it was installed before the script even knew whether it would launch anything. Worth a standing rule: cleanup traps may only remove paths the script created under `/tmp/afterburner-capture/`, never anything in the project directory.
+- **[CLAUDE.md]**: The concurrent-capture guidance says to pass `--port N` but does not say what happens when that fails. Now it is worth stating: an instance that cannot get its port exits with code 9, so if a capture reports "did not confirm listening", check for the `FATAL` line rather than assuming a slow start.
+- **[workflow]**: Three separate agents logged this same shared-`mcp_ports.cfg` hazard as an improvement insight in earlier sessions (searchable in SESSION_LOG.md) before it was filed as a bug. Recurring insights that describe a concrete failure should get filed as issues on the spot rather than accumulating.
+- **[developer.md / senior-developer.md]**: Worth stating that when an issue proposes a specific implementation ("make it per-port"), evaluating and rejecting it with a reason is in scope. Here the proposed fix was circular and the better one was simpler.
+
+
 ### [2026-09-25 00:58] — TL — Retrospective: visual-qa #115 (sky fix) — PASS, 0 bugs
 
 **Agent TLDR (verbatim)**:

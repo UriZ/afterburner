@@ -10,7 +10,7 @@ Study the motion reference AND ALL 9 reference screenshots in `assets/reference/
 
 **Shared working tree** — never run `git stash`, `git checkout .`, `git restore`, or `git reset` on this tree while other agents are active: it silently destroys their uncommitted work (this happened; a stash pulled six agents' edits off disk at once). For A/B comparison against the committed state, use `git show HEAD:<file>` or `git diff HEAD -- <file>` — read-only, no disk mutation.
 
-**Concurrent capture** — when multiple agents run at once, pass `--port N` (e.g. 9502+) to `game-capture`/`game-video`; each script then launches, tracks, and kills only its own Godot instance. Never run a blanket `pkill -f Godot`.
+**Concurrent capture** — when multiple agents run at once, pass `--port N` (e.g. 9502+) to `game-capture`/`game-video`; each script then launches, tracks, and kills only its own Godot instance. Never run a blanket `pkill -f Godot`. An instance that cannot honour its requested port **exits code 9 with a FATAL stderr line** (#117) — if a capture reports "did not confirm listening", grep for FATAL rather than assuming a slow start. Cleanup traps in capture tooling may only remove paths the script itself created under `/tmp/afterburner-capture/`, never anything in the project directory.
 
 **How to study motion** — agents cannot stream video, and `WebFetch` on a YouTube URL returns page text, not frames. Use the `youtube-reference` skill, which converts footage into frame sequences any agent can Read:
 
@@ -20,6 +20,8 @@ bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay UR
 ```
 
 Read the `burst-*` frames **in order** — they are 0.25s apart, and motion lives in the differences between them. Extracted frames are gitignored local reference; never commit them.
+
+**Hard limit on what burst frames can tell you (#113 finding)**: AB2's ground texture temporally aliases below ~60fps sampling — even 15fps is past the Nyquist limit, so 4fps burst stills support **pose, scale, and composition judgements only, never speed**. Do not assert "the speed feels right/wrong" from burst frames; speed claims require the 60fps pipeline (#114) or human review of actual video.
 
 Reference sources: search for After Burner II arcade longplay footage on YouTube and pass the URL to the skill. Any full-playthrough recording works.
 
