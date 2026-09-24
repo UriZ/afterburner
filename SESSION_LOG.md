@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-25 03:45] — TL — #113+#116 shipped; #119 assigned; #120-#122 filed; page updated
+
+- Committed 6c48c12 (motion-metrics v1 + true time base, 18 files) after final gate PASS.
+- #119 (concurrent --out corruption) assigned to dev-113-116 with concurrency-test requirements.
+- Filed composition-gap issues from strip evidence: #120 (ground coverage 85% vs 35%, per-stage horizon), #121 (terrain flat noise vs discrete rocks/bushes/targets), #122 (jet pinned center vs roaming). All enhancement+architect.
+- comparison.html: strips regenerated with the shipped tool from the true-speed clip (metrics/tl-page), page notes updated with shipped status + new issue numbers.
+
 ### [2026-09-25 03:30] — TL — Retrospective: FINAL gate #113+#116 — PASS 9/10; feature committed
 
 **Judge TLDR**: verbatim in the judge's entry below; final verdicts on both issues. Key: PASS conditional on two SKILL.md doc edits (concurrency warning per #119 + stale 44→50 assertion count) — TL applied both, verified via judge's own greps + selftest 50/50. New final-gate checks: example-report.md is verbatim real output; all six strips decode via cv2.imread; selftest drives the bash wrapper (venv path covered); cold-bootstrap flagged honestly as untested (would require deleting a shared venv). AC sweep: #113 all pass (2a deferred as approved), #116 all pass. Judge's verdict on the feature: "closed a defect that had silently corrupted every visual judgement made on this project, and replaced an eyeballed speed claim with either real evidence or an honest refusal to produce a number."
