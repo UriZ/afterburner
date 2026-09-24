@@ -67,7 +67,7 @@ Capture the current game state for comparison using BOTH methods:
 
 **Video** (for motion, speed, feel):
 ```bash
-bash .claude/skills/game-video/capture-video.sh --start-game --duration 10 --playback-fps 8 --output /tmp/game-capture/designer-video.mp4
+bash .claude/skills/game-video/capture-video.sh --start-game --duration 10 --playback-fps 15 --output /tmp/game-capture/designer-video.mp4
 ```
 
 **Frame sequence** (for detail analysis):

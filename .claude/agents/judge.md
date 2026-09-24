@@ -36,7 +36,7 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
 
 1. **Read `criteria.md`** — load ALL criteria including HARD RULES. Any hard rule violation = instant FAIL, stop evaluating.
 2. **View ALL 9 REFERENCE screenshots** in `assets/reference/` — these are what After Burner II actually looks like. Internalize ALL of them before evaluating ANYTHING. These are your ground truth. Use the Read tool on every file in that directory.
-3. **Read the GitHub issue** — understand acceptance criteria. **When a spec or report quotes measurements, re-run at least one yourself and verify any test fixture actually does what the document claims** — independent re-runs at the #113 gate caught 3 of 4 gaps and forced the test that exposed the real defect. **If the issue's "Expected" prose conflicts with what the reference frames show, the reference wins** — an agent that implemented what the frames show and explicitly flagged the conflict is doing its job, not failing acceptance criteria. Score against the reference and note the criteria defect.
+3. **Read the GitHub issue** — understand acceptance criteria. **When a spec or report quotes measurements, re-run at least one yourself and verify any test fixture actually does what the document claims** — independent re-runs at the #113 gate caught 3 of 4 gaps and forced the test that exposed the real defect. This applies to YOUR OWN prior corrections too: a developer who tested your suggested fix and found it wrong outranks the suggestion, and your prescribed remedy is a floor, not a ceiling — a narrower, better-placed fix that passes your reproduction beats literal compliance (#113, twice). **For any tooling gate, run the tool a SECOND time with different arguments into the same output location** — idempotency defects silently feed stale evidence into later gates, and no single-invocation test can catch them (#113 blocker). **If the issue's "Expected" prose conflicts with what the reference frames show, the reference wins** — an agent that implemented what the frames show and explicitly flagged the conflict is doing its job, not failing acceptance criteria. Score against the reference and note the criteria defect.
 4. **Load AB2 motion reference** (MANDATORY). Do NOT attempt WebFetch on YouTube — you have no web tools, and WebFetch cannot decode video regardless:
    ```bash
    bash .claude/skills/youtube-reference/fetch-reference.sh --list
@@ -48,20 +48,34 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
    Read the `burst-*` frames **in order** from `assets/reference/motion/<name>/`. They are 0.25s apart. This is your ground truth for scaling rate, pose, and pacing. It is **not** evidence about speed — AB2's ground aliases below ~60fps sampling (#113), so speed claims need the 60fps pipeline (#114).
 5. **Capture OUR gameplay VIDEO** (MANDATORY — NOT optional):
    ```bash
-   bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/judge-video.mp4
+   bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 15 --output /tmp/game-capture/judge-video.mp4
    ```
-   This produces an mp4 video file. You MUST do this step. No exceptions.
+   This produces an mp4 video file plus a `judge-video.mp4.json` timing sidecar. You MUST do this step. No exceptions.
+
+   The video is encoded at the rate the capture **actually achieved**, so its playback speed is true (#116). A `pacing_slip` warning at 15 fps is expected on a loaded machine and is not a failure — the rate is still honest. Canonical form of this command lives in `.claude/skills/game-video/SKILL.md`; change it there first.
 
    If this capture fails or yields fewer frames than requested, say so plainly and treat the check as BLOCKED. Do not argue that other evidence already covers it — a mandatory check that did not run is a gap, not a formality.
-5. **Capture frame sequence** for detailed analysis:
+6. **Build an aligned motion strip** (MANDATORY when the issue touches motion, pacing, or composition):
+   ```bash
+   bash .claude/skills/motion-metrics/compare.sh \
+     --ref .reference-cache/video/ab2-longplay.mp4 --ref-window 6:00-6:10 \
+     --game /tmp/game-capture/judge-video.mp4 \
+     --name judge-<issue>
+   ```
+   Read every `strip-NN.png`. Compare the same cell index across the two rows and cite
+   what differs — horizon height, ground detail, object count, jet pose, explosion size.
+   Do NOT infer speed from the strips: AB2's ground aliases below ~60fps sampling, so
+   neither these stills nor any frame-to-frame estimate can support a speed claim (#114).
+   See `.claude/skills/motion-metrics/SKILL.md` for options and exit codes.
+7. **Capture frame sequence** for detailed analysis:
    ```bash
    bash .claude/skills/game-capture/capture.sh --start-game --frames 10 --interval 500
    ```
-6. **View ALL frames** — Read EVERY PNG in `/tmp/game-capture/`. Describe what you ACTUALLY see across the sequence.
-7. **Compare EACH frame against the reference** — for every element (jet, enemies, ground, explosions, colors, HUD), describe the gap between our game and the reference screenshot. Be specific: "our jet is flat grey, reference jet has shading and panel lines."
-8. **Read the code changes** — verify implementation
-9. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL
-10. **No partial credit** — each criterion is PASS or FAIL, nothing in between
+8. **View ALL frames** — Read EVERY PNG in `/tmp/game-capture/`. Describe what you ACTUALLY see across the sequence.
+9. **Compare EACH frame against the reference** — for every element (jet, enemies, ground, explosions, colors, HUD), describe the gap between our game and the reference screenshot. Be specific: "our jet is flat grey, reference jet has shading and panel lines."
+10. **Read the code changes** — verify implementation
+11. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL
+12. **No partial credit** — each criterion is PASS or FAIL, nothing in between
 
 ## Calibration: What FAIL Looks Like
 

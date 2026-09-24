@@ -12,6 +12,10 @@ Study the motion reference AND ALL 9 reference screenshots in `assets/reference/
 
 **Concurrent capture** — when multiple agents run at once, pass `--port N` (e.g. 9502+) to `game-capture`/`game-video`; each script then launches, tracks, and kills only its own Godot instance. Never run a blanket `pkill -f Godot`. An instance that cannot honour its requested port **exits code 9 with a FATAL stderr line** (#117) — if a capture reports "did not confirm listening", grep for FATAL rather than assuming a slow start. Cleanup traps in capture tooling may only remove paths the script itself created under `/tmp/afterburner-capture/`, never anything in the project directory.
 
+**Concurrency rule (general)**: any tool that writes a named output path needs a per-agent-unique name — `--port N` for game-capture/game-video instances, `--output` for video files, `--name`/`--out` for motion-metrics runs. Sharing a name across concurrent agents produces silent corruption, not errors (#117, #119). New tools inherit this rule; don't rediscover it through a corrupted artifact.
+
+**Capture time base (#116)**: bridge-capture videos are encoded at the rate the capture actually achieved (recorded in the `<output>.mp4.json` sidecar), so playback speed is true — but only for captures made after #116; older mp4s have fictional container fps. `--playback-fps` is a pacing *target* whose ceiling depends on scene content (~12fps during gameplay, ~30fps on the flat title screen), so a `pacing_slip` warning at 15fps is the normal case for gameplay, not a failure.
+
 **How to study motion** — agents cannot stream video, and `WebFetch` on a YouTube URL returns page text, not frames. Use the `youtube-reference` skill, which converts footage into frame sequences any agent can Read:
 
 ```bash

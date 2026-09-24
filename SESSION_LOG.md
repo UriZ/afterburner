@@ -1,6 +1,232 @@
 # Session Log
 
-### [2026-09-25 01:35] — TL — Retrospective: judge re-gate #113 (revision) — PASS 9/10
+### [2026-09-25 03:30] — TL — Retrospective: FINAL gate #113+#116 — PASS 9/10; feature committed
+
+**Judge TLDR**: verbatim in the judge's entry below; final verdicts on both issues. Key: PASS conditional on two SKILL.md doc edits (concurrency warning per #119 + stale 44→50 assertion count) — TL applied both, verified via judge's own greps + selftest 50/50. New final-gate checks: example-report.md is verbatim real output; all six strips decode via cv2.imread; selftest drives the bash wrapper (venv path covered); cold-bootstrap flagged honestly as untested (would require deleting a shared venv). AC sweep: #113 all pass (2a deferred as approved), #116 all pass. Judge's verdict on the feature: "closed a defect that had silently corrupted every visual judgement made on this project, and replaced an eyeballed speed claim with either real evidence or an honest refusal to produce a number."
+
+**Retrospective — applied**:
+- SKILL.md: both commit-blocking edits. APPLIED+VERIFIED.
+- CLAUDE.md: unified concurrency rule (per-agent-unique names for ANY named output path) replacing per-tool rediscovery. APPLIED.
+- criteria.md concurrent-reuse widening: already applied at QA retro. VERIFIED.
+- Pattern recorded per judge's request: the two most valuable outputs of #113 were an architect deleting its own headline feature on evidence, and QA probing off-checklist — both found by RUNNING things, both rewarded. Keep rewarding this.
+- Next: commit; #119 to dev; clean strip regen for comparison page; 3 composition-gap issues.
+
+
+### [2026-09-25 02:30] — judge — #113 + #116 (FINAL GATE)
+
+**Gate type**: final (complete feature, last gate before commit)
+**Verdict**: PASS — conditional on two greppable documentation edits
+**Score**: 9/10 (threshold 9)
+**Key gaps**: two commit-blocking doc edits in motion-metrics/SKILL.md — (1) NO concurrency warning anywhere (grepped concurrent/parallel/simultaneous/race/another agent: zero hits) despite #119 showing two runs sharing one --out corrupt every strip silently; (2) stale assertion count, says 44, suite is 50 (QA's flag, confirmed).
+
+**New checks run at this gate** (scoped to what QA and my prior gates did not cover):
+- **Committed demo is verbatim the real run**: diff of example-report.md (minus its 3-line provenance header) against .reference-cache/metrics/demo-1/report.md is IDENTICAL. AC5 got the genuine output, not a hand-tidied version.
+- **Shipped artifacts decode**: all six strips across demo-1/ and my own judge-113-e2e/ load through cv2.imread at (286,1468,3). The sequential path produces sound PNGs — the other half of the #119 story.
+- **Tests drive the documented entry point**: selftest.sh runs `bash compare.sh` throughout, not motion_metrics.py directly, so the wrapper and venv resolution are covered by all 50 assertions. .ready holds 5.0.0.
+- **Untested path, stated rather than assumed**: cold bootstrap into an absent venv-metrics/. Did not exercise it — would mean deleting a directory other agents are using on a shared tree.
+- Full AC sweep: #113 ACs 1,2b,2c,3,4,5,7 PASS, 2a deferred (approved), 6 conditional. #116 ACs 1-4 all PASS.
+
+**On #119 — shipping judgement**: acceptable, with one condition. The promise was sequential safety; it holds and is tested. The fix (process-unique temp dir + atomic rename) has real regression surface and should not be rushed into an otherwise clean gate. BUT the limitation must be documented where agents hit it, because the failure is invisible — exit 0, plausible file sizes, `file`/`sips` both call the corrupt PNGs fine, only cv2.imread reveals the CRC error. And the workflow steers into it: every agent insert prescribes a stable --name judge-<issue> / qa-<issue>, and this project runs several named agents on one issue at a time. Precedent exists for the one-line form (CLAUDE.md --port, game-video/SKILL.md --output). Without the note, shipping converts a silent corruption into a silent corruption nobody was warned about.
+
+**Honest assessment**: the chain (spec FAIL 6 → blocking finding → revised spec PASS 9 → implementation FAIL 8 → fix PASS 9 → QA → final) left no gap against what the issues promised. This feature closed a defect that had silently corrupted every visual judgement on this project, and replaced an eyeballed speed claim with either real evidence or an honest refusal to produce a number. The refusal is the more valuable half.
+
+**Improvement Insights**:
+- CLAUDE.md: the concurrency convention is now stated separately for game-capture/game-video (--port), game-video (--output), and soon motion-metrics (--name/--out). Promote it to ONE rule — any tool writing a named output path needs a per-agent-unique name — so the next tool inherits it instead of rediscovering it through a corrupted artifact.
+- criteria.md developer criteria: widen the idempotency rule to cover concurrency. Both #113 bugs were the same root shape — a shared output path with no per-invocation isolation.
+- Worth recording: this issue's most valuable output was an architect deleting its own headline feature on evidence, and the second-most was QA probing something off its checklist. Both were caught by RUNNING things, not reading them, and both were rewarded rather than penalised.
+
+---
+
+### [2026-09-25 03:10] — TL — Retrospective: qa #113+#116 — both PASS, #119 filed
+
+**Agent TLDR**: verbatim in the QA agent's entry below; findings comments on both issues. Key: fresh independent end-to-end (port 9560) — container fps matches sidecar to 3 decimals in normal AND slip paths; mid-capture bridge kill loud-fails correctly; idempotency re-verified on real footage; --name injection-safe; venv bootstrap tested in an isolated fake root to protect the shared venv. New bug #119: two concurrent compare.sh runs on the same --out both exit 0 but byte-corrupt every strip (libpng CRC; file/sips call them valid, only cv2.imread catches it). Out of promised scope (sequential safety holds) — does not block. SKILL.md stale assertion count (44 vs 50) flagged.
+
+**Retrospective — applied**:
+- criteria.md criterion 7: extended with concurrent-reuse requirement. APPLIED.
+- developer.md + senior-developer.md: concurrent two-run test alongside sequential. APPLIED.
+- qa.md: verify with the tool's own decoder, not file/sips. APPLIED.
+- #119 queued (small fix: process-unique temp dir + atomic rename) — after final gate + commit, assigned to dev-113-116.
+- Next: FINAL judge gate on the complete #113+#116 feature.
+
+
+### [2026-09-25 03:20] — qa — #113, #116 (independent verification) + #119 (new bug filed)
+
+**Task**: QA-verify both judge-passed implementations together (true-time-base capture #116, motion-metrics tooling #113) with fresh execution, not re-reading prior runs.
+**Result**: PASS on both, plus one new bug found and filed (#119)
+**Issues verified**: #116 (PASS), #113 (PASS)
+**New bugs filed**: #119 — concurrent `compare.sh` runs into the same `--out` silently corrupt all strip PNGs (libpng CRC error via the tool's own `cv2.imread`), exit 0, no error signalled. Not a regression against any promised behavior (spec only guarantees sequential re-run safety, re-verified holds), but realistic given this project's pattern of multiple concurrently-named agents on one issue.
+**Video/capture evidence**: `/tmp/game-capture/qa116-video.mp4` (+`.json` sidecar), `/tmp/game-capture/qa116-60fps.mp4`, `.reference-cache/metrics/qa-116-113-fresh/` (strips + report, gitignored)
+**Key findings**:
+- #116: fresh 10s@15fps capture on port 9560 — `measured_fps` 12.708 with honest `pacing_slip:true`; `ffprobe avg_frame_rate` matched sidecar exactly (3177/250); `--playback-fps 60` slip path also matched exactly (6529/250 = 26.116). Killed the bridge mid-capture: loud failure, exit 1, no mp4/sidecar, partial frames preserved; recovery via fresh `--start-game` on the same port confirmed clean. `test_mcp_port.gd` 15/15, default-port capture still works.
+- #113: fresh end-to-end with sidecar auto-consumed (no `--game-true-fps` flag needed), 3 strips at exact 1468x286, timestamps continuous and identical across rows. Bad windows (out-of-range/reversed/malformed) all exit 2 with clear messages and never touch a populated `--out`. Idempotency re-verified on REAL footage (not just selftest fixtures): second run into the same `--out` with a shorter window + `--keep-frames` left exactly its own artifacts. `--name` with spaces/punctuation/shell metacharacters handled safely (no injection). Isolated venv bootstrap test (fake repo root, real shared venv untouched) succeeded in ~12s. `selftest.sh` 50/50. No stale `--playback-fps 8` anywhere in the tree.
+- New: concurrent `compare.sh` invocations racing on the identical `--out` corrupt every strip PNG silently — found by trying something off the assigned checklist ("what could realistically break it"). `file`/`sips` misleadingly report the corrupt files as fine; only the tool's own `cv2.imread` reveals the CRC error. Filed as #119 with root cause and a suggested fix (write to a process-unique temp dir, atomic rename at the end).
+- Minor doc drift: `SKILL.md` §9 says "44 assertions", actual is 50 (stale since the idempotency fix added test 12).
+
+## TLDR
+GitHub issue(s): #113, #116 (verified), #119 (new bug filed)
+I independently re-verified both judge-passed implementations with fresh execution on a dedicated port, not by re-reading prior agents' runs. Both PASS every specified acceptance criterion, edge case, and regression check I ran. Found 1 new bug outside the spec's stated scope: concurrent `compare.sh` runs sharing an `--out` directory silently corrupt all strip PNGs (exit 0, no error, unreadable via the tool's own `cv2.imread`) — filed as #119, High severity, with root cause and fix direction. Also flagged a stale assertion count in SKILL.md (44 vs actual 50).
+Key findings: (1) #116's paced capture + measured-rate encoding is genuinely accurate — ffprobe container fps matches the sidecar's measured_fps to 3 decimals in both the normal and slip-degraded paths, and failure/recovery semantics are clean; (2) #113's sidecar-driven real-time alignment and sequential idempotency hold on real (non-fixture) footage, but the tool has no isolation against two writers sharing the same `--out` simultaneously, which is a realistic scenario given this project's multi-agent-per-issue workflow.
+
+## Improvement Insights
+- **criteria.md / developer.md**: add a concurrency requirement (not just sequential idempotency) for any tool that writes into a named `--out`/output directory when the project's own workflow allows multiple agents to reuse the same stable name (`judge-<issue>`, `qa-<issue>`) concurrently. Test 12's two-run-sequential pattern doesn't cover two-run-simultaneous; the failure modes are different (silent corruption vs. stale files) and need a separate test.
+- **qa.md**: add "verify with the tool's own decoder, not `file`/`sips`" as a general principle — `file` and macOS `sips` both reported the corrupted PNGs from this bug as valid with correct dimensions; only `cv2.imread` (matching what `compose_strips()` and any agent's `Read` tool actually use) revealed the CRC error. A shallow validity check would have missed this bug entirely.
+- **workflow**: two prior QA/judge rounds on this issue found real bugs by re-running the tool with different parameters into the same `--out` (sequential). This round found a different bug class by running it *concurrently*. Worth stating explicitly in the QA agent definition: for any tool with a `--out`/named-directory contract, test both sequential reuse AND concurrent reuse before passing it.
+
+---
+
+### [2026-09-25 02:55] — TL — Retrospective: judge scoped re-verify #113 — PASS 9/10
+
+**Judge TLDR**: verbatim in the judge's entry below; verdict comment 5823635751. Key: own two-run reproduction in both modes confirms directory matches second run alone; narrow clearing verified with seeded near-misses (strip-01-annotated.png survives — regex properly anchored); clear-after-validation confirmed (bad run can't destroy prior evidence); test 12 discriminates against old code. Judge notes the dev improved on its prescription twice by testing it.
+
+**Retrospective — applied**:
+- judge.md: "prescribed remedy is a floor, not a ceiling" added to the corrections rule. APPLIED.
+- criteria.md idempotency criterion + developer two-run test rules: already applied previous retro. VERIFIED present.
+- Next: QA on #113+#116 together, then final judge gate, then commit + page refresh + composition-gap issues.
+
+
+### [2026-09-25 02:10] — judge — #113 (scoped re-verify)
+
+**Gate type**: per-agent, scoped re-verify of the idempotency blocker only
+**Verdict**: PASS
+**Score**: 9/10 (was 8/10 — single blocking defect fixed); judge-fail stays off
+**Key gaps**: none
+
+**Verified by execution**:
+- Re-ran MY OWN two-run reproduction from the failed gate, both modes. Defaults: run 1 (6:00-6:10) 3 strips, run 2 (6:00-6:02, same --out) leaves exactly 1 strip on disk, report says "strips produced: 1", 6 cells total, .frames removed. With --keep-frames: same, and .frames/ref holds exactly 6 cells instead of the previous run's 24. Directory matches the second run alone in both modes.
+- Narrow-clearing spot-check with deliberate near-miss filenames: strip-02/03.png removed and report.md regenerated, while NOTES.md, report-saved.md, reference.png, keepme.txt, mysubdir/file.txt AND `strip-01-annotated.png` all survived. `re.fullmatch(r"strip-\d+\.png")` is properly anchored — an operator's annotated copy is not eaten.
+- Placement verified: clear_previous_run() at line 548, AFTER window/aspect/sampling validation and before extraction, so a run that exits 2 on a bad window leaves prior artifacts intact. extract() now walks c-001..c-n instead of globbing, so it is correct in isolation too — two independent guards.
+- selftest.sh 50/50 with new test 12's five assertions. It discriminates against the old code: I measured 3 strips there at the failed gate, 1 here, which is exactly what it asserts.
+- qa.md bullet rewritten rather than deleted, and consistent with the burst-frame rule — separates what stills CAN show (enemy approach timing, screen busyness) from what they cannot (speed), and directs QA to report the sidecar's measured rate and flag speed as unverified pending #114.
+- Demo regenerated into the previously-populated demo-1/: report claims 3 strips, disk holds 3.
+
+**Honest assessment**: the fix is narrower and better-placed than the one I prescribed. I suggested clearing prior artifacts at run start; they anchored the filename match so near-miss operator files survive, moved the clear to after validation so a failed run cannot destroy prior evidence, and added a second guard inside extract(). Second time on this issue the developer improved on my prescription by testing it.
+
+**Improvement Insights**:
+- The judge's suggested remedy is a floor, not a ceiling. Worth recording in the retro — both times the developer tested my prescription and found a better shape.
+- Standing insight now evidenced: add the idempotency requirement to criteria.md's developer criteria and the two-run test to developer.md. Test 12 is the template — run twice with different parameters into one --out, assert the directory matches the second run alone, assert unrelated files survive.
+
+---
+
+### [2026-09-25 02:35] — TL — Retrospective: senior-developer #113 idempotency fix
+
+**Agent TLDR**: verbatim in the developer's entry below; update comment on #113, judge-fail removed. Key: reproduced both halves of the blocker live before fixing; clear_previous_run() placed after validation (bad invocation can't destroy a good run; mid-ffmpeg death leaves empty-not-stale); clearing deliberately narrow (strip-N/report/.frames only — operator files survive, asserted); extract() walks expected sequence + clears its own dir (two independent guards). Stale qa.md bullet rewritten properly (QA can't decode video; mp4 is human evidence; sidecar rate + honest "speed unverified" reporting). Selftest 50/50; new test 12 self-validating against old code. Demo regenerated INTO the populated dir — real path exercised the fix.
+
+**Retrospective — applied**:
+- judge.md: tooling gates must run the tool a second time with different args into the same output. APPLIED.
+- developer.md + senior-developer.md: cleanup/state-removal tests must begin from existing (dirty) state. APPLIED.
+- Grep-for-contradicted-statements: already applied last retro (whole-tree rule covers same-file case). NOTED as duplicate.
+- Next: judge quick re-verify of the blocker fix, then QA on #113+#116 together.
+
+
+---
+### [2026-09-25 02:35] — senior-developer — #113
+**Task**: Fix the judge's blocking defect — a re-run into a populated `--out` left orphaned strips from the previous run.
+**Result**: COMPLETED
+**Files changed**: `.claude/skills/motion-metrics/{motion_metrics.py,selftest.sh,SKILL.md,example-report.md}`, `.claude/agents/qa.md`
+
+**Key changes**:
+- `motion_metrics.py` — new `clear_previous_run()`, called once the run is fully validated and before any extraction. Removes only `strip-<digits>.png`, `report.md` and `.frames/`.
+- `motion_metrics.py` — `extract()` walks the expected `c-001..c-<n>` sequence and stops at the first gap instead of globbing `c-*.png`, and clears its own per-clip dir first.
+- `selftest.sh` — test 12, idempotent re-run. Suite is 50/50 (was 45).
+- `qa.md` — replaced the stale "Video reveals what screenshots can't: speed sensation…" bullet, which contradicted the not-speed rule added two bullets above it in the same change.
+
+**Technical decisions**:
+- **Clear after validation, before extraction.** A bad invocation must not destroy a good previous run, so validation comes first; a run that dies mid-ffmpeg then leaves the directory *empty* rather than stale. Empty is recoverable, stale is silently wrong — which is the entire defect.
+- **Narrow clearing, never `rm -rf <out_dir>`.** `--out` can be pointed at an existing directory holding an operator's notes or a copied report. Asserted by a selftest that leaves `operator-notes.md` in place.
+- **Two independent guards.** `extract()` also clears its own directory, so it stays correct in isolation rather than depending on the caller — the glob was the half of the defect that produced actively wrong composites under `--keep-frames`, not merely leftover files.
+
+**Testing**: Reproduced both halves first — run 1 over `6:00-6:10` then run 2 over `6:00-6:02` into the same `--out` left `strip-01/02/03` while reporting "strips produced: 1", and with `--keep-frames` run 2 composed three strips from run 1's 24 stale cells while its report said 6. Post-fix both are exact: 1 strip, 6 cells, report matching disk. Selftest **50/50**. Test 12 is self-validating — pre-fix behaviour was 3 strips and the assertion demands 1. Demo regenerated into the already-populated `.reference-cache/metrics/demo-1/`, three strips at 1468x286 read back and legible; `example-report.md` refreshed.
+
+**Improvement Insights**:
+- **[criteria.md / judge.md]**: the judge caught this by running the tool **twice with different parameters**, which no single-invocation test would have found. Worth making "re-run the tool a second time with different arguments into the same output location" an explicit check for any tooling gate — idempotency defects in agent tooling silently feed stale evidence into later gates, which is worse than a crash.
+- **[senior-developer.md]**: my own selftest had a cleanup test (test 10) that only ever checked a *fresh* directory. A cleanup assertion that never runs against a dirty starting state proves nothing. Generalise: any test about removing state must start from state that exists.
+- **[workflow]**: when one change adds a rule to a doc (qa.md "not speed findings"), grep the same file for statements the new rule contradicts before finishing. The stale bullet was two lines below the one I added and I did not re-read around my own edit.
+
+---
+### [2026-09-25 02:20] — TL — Retrospective: judge developer-gate — #116 PASS 9/10, #113 FAIL 8/10
+
+**Judge TLDR (verbatim summary)**: full verdicts on both issues (#113 comment 5823537292, #116 comment 5823543126); judge's own entry below. Key: #116 verified with an independent external clock (driver 9.996fps vs stopwatch — agreement within interpreter startup; own 12s capture arithmetic exact). #113 blocked on ONE defect reproduced twice: re-running compare.sh into a populated --out leaves orphaned strips from the prior run (worse with --keep-frames: extract() globs stale cells), firing under the documented judge/qa workflow — stale evidence read as current. 3-line fix + idempotency selftest + one stale qa.md bullet. Judge also confirmed the dev was RIGHT to overrule the judge's own correction-1 regex.
+
+**Retrospective — applied**:
+- criteria.md developer criteria: new criterion 7 (idempotent output directories). APPLIED.
+- developer.md + senior-developer.md: idempotency-test rule (run twice, assert dir matches second run alone) + grep-for-old-belief-in-same-edit rule. APPLIED.
+- judge.md: re-run rule extended to the judge's own corrections — a dev who tests the suggestion and disproves it outranks it. APPLIED.
+- Judge feedback passed verbatim to dev-113-116; #116 held to QA together with #113 (fix is 3 lines — one QA cycle, not two).
+
+
+### [2026-09-25 01:55] — judge — #113 + #116 (developer gate)
+
+**Gate type**: per-agent (senior-developer, both specs)
+**Verdict**: #113 **FAIL** 8/10 (threshold 9) · #116 **PASS** 9/10
+**Key gaps**:
+- **Blocking (#113)**: re-running into a populated `--out` leaves orphaned strips from the previous run, on DEFAULT settings. Reproduced: run 1 (6:00-6:10) writes 3 strips; run 2 (6:00-6:02) into the same dir reports "strips produced: 1" and lists only strip-01, but strip-02/03 from run 1 remain on disk showing a different 10-second window. With `--keep-frames` it is worse — `extract()` globs `c-*.png` from the frames dir instead of using the frames it just wrote, so run 2 composed 3 strips from run 1's 24 stale cells while reporting "6 cells total". Fires under the documented workflow (`--out` defaults from `--name`, and both agent inserts say `--name judge-<issue>` / `qa-<issue>`, so re-running an issue after a fix writes into the populated dir), and both inserts say "Read every strip-NN.png". Contradicts the spec's "--out already populated: overwrite, do not error". Fix: clear prior `strip-*.png`/`report.md` and the `.frames` tree at run start (motion_metrics.py:508-519), stop globbing in `extract()` (line 264), add an idempotency selftest.
+- **Minor (#113)**: qa.md Key points still says "Video reveals what screenshots can't: speed sensation…" two bullets below the new "not speed findings" rule the same commit added.
+
+**Verified by execution**:
+- #116 rate accuracy with an INDEPENDENT external clock: drove capture_frames.py for 40 frames at 10fps, driver reported measured_fps 9.996 (0.04% error), 0.7% jitter; external stopwatch 4.066s vs driver's 3.9014s — the 0.164s gap is interpreter startup plus first grab, exactly as expected. Internal measurement agrees with an outside clock.
+- My own 12s capture at 15fps: 180/180 frames, measured 12.337, honest pacing_slip, ffprobe avg_frame_rate=12337/1000 and duration 14.590 = 180/12.337. (n-1)/wall = 179/14.5095 = 12.337 exactly.
+- My own compare.sh e2e run with NO --game-true-fps: sidecar auto-detected and reported as "measured, sidecar". 3 strips at exactly 1468x286, .frames cleaned, report accurate, no numeric speed figure. Read all three back — legible at 180x96, rows aligned, identical timestamps, immediately diagnostic (AB2 ground fills the frame with canyon walls/tanks/tents; ours is flat orange sky over uniform noise).
+- selftest.sh 45/45 including test 9's negative control. test_mcp_port.gd 15/15.
+- Grepped the tree myself: FIVE copies of the capture command (spec named three), all at 15, zero `playback-fps 8` stragglers.
+- **The developer was right to overrule my correction 1 and I confirmed it**: my suggested `ratio\s*[:|]?\s*\d` matches NOTHING in `Flow ratio (game/ref): 0.92` (the parenthetical sits between word and colon), and the naive widening false-positives on the report's own explanatory sentence (`ratio figures: AB2` — the `2` lands 13 chars after the word). Their pattern catches both planted figures and leaves the sentence alone. They found it by running it.
+
+**Honest assessment**: strong work — #116 genuinely closes the slow-motion defect I found at the first spec gate, and #113's artifact does exactly what the issue wanted. One correctness bug blocks it, with a three-line fix. I failed two earlier rounds of this issue on the principle that an artifact must not silently describe something other than what was asked for, and this is that same class, so it cannot pass now. Short round trip; nothing else needs re-verifying.
+
+**Improvement Insights**:
+- criteria.md developer criteria: add "re-running a tool into an existing output directory must not leave artifacts from the previous run". Every artifact-producing tool here writes into a name-derived dir that agents reuse across iterations of one issue.
+- developer.md: require one idempotency test for any tool writing a named output dir — run twice with different parameters into the same --out, assert the dir matches the second run alone. Both silent-wrong-artifact bugs on this issue were found by running the tool twice, never by reading it.
+- judge.md: state that the re-run rule applies to the JUDGE's own corrections too, not only to the spec's claims. My correction 1 was wrong and the developer caught it by executing it.
+- When a rule reverses a previous belief, grep the whole tree for the old belief in the same edit — the stale "video reveals speed sensation" bullet survived directly below its own replacement.
+
+---
+
+### [2026-09-25 01:55] — TL — Retrospective: senior-developer #113+#116 — implemented, in QA
+
+**Agent TLDR**: verbatim in the developer's own entry below; implementation comments on both issues. Key: paced single-process capture driver (read-until-newline verified against current bridge; port-scoped FRAME_DIR fixing another latent concurrent-agent corruption), motion-metrics v1 (compare.sh + 45/45 selftests incl. a negative control for the scope guard the judge's suggested regex would have gotten wrong), all 4 judge corrections applied, 5 (not 3) --playback-fps copies fixed, end-to-end demo strips in .reference-cache/metrics/demo-1/ read back legible. Capture ceiling is content-dependent (~12fps gameplay vs ~30 title) — pacing_slip at 15fps is the normal case. test_mcp_port 15/15 intact.
+
+**Retrospective — applied**:
+- CLAUDE.md: post-#116 time-base trust note + pacing-target/content-dependent-ceiling documentation. APPLIED.
+- developer.md + senior-developer.md: grep-first before any update-all-N-copies task. APPLIED.
+- architect.md: mechanical scope guards need a negative-control fixture proving they can fail. APPLIED.
+- judge.md duplicate step-5 numbering: dev already renumbered; ordinal lint over all agent docs — clean. VERIFIED.
+- Next: judge gate on developer output (requested), then QA.
+
+
+---
+### [2026-09-25 01:20] — senior-developer — #116, #113
+**Task**: Give game-video capture a real, paced time base (#116), then build motion-metrics v1 aligned strips on top of it (#113).
+**Result**: COMPLETED
+**Files changed**: `.claude/skills/game-video/capture_frames.py` (new), `.claude/skills/game-video/capture-video.sh`, `.claude/skills/game-video/SKILL.md`, `.claude/skills/motion-metrics/{SKILL.md,compare.sh,motion_metrics.py,selftest.sh,example-report.md}` (all new), `.claude/agents/{judge,qa,developer,ui-designer}.md`, `criteria.md`, `.gitignore`
+
+**Key changes**:
+- `capture_frames.py` — one driver process for all N frames, replacing the per-frame `nc`+`python3` pair. Paces grabs on an absolute schedule (`t0 + i/fps`) and stamps `time.monotonic()` on receipt.
+- `capture-video.sh:117-190` — encodes at the **measured** rate, not `$PLAYBACK_FPS`; §2.3 summary + slip warning; §2.4 sidecar `<output>.json` on success only; `n < 2` refused.
+- `capture-video.sh:31` — `FRAME_DIR` port-scoped. Two concurrent agents previously shared one scratch dir and `rm -rf`'d each other's frames.
+- `motion_metrics.py` — real-time-equalized extraction: every window and rate is in real seconds, converted to container time only at the ffmpeg call.
+- `judge.md`/`qa.md`/`criteria.md` — strip step added; `judge.md`'s duplicate step `5.` renumbered (now 1-12, no repeats). Five copies of `--playback-fps 8` → 15 (spec named three).
+
+**Technical decisions**:
+- **Read until `\n`, not EOF.** `mcp_bridge_game.gd:379-381` appends `"\n"` and never closes the connection, so an EOF-based read blocks until the socket timeout on every frame. Verified against the current bridge rather than copying the old inline snippet, as the spec's correction comment demanded.
+- **Sibling `capture_frames.py` over an embedded heredoc.** The requirement is one process for N frames; a file satisfies it and is importable/testable, whereas interpolating shell variables into Python source is what the old code did wrong.
+- **Kept `--playback-fps 15` in the docs despite measuring a ~12 fps gameplay ceiling.** Slip is now honest (sleeps go to zero, encode uses the measured rate), and 15 yields more real frames per second than 10 while keeping jitter at 14%, inside the 25% bar. Documented so the warning doesn't read as an error.
+- **Widened sampling interval folds back into `container_fps`** (§6 step 5 ambiguity): one ffmpeg pass per clip, nothing extracted then discarded, and one fewer place where cell indices could drift between rows.
+- **Explicit `--*-true-fps` beats a sidecar**, per test 4's contract: the operator may know the sidecar is stale. Game side has no default and exits 2 — that is the discipline the tool adds.
+- **Cell height from the reference's cropped aspect for both rows.** Rows must share a grid; the 2% aspect gate bounds the game row's distortion (measured 0.12% on the real clips).
+
+**Testing**:
+- `tests/test_mcp_port.gd` **15/15** — #117 unaffected.
+- `motion-metrics/selftest.sh` **45/45** — 11 end-to-end + 21 pure-function + the §3.4 oracle + a negative control on the scope guard.
+- #116 §5 verification, all four: rate accuracy (measured 9.995 vs 10 requested, 0.05%); true elapsed (container 11.74s = `150/12.775`, was claiming 10.0s); jitter (6% steady-state, 14% at 15fps, bar is 25%); slip path (`--playback-fps 60` → exit 0, `pacing_slip: true`, container fps = measured 30.319). Failure semantics unchanged: `kill -9` mid-capture → loud failure, 80 partial frames preserved, no mp4, no sidecar.
+- End-to-end as a judge would run it: 15s/15fps capture (225 frames, measured 12.917) → `compare.sh` with no `--game-true-fps`, sidecar consumed automatically → three 1468x286 strips read back and legible.
+- Throughput roughly doubled (17.3 → 30.3 fps ceiling), but the ceiling is content-dependent: ~80ms per round trip during gameplay (~675 KB PNG) caps it at ~12 fps.
+
+**Improvement Insights**:
+- **[judge.md]**: the mandatory procedure had two steps numbered `5.`, so the list rendered 1,2,3,4,5,5,6,7,8,9,10 and an agent counting steps could skip one. Renumbered. Worth a lint over the agent docs for duplicate ordinals.
+- **[CLAUDE.md]**: record that a bridge-capture container fps is only trustworthy post-#116, and that `--playback-fps` is a pacing *target* whose achievable ceiling depends on scene content (~12 fps in gameplay, ~30 on flat scenes). Agents will otherwise read the slip warning as a failure.
+- **[workflow]**: the spec named three copies of `--playback-fps 8`; there were five (`developer.md`, `ui-designer.md` were missed). Before any "update all N copies" task, grep for the literal first — the spec's list is a hint, not an inventory.
+- **[criteria.md]**: the judge's proposed scope-boundary regex could not distinguish `ratio figures: AB2's` (the explanatory prose) from `ratio: 0.92` (a real figure), and missed `Flow ratio (game/ref): 0.92` entirely. Any mechanically-enforced prohibition should ship with a negative-control fixture proving the guard can fail, not just that it passes.
+
+
 
 **Judge TLDR**: verbatim in the judge's own entry below; verdict comment 5822791667. Key: independently reproduced the aliasing finding (own venv, own runs — within 0.02 of architect on every row; true ratios 0.50/1.50/2.50 measure 0.916/0.932/0.836, estimator pinned 4.2-5.0 px/frame) PLUS its own synthetic control (0.506 vs true 0.500) proving the method works on well-sampled content and fails on AB2 specifically. Re-executed the Stage 8 window, the fixture fix, the drawtext claim, and the #113↔#116 sidecar interface. Four single-line corrections for the developer (selftest-9 pattern must be numeric-only so the report's own explanatory sentence doesn't trip it; §3.4 worked example exceeds real clip duration; §6 step 5 ambiguity; §9 keep literal commands in judge.md/criteria.md). Two criteria.md defects found while measuring.
 

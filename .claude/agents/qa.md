@@ -47,9 +47,11 @@ Read the `burst-*` frames **in order** from `assets/reference/motion/<name>/`. T
 
 ### Step 1: Capture OUR gameplay video (mp4) — ALWAYS
 ```bash
-bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/qa-video.mp4
+bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 15 --output /tmp/game-capture/qa-video.mp4
 ```
 You MUST run this command. No exceptions. No skipping.
+
+The video is encoded at the rate the capture **actually achieved**, so its playback speed is true (#116), and a `qa-video.mp4.json` sidecar records it. A `pacing_slip` warning at 15 fps is expected on a loaded machine and is not a failure. Canonical form of this command lives in `.claude/skills/game-video/SKILL.md`; change it there first.
 
 If it fails, or returns fewer frames than requested, report the check as BLOCKED and say so plainly in your findings. Do NOT argue that your screenshot burst already covers it — a mandatory check that did not run is a gap to report, not a formality to reason around.
 
@@ -62,11 +64,24 @@ bash .claude/skills/game-capture/capture.sh --start-game --frames 12 --interval 
 ```
 Then read ALL frames in `/tmp/game-capture/frame_*.png` with the Read tool.
 
+### Step 3: Build an aligned motion strip
+```bash
+bash .claude/skills/motion-metrics/compare.sh \
+  --ref .reference-cache/video/ab2-longplay.mp4 --ref-window 6:00-6:10 \
+  --game /tmp/game-capture/qa-video.mp4 \
+  --name qa-<issue>
+```
+Read every `strip-NN.png`. The two rows are sampled at the same rate in real time, so the
+same cell index in each row is the same number of seconds into its window. See
+`.claude/skills/motion-metrics/SKILL.md`.
+
 ### Key points:
+- **Strips support composition and pose findings, not speed findings.** Horizon height, ground coverage, object count, jet pose and explosion size are all fair game. Speed is not: AB2's ground aliases below ~60fps sampling, so no frame-to-frame comparison at these rates can support a speed claim (#113; gated on #114).
+- **Verify outputs with the tool's OWN decoder, not `file`/`sips`** — both reported byte-corrupted PNGs as valid; only `cv2.imread` (what the tool and Read actually use) caught them (#119).
 - **Port-conflict tests on macOS**: confirm the occupier is actually bound to the same address family via `lsof -i tcp:PORT` BEFORE launching the process under test — bare `nc -l PORT` can bind a different family than Godot's explicit `127.0.0.1` and produce a false "no conflict" that looks like a hang (#117 QA).
 - **Always use `--start-game`** — this restarts Godot fresh, avoiding stale GAME OVER states
 - **Read EVERY frame** — a single frame can be misleading. Look at the sequence for movement, scaling, and gameplay feel
-- **Video reveals what screenshots can't**: speed sensation, enemy approach timing, screen busyness over time
+- **The mp4 is evidence for a HUMAN, not for you.** You cannot decode video, and the stills you can read — burst frames and strip cells — cannot support a speed claim at these sampling rates (see the first Key point). Capture it, report its measured rate from the sidecar, and say plainly that speed sensation is unverified by you and needs human review or the 60fps pipeline (#114). Enemy approach timing and screen busyness over time ARE things the frame sequence and strips can show; speed is not.
 - The TCP bridge on port 9501 can also send single key presses: `echo '{"cmd":"key","key":"Enter"}' | nc -w 2 localhost 9501`
 - TCP bridge CANNOT hold keys — vulcan fire (hold Z) and continuous movement cannot be tested via bridge
 

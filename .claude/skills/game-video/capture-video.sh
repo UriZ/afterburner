@@ -1,7 +1,9 @@
 #!/bin/bash
 # Game Video Capture — records gameplay as mp4 via TCP bridge frame capture + ffmpeg
-# Captures a fixed number of frames (duration * playback-fps) so the encoded
-# video always matches the requested duration, then encodes at playback fps.
+# Captures a fixed number of frames (duration * playback-fps) PACED against the
+# wall clock, measures the rate actually achieved, and encodes at that measured
+# rate so playback speed is true (#116). A timing sidecar <output>.json records
+# what happened for downstream tools (#113).
 # Usage: bash capture-video.sh [--duration SECS] [--playback-fps N] [--start-game] [--output FILE] [--port N]
 #
 # Concurrency: pass --port with a distinct value per concurrent agent. This
@@ -13,7 +15,6 @@ PLAYBACK_FPS=10
 START_GAME=false
 OUTPUT="/tmp/game-capture/gameplay.mp4"
 PORT=9501
-FRAME_DIR="/tmp/game-capture/video-frames"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -25,6 +26,12 @@ while [[ $# -gt 0 ]]; do
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
+
+# Port-scoped scratch dir. The old fixed path meant two concurrent agents on
+# distinct ports shared one frame directory and `rm -rf`'d each other's frames
+# mid-run — the same class of cross-agent aliasing #117 fixed for the port
+# itself. Must be resolved after argument parsing, since it depends on $PORT.
+FRAME_DIR="/tmp/game-capture/video-frames-$PORT"
 
 mkdir -p "$(dirname "$OUTPUT")"
 rm -rf "$FRAME_DIR"
@@ -114,55 +121,39 @@ else
   fi
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET_FRAMES=$(python3 -c "import math; print(max(1, math.ceil($DURATION * $PLAYBACK_FPS)))")
-echo "Capturing $TARGET_FRAMES frames on port $PORT (target: ${DURATION}s @ ${PLAYBACK_FPS}fps playback)..."
+echo "Capturing $TARGET_FRAMES frames on port $PORT (target: ${DURATION}s @ ${PLAYBACK_FPS}fps, paced)..."
 
+# One driver process for the whole run instead of an nc+python3 pair per frame.
+# It paces the grabs against an absolute wall-clock schedule and reports the
+# rate it actually achieved on stdout as JSON; progress goes to stderr.
+CAPTURE_JSON=$(python3 "$SCRIPT_DIR/capture_frames.py" \
+  --port "$PORT" --frames "$TARGET_FRAMES" --fps "$PLAYBACK_FPS" --dir "$FRAME_DIR")
+DRIVER_STATUS=$?
+
+if [ "$DRIVER_STATUS" -ne 0 ] || [ -z "$CAPTURE_JSON" ]; then
+  echo "ERROR: capture driver failed (exit $DRIVER_STATUS) and produced no timing data." >&2
+  echo "Partial frames preserved at: $FRAME_DIR" >&2
+  exit 1
+fi
+
+# Unpack the driver's JSON in one python call. Every emitted value is a number
+# or a bare true/false, so eval is safe here. CAPTURED is pre-set so a malformed
+# payload fails the check below instead of leaving it unset and tripping bash's
+# integer comparison into a confusing error.
 CAPTURED=0
-CONSECUTIVE_FAILS=0
-MAX_CONSECUTIVE_FAILS=5
-
-for i in $(seq 1 "$TARGET_FRAMES"); do
-  PADDED=$(printf "%04d" $((CAPTURED + 1)))
-  OUTFILE="$FRAME_DIR/frame_${PADDED}.png"
-
-  OK=false
-  for attempt in 1 2 3; do
-    RESULT=$(echo '{"cmd":"screenshot"}' | nc -w 3 localhost "$PORT" | \
-      python3 -c "
-import sys, json, base64
-try:
-    data = json.load(sys.stdin)
-    if 'image_base64' in data:
-        open('$OUTFILE', 'wb').write(base64.b64decode(data['image_base64']))
-        print('ok')
-    else:
-        print('no_image')
-except Exception as e:
-    print(f'error:{e}')
-" 2>/dev/null)
-    if [ "$RESULT" = "ok" ]; then
-      OK=true
-      break
-    fi
-    sleep 0.15
-  done
-
-  if [ "$OK" = true ]; then
-    CAPTURED=$((CAPTURED + 1))
-    CONSECUTIVE_FAILS=0
-  else
-    CONSECUTIVE_FAILS=$((CONSECUTIVE_FAILS + 1))
-    echo "  WARNING: frame $i/$TARGET_FRAMES failed after 3 attempts ($RESULT)" >&2
-    if [ "$CONSECUTIVE_FAILS" -ge "$MAX_CONSECUTIVE_FAILS" ]; then
-      echo "ERROR: $MAX_CONSECUTIVE_FAILS consecutive frame failures — bridge on port $PORT appears unresponsive." >&2
-      break
-    fi
-  fi
-
-  if [ $((i % 10)) -eq 0 ] || [ "$i" -eq "$TARGET_FRAMES" ]; then
-    echo "  ... $i/$TARGET_FRAMES attempted, $CAPTURED captured"
-  fi
-done
+eval "$(printf '%s' "$CAPTURE_JSON" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+print("CAPTURED=%d" % d["captured"])
+print("MEASURED_FPS=%s" % d.get("measured_fps", 0))
+print("WALL_ELAPSED=%s" % d.get("wall_elapsed_s", 0))
+print("IV_MEAN=%s" % d.get("interval_mean_s", 0))
+print("IV_STDEV=%s" % d.get("interval_stdev_s", 0))
+print("IV_MAX=%s" % d.get("interval_max_s", 0))
+print("PACING_SLIP=%s" % ("true" if d.get("pacing_slip") else "false"))
+')"
 
 if [ "$CAPTURED" -lt "$TARGET_FRAMES" ]; then
   echo "ERROR: Only captured $CAPTURED of $TARGET_FRAMES requested frames. Video not created." >&2
@@ -170,21 +161,69 @@ if [ "$CAPTURED" -lt "$TARGET_FRAMES" ]; then
   exit 1
 fi
 
+# A rate needs at least two frames to have any meaning. Without one there is no
+# honest time base to encode at, so refuse rather than fall back to the label
+# that #116 exists to stop trusting.
+if [ "$CAPTURED" -lt 2 ]; then
+  echo "ERROR: captured only $CAPTURED frame — a capture rate needs at least 2." >&2
+  echo "Increase --duration or --playback-fps. Frames preserved at: $FRAME_DIR" >&2
+  exit 1
+fi
+
 echo "Captured all $CAPTURED requested frames."
 
-# Encode frames to mp4 with ffmpeg (frames are sequentially numbered, no gaps)
-echo "Encoding video at ${PLAYBACK_FPS}fps..."
-ffmpeg -y -framerate "$PLAYBACK_FPS" -i "$FRAME_DIR/frame_%04d.png" \
+if [ "$PACING_SLIP" = true ]; then
+  {
+    echo "WARNING: could not hold ${PLAYBACK_FPS} fps — actual rate was ${MEASURED_FPS} fps."
+    echo "The video is encoded at the measured rate so playback speed is correct,"
+    echo "but frames are spaced ${IV_MEAN}s apart on average (requested $(python3 -c "print(f'{1/$PLAYBACK_FPS:.4f}')")s)."
+    echo "Reduce --playback-fps or close other load for evenly spaced frames."
+  } >&2
+fi
+
+# Encode frames to mp4 with ffmpeg (frames are sequentially numbered, no gaps).
+# -framerate is the MEASURED rate, not the requested one: the container fps is
+# the video's time base, and labelling it with a rate that was never achieved is
+# exactly the bug #116 fixes.
+echo "Encoding video at ${MEASURED_FPS}fps (measured)..."
+ffmpeg -y -framerate "$MEASURED_FPS" -i "$FRAME_DIR/frame_%04d.png" \
   -c:v libx264 -pix_fmt yuv420p -crf 18 -preset fast \
   -vf "pad=ceil(iw/2)*2:ceil(ih/2)*2" \
   "$OUTPUT" 2>/dev/null
 
 if [ $? -eq 0 ] && [ -f "$OUTPUT" ]; then
+  # Sidecar is written only on success, alongside the mp4, with the full output
+  # path as its stem so two videos of the same basename cannot collide.
+  printf '%s' "$CAPTURE_JSON" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+out = sys.argv[1]
+sidecar = {
+    "schema": "game-video-capture/1",
+    "output": out,
+    "frames": d["captured"],
+    "requested_fps": d["requested_fps"],
+    "measured_fps": d["measured_fps"],
+    "encoded_fps": d["measured_fps"],
+    "wall_elapsed_s": d["wall_elapsed_s"],
+    "interval_mean_s": d["interval_mean_s"],
+    "interval_stdev_s": d["interval_stdev_s"],
+    "interval_max_s": d["interval_max_s"],
+    "paced": d["paced"],
+    "pacing_slip": bool(d["pacing_slip"]),
+    "captured_utc": d["captured_utc"],
+}
+with open(out + ".json", "w") as fh:
+    json.dump(sidecar, fh, indent=2)
+    fh.write("\n")
+' "$OUTPUT"
+
   FILESIZE=$(du -h "$OUTPUT" | cut -f1)
-  VIDEO_DURATION=$(python3 -c "print(f'{$CAPTURED / $PLAYBACK_FPS:.1f}')")
   echo ""
   echo "Video saved: $OUTPUT ($FILESIZE)"
-  echo "Frames: $CAPTURED | Playback: ${PLAYBACK_FPS}fps | Video length: ${VIDEO_DURATION}s"
+  echo "Frames: $CAPTURED | Requested: ${PLAYBACK_FPS} fps | MEASURED: ${MEASURED_FPS} fps | Encoded at: ${MEASURED_FPS} fps"
+  echo "Real elapsed: ${WALL_ELAPSED}s | Frame interval: mean ${IV_MEAN}s, max ${IV_MAX}s, stdev ${IV_STDEV}s"
+  echo "Timing sidecar: ${OUTPUT}.json"
   echo ""
   echo "Open with: open $OUTPUT"
 else

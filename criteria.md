@@ -66,11 +66,12 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 
 1. **Read this file** (criteria.md)
 2. **View ALL 9 reference screenshots** with the Read tool (every file in `assets/reference/`)
-3. **Capture gameplay VIDEO** (MANDATORY — not optional): `bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/judge-video.mp4`
-4. **Capture frame sequence** for detailed analysis: `bash .claude/skills/game-capture/capture.sh --start-game --frames 10 --interval 500`
-5. **View ALL captured frames** with the Read tool
-6. **Compare EVERY element** against ALL references — jet appearance, colors, ground, enemies, explosions, screen busyness, HUD
-7. **Be brutally honest** about the gap between our game and the references
+3. **Capture gameplay VIDEO** (MANDATORY — not optional): `bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 15 --output /tmp/game-capture/judge-video.mp4` — encoded at the rate actually achieved, so playback speed is true (#116); canonical form in `.claude/skills/game-video/SKILL.md`
+4. **Build an aligned motion strip** (MANDATORY when the issue touches motion, pacing, or composition): `bash .claude/skills/motion-metrics/compare.sh --ref .reference-cache/video/ab2-longplay.mp4 --ref-window 6:00-6:10 --game /tmp/game-capture/judge-video.mp4 --name judge-<issue>` — then Read every `strip-NN.png` and compare the same cell index across rows. Strips are evidence about composition and pose, NEVER about speed (#113; see `.claude/skills/motion-metrics/SKILL.md`)
+5. **Capture frame sequence** for detailed analysis: `bash .claude/skills/game-capture/capture.sh --start-game --frames 10 --interval 500`
+6. **View ALL captured frames** with the Read tool
+7. **Compare EVERY element** against ALL references — jet appearance, colors, ground, enemies, explosions, screen busyness, HUD
+8. **Be brutally honest** about the gap between our game and the references
 
 **Both video AND frame captures are REQUIRED. Skipping either = incomplete evaluation.**
 
@@ -224,6 +225,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 | 4 | LOOKS RIGHT | Critical | View ALL references in `assets/reference/` AND gameplay videos. Does your output look like After Burner II? If not, FAIL. Code that works but looks wrong = FAIL. |
 | 5 | Tests present | High | Tests for core logic |
 | 6 | No scope creep | High | Only what was specified |
+| 7 | Idempotent outputs | High | Re-running a tool into an existing output directory must not leave artifacts from the previous run — the directory must match the latest run alone (#113: stale strips read as current evidence). If the workflow allows concurrent reuse of a stable output name, concurrent runs must not silently corrupt outputs (#119) — test sequential AND concurrent reuse |
 
 ### QA
 

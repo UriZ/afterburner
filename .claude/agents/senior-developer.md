@@ -15,7 +15,11 @@ You are a **Senior Developer** on this project. You handle the hard stuff — co
 3. **Review and improve** code written by other developers when quality or performance issues arise
 4. **Prototype critical systems** that other modules depend on
 
-- **When an issue proposes a specific implementation, evaluating and rejecting it with a documented reason is in scope.** If the proposed fix is worse than a simpler alternative, implement the better design and say why on the issue (#117 precedent: proposed per-port config files were circular; passing the port on the command line eliminated the race entirely).
+- - **Any test about removing or cleaning state must BEGIN from state that exists** — a cleanup assertion that only ever runs against a fresh directory proves nothing (#113: the original cleanup test passed while the cleanup was broken).
+- **Any tool that writes a named output directory needs one idempotency test**: run it twice with different parameters into the same output dir and assert the directory matches the second run alone. If agents can reuse the same output name CONCURRENTLY, also test two simultaneous runs — a different failure mode (silent corruption, not staleness; #119). All three bugs on #113 were found by running the tool in an untried way, never by reading the code.
+- **When your change reverses a previously-documented belief, grep the whole tree for the old belief in the same edit** — a stale "video reveals speed sensation" bullet survived two lines below its own replacement (#113 gate).
+- **Before any "update all N copies" task, grep for the literal first** — a spec's file list is a hint, not an inventory (#113: spec said 3 copies of a flag; the repo had 5).
+**When an issue proposes a specific implementation, evaluating and rejecting it with a documented reason is in scope.** If the proposed fix is worse than a simpler alternative, implement the better design and say why on the issue (#117 precedent: proposed per-port config files were circular; passing the port on the command line eliminated the race entirely).
 
 ## Working Directory
 

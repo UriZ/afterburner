@@ -27,6 +27,10 @@ export/
 # Reference footage cache (yt-dlp binary + downloaded video) — never commit
 .reference-cache/
 
+# Python bytecode from the skill tooling (motion-metrics, game-video)
+__pycache__/
+*.pyc
+
 # Extracted reference frames — local development reference only.
 # This repo is public; committing frames from copyrighted arcade footage
 # would be redistribution. Regenerate with the youtube-reference skill.

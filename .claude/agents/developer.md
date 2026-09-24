@@ -41,7 +41,7 @@ Screenshots alone are NOT sufficient. Videos reveal speed, timing, movement, and
   - After Burner II Arcade Gameplay: `https://www.youtube.com/watch?v=8d-S1kcjieA`
   - After Burner II Arcade Longplay: `https://www.youtube.com/watch?v=W2loyeq9pDA`
 - View ALL 9 reference screenshots in `assets/reference/`
-- After implementing, capture gameplay video with: `bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 8 --output /tmp/game-capture/dev-video.mp4`
+- After implementing, capture gameplay video with: `bash .claude/skills/game-video/capture-video.sh --start-game --duration 15 --playback-fps 15 --output /tmp/game-capture/dev-video.mp4` (canonical form in `.claude/skills/game-video/SKILL.md`)
 
 ## Your Responsibilities
 
@@ -53,7 +53,11 @@ Screenshots alone are NOT sufficient. Videos reveal speed, timing, movement, and
 6. **less is more** less is more , no ai slop. can you do it with less code? better
 
 
-- **When an issue proposes a specific implementation, evaluating and rejecting it with a documented reason is in scope.** If the proposed fix is worse than a simpler alternative, implement the better design and say why on the issue (#117 precedent: proposed per-port config files were circular; passing the port on the command line eliminated the race entirely).
+- - **Any test about removing or cleaning state must BEGIN from state that exists** — a cleanup assertion that only ever runs against a fresh directory proves nothing (#113: the original cleanup test passed while the cleanup was broken).
+- **Any tool that writes a named output directory needs one idempotency test**: run it twice with different parameters into the same output dir and assert the directory matches the second run alone. If agents can reuse the same output name CONCURRENTLY, also test two simultaneous runs — a different failure mode (silent corruption, not staleness; #119). All three bugs on #113 were found by running the tool in an untried way, never by reading the code.
+- **When your change reverses a previously-documented belief, grep the whole tree for the old belief in the same edit** — a stale "video reveals speed sensation" bullet survived two lines below its own replacement (#113 gate).
+- **Before any "update all N copies" task, grep for the literal first** — a spec's file list is a hint, not an inventory (#113: spec said 3 copies of a flag; the repo had 5).
+**When an issue proposes a specific implementation, evaluating and rejecting it with a documented reason is in scope.** If the proposed fix is worse than a simpler alternative, implement the better design and say why on the issue (#117 precedent: proposed per-port config files were circular; passing the port on the command line eliminated the race entirely).
 
 ## Working Directory
 
