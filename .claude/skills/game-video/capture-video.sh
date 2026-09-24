@@ -33,34 +33,13 @@ mkdir -p "$FRAME_DIR"
 PROJ_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 STATE_DIR="/tmp/afterburner-capture"
 mkdir -p "$STATE_DIR"
-LOCK_DIR="$STATE_DIR/launch.lock"
 PID_FILE="$STATE_DIR/godot-$PORT.pid"
-CFG_PATH="$PROJ_DIR/mcp_ports.cfg"
 
-# --- Launch lock: serializes writes to the shared mcp_ports.cfg across
-# concurrent capture scripts (game-capture and game-video both use it). ---
-acquire_launch_lock() {
-  local waited=0
-  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-    sleep 0.2
-    waited=$((waited + 1))
-    if [ "$waited" -ge 300 ]; then
-      echo "ERROR: Timed out waiting for another capture script to finish launching Godot." >&2
-      exit 1
-    fi
-  done
-}
-
-release_launch_lock() {
-  rmdir "$LOCK_DIR" 2>/dev/null
-}
-
-# Always safe to call: no-ops once the lock/cfg are already gone.
-cleanup_launch_state() {
-  release_launch_lock
-  rm -f "$CFG_PATH"
-}
-trap cleanup_launch_state EXIT INT TERM
+# The port is passed to Godot on its own command line (`-- --mcp-port N`), so
+# concurrent runs share no mutable state and need no launch lock (#117). See
+# the matching comment in game-capture/capture.sh for the failure this fixes.
+# Only the port/launch path changed here — frame grabbing and encoding are
+# untouched and remain owned by the #113/#116 time-base work.
 
 port_listener_pid() {
   lsof -i "tcp:$PORT" -sTCP:LISTEN -t 2>/dev/null | head -1
@@ -95,11 +74,8 @@ if [ "$START_GAME" = true ]; then
   fi
 
   echo "Starting Godot on port $PORT..."
-  acquire_launch_lock
-  printf '[mcp]\ngame_port=%s\n' "$PORT" > "$CFG_PATH"
-
   LOG_FILE=$(mktemp)
-  /Applications/Godot.app/Contents/MacOS/Godot --path "$PROJ_DIR" > "$LOG_FILE" 2>&1 &
+  /Applications/Godot.app/Contents/MacOS/Godot --path "$PROJ_DIR" -- --mcp-port "$PORT" > "$LOG_FILE" 2>&1 &
   GODOT_PID=$!
   echo "$GODOT_PID" > "$PID_FILE"
 
@@ -114,9 +90,6 @@ if [ "$START_GAME" = true ]; then
     fi
     sleep 0.5
   done
-
-  rm -f "$CFG_PATH"
-  release_launch_lock
 
   if [ "$READY" != true ]; then
     echo "ERROR: Godot (PID $GODOT_PID) did not confirm listening on port $PORT within 15s." >&2

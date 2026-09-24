@@ -28,34 +28,19 @@ INTERVAL_SEC=$(echo "scale=3; $INTERVAL_MS / 1000" | bc)
 PROJ_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
 STATE_DIR="/tmp/afterburner-capture"
 mkdir -p "$STATE_DIR"
-LOCK_DIR="$STATE_DIR/launch.lock"
 PID_FILE="$STATE_DIR/godot-$PORT.pid"
-CFG_PATH="$PROJ_DIR/mcp_ports.cfg"
 
-# --- Launch lock: serializes writes to the shared mcp_ports.cfg across
-# concurrent capture scripts (game-capture and game-video both use it). ---
-acquire_launch_lock() {
-  local waited=0
-  while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-    sleep 0.2
-    waited=$((waited + 1))
-    if [ "$waited" -ge 300 ]; then
-      echo "ERROR: Timed out waiting for another capture script to finish launching Godot." >&2
-      exit 1
-    fi
-  done
-}
-
-release_launch_lock() {
-  rmdir "$LOCK_DIR" 2>/dev/null
-}
-
-# Always safe to call: no-ops once the lock/cfg are already gone.
-cleanup_launch_state() {
-  release_launch_lock
-  rm -f "$CFG_PATH"
-}
-trap cleanup_launch_state EXIT INT TERM
+# The port is passed to Godot on its own command line (`-- --mcp-port N`), so
+# concurrent runs share no mutable state and need no launch lock (#117).
+#
+# This used to write the port into the project-wide mcp_ports.cfg under a lock,
+# and an EXIT trap removed that file. The trap was installed unconditionally —
+# including on runs that never launched anything — so any finishing capture
+# deleted the config a *different* agent's launch was mid-read of. That Godot
+# then found no config and silently bound the default 9501, serving another
+# agent's instance to whoever asked first. Both halves are now gone: nothing
+# shared to delete, and the bridge treats an explicit port request as binding
+# rather than falling back (see mcp_bridge_game.gd _resolve_port).
 
 port_listener_pid() {
   lsof -i "tcp:$PORT" -sTCP:LISTEN -t 2>/dev/null | head -1
@@ -90,11 +75,8 @@ if [ "$START_GAME" = true ]; then
   fi
 
   echo "Starting Godot on port $PORT..."
-  acquire_launch_lock
-  printf '[mcp]\ngame_port=%s\n' "$PORT" > "$CFG_PATH"
-
   LOG_FILE=$(mktemp)
-  /Applications/Godot.app/Contents/MacOS/Godot --path "$PROJ_DIR" > "$LOG_FILE" 2>&1 &
+  /Applications/Godot.app/Contents/MacOS/Godot --path "$PROJ_DIR" -- --mcp-port "$PORT" > "$LOG_FILE" 2>&1 &
   GODOT_PID=$!
   echo "$GODOT_PID" > "$PID_FILE"
 
@@ -109,9 +91,6 @@ if [ "$START_GAME" = true ]; then
     fi
     sleep 0.5
   done
-
-  rm -f "$CFG_PATH"
-  release_launch_lock
 
   if [ "$READY" != true ]; then
     echo "ERROR: Godot (PID $GODOT_PID) did not confirm listening on port $PORT within 15s." >&2

@@ -2,12 +2,27 @@ extends Node
 
 const DEFAULT_PORT := 9501
 const MAX_HOLD_MS := 5000.0
+const PORT_CONFIG_PATH := "res://mcp_ports.cfg"
+
+## Exit code when an explicitly requested bridge port cannot be honoured.
+## Distinct from Godot's own codes so a launcher can tell "your port request
+## failed" apart from "the engine crashed".
+const PORT_REQUEST_FAILED_EXIT_CODE := 9
+
+## parse_port_arg() sentinels. Kept distinct because "nobody asked for a port"
+## may fall back to DEFAULT_PORT and "asked for one we can't honour" may not.
+const PORT_NOT_REQUESTED := -1
+const PORT_REQUEST_INVALID := -2
 
 var port := DEFAULT_PORT
 var tcp_server: TCPServer
 var clients: Array[StreamPeerTCP] = []
 var pending_screenshot_client: StreamPeerTCP = null
 var _deferred_release: Vector2 = Vector2.ZERO
+
+## Where `port` came from — "default" means nothing asked for a port, which is
+## the only case where falling back is legitimate. See _resolve_port().
+var _port_source := "default"
 
 ## Keys currently held via key_down/hold. keycode(int) -> Timer or null
 ## (null means held indefinitely until an explicit key_up).
@@ -16,16 +31,101 @@ var _last_scene: Node = null
 
 
 func _ready() -> void:
-	var config := ConfigFile.new()
-	if config.load("res://mcp_ports.cfg") == OK:
-		port = config.get_value("mcp", "game_port", DEFAULT_PORT)
+	var resolved := _resolve_port()
+	if resolved < 0:
+		return  # _resolve_port() already reported and quit.
+	port = resolved
+
 	tcp_server = TCPServer.new()
 	var err := tcp_server.listen(port, "127.0.0.1")
 	if err != OK:
+		# An explicit request that cannot be honoured is fatal (#117). Silently
+		# continuing here is what let an instance launched for port 9510 end up
+		# on 9501, serving another agent's screenshots to whoever asked first.
+		if _port_source != "default":
+			_fail_port_request(
+				"could not listen on port %d (error %d) — something else is probably already bound to it" % [port, err]
+			)
+			return
 		push_error("MCP Bridge Game: Failed to listen on port %d (error %d)" % [port, err])
 	else:
 		print("MCP Bridge Game: Listening on 127.0.0.1:%d" % port)
 	RenderingServer.frame_post_draw.connect(_on_frame_post_draw)
+
+
+## Resolves the bridge port, or returns -1 after reporting a fatal error.
+##
+## Priority (#117):
+##   1. `-- --mcp-port N` (or `--mcp-port=N`) on the command line. This is the
+##      race-free channel and what every capture skill uses.
+##   2. res://mcp_ports.cfg — legacy path, kept for manual launches.
+##   3. DEFAULT_PORT.
+##
+## A request from (1) or (2) is BINDING: if it cannot be honoured the process
+## reports and exits rather than falling back. Only (3) — nobody asked for a
+## port at all — may legitimately use the default. The original bug was that a
+## missing config was indistinguishable from "no port requested", so a config
+## deleted mid-launch by another agent's cleanup silently downgraded the
+## instance to 9501.
+func _resolve_port() -> int:
+	var from_args := parse_port_arg(OS.get_cmdline_user_args())
+	if from_args != PORT_NOT_REQUESTED:
+		_port_source = "--mcp-port"
+		if from_args == PORT_REQUEST_INVALID:
+			_fail_port_request("--mcp-port needs a port number in 1-65535")
+			return -1
+		return from_args
+
+	if FileAccess.file_exists(PORT_CONFIG_PATH):
+		_port_source = PORT_CONFIG_PATH
+		var config := ConfigFile.new()
+		if config.load(PORT_CONFIG_PATH) != OK:
+			_fail_port_request("%s exists but could not be parsed" % PORT_CONFIG_PATH)
+			return -1
+		if not config.has_section_key("mcp", "game_port"):
+			_fail_port_request("%s has no [mcp] game_port key" % PORT_CONFIG_PATH)
+			return -1
+		return int(config.get_value("mcp", "game_port"))
+
+	return DEFAULT_PORT
+
+
+## Extracts `--mcp-port N` or `--mcp-port=N` from user args. Pure, so the
+## precedence and validation rules are testable — see tests/test_mcp_port.gd.
+##
+## Returns the port number, PORT_NOT_REQUESTED when no such flag is present, or
+## PORT_REQUEST_INVALID when one is present but unusable. The last two must stay
+## distinct: "nobody asked" may fall back to DEFAULT_PORT, "asked and we can't"
+## must not (#117).
+static func parse_port_arg(args: PackedStringArray) -> int:
+	for i in range(args.size()):
+		var arg := args[i]
+		var raw := ""
+		if arg == "--mcp-port":
+			raw = args[i + 1] if i + 1 < args.size() else ""
+		elif arg.begins_with("--mcp-port="):
+			raw = arg.trim_prefix("--mcp-port=")
+		else:
+			continue
+		if not raw.is_valid_int():
+			return PORT_REQUEST_INVALID
+		var value := raw.to_int()
+		if value <= 0 or value > 65535:
+			return PORT_REQUEST_INVALID
+		return value
+	return PORT_NOT_REQUESTED
+
+
+## Reports a port request that cannot be satisfied and quits. Writes to stderr
+## as well as the error log because launchers grep the process output, and
+## never leaves the process running on some other port.
+func _fail_port_request(reason: String) -> void:
+	var message := "MCP Bridge Game: FATAL port request via %s failed: %s. Refusing to fall back to %d." % [
+		_port_source, reason, DEFAULT_PORT,
+	]
+	printerr(message)
+	push_error(message)
+	get_tree().quit(PORT_REQUEST_FAILED_EXIT_CODE)
 
 
 func _exit_tree() -> void:

@@ -56,6 +56,8 @@ bash .claude/skills/game-video/capture-video.sh --start-game --port 9503 --durat
 
 When multiple agents capture at the same time, **each must pass a distinct `--port`** (e.g. 9502, 9503, ...) whenever it uses `--start-game`.
 
+The port is handed to Godot on its own command line (`-- --mcp-port N`), so concurrent runs share no mutable state — there is no project-wide port config to race over, and no launch lock to wait on. A Godot instance that cannot bind the port it was asked for now **exits with code 9** and says so on stderr, instead of quietly falling back to 9501 and serving somebody else's frames (#117).
+
 With `--start-game`, this script only ever starts or stops the Godot process **it itself spawned for that port** (tracked in `/tmp/afterburner-capture/godot-<port>.pid`). It never kills a Godot instance it did not launch:
 - If the script previously started an instance on that port, a new `--start-game` call restarts just that one (clean state for a re-test).
 - If the port is already occupied by something this script never started (another agent's instance, or a manually launched one), the script fails immediately with a clear error naming the PID — it does not touch it. Pick a different port or stop that process yourself.
