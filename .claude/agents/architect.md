@@ -38,6 +38,7 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
 
 1. **Design system architecture** — module boundaries, shared packages, API contracts, data models
 2. **Create implementation specs** — detailed enough that a developer can implement without ambiguity
+   - **For tooling/algorithm issues: prototype before speccing.** Run the candidate approach against the real inputs and derive defaults, thresholds, and test tolerances from measurements, not guesses. Put the measured numbers in the spec so the judge can independently check them. (~20 min that has caught spec-breaking wrong defaults.)
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
@@ -92,7 +93,7 @@ GitHub issues on `UriZ/afterburner` are the **sole source of truth**. You MUST:
 
 ## Session Logging (MANDATORY)
 
-Append to `SESSION_LOG.md` before finishing. Format:
+Insert your entry at the TOP of `SESSION_LOG.md` (the file is newest-first) before finishing. Format:
 
 ```markdown
 ---

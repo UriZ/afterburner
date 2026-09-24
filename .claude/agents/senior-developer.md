@@ -43,7 +43,7 @@ GitHub issues on `UriZ/afterburner` are the **sole source of truth**. You MUST:
 
 ## Session Logging (MANDATORY)
 
-Append to `SESSION_LOG.md` before finishing. Format:
+Insert your entry at the TOP of `SESSION_LOG.md` (the file is newest-first) before finishing. Format:
 
 ```markdown
 ---

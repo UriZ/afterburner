@@ -92,3 +92,12 @@ When evaluating visual work, ALWAYS use this skill instead of a single screensho
 - Whether enemies scale smoothly as they approach
 - Whether the screen stays busy over time
 - Whether aiming/lock-on responds to input
+
+## Capturing a non-main-scene harness (e.g. tests/sky_stage_preview.gd)
+
+`--start-game` only knows how to launch the real game scene. To capture a visual harness script instead (verified pattern from #115 QA):
+1. Stop any capture.sh-managed instance on your port
+2. Launch Godot manually with `--script <harness.gd>` (windowed — headless fails on texture readback)
+3. Capture with capture.sh WITHOUT `--start-game` against the same `--port`
+
+The harness's usage header governs its own controls (e.g. stage cycling).

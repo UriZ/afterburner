@@ -150,7 +150,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 5. **Horizon at 60-65% from top.** Measured from reference burst-a-02 and burst-b-03 — the original has MORE sky than ground. The jet sits in the bottom 25%.
 
-6. **Gradient endpoints must share a hue.** sky_top and sky_horizon (and any other lerped pair) must derive from one hue. RGB-lerping between distant hues passes through a desaturated grey band mid-gradient, which tanks measured saturation even when both endpoints measure fine individually. Every reference sky is a single-hue gradient.
+6. **Sky matches the reference's real shape: flat fill + optional tight glow + hard horizon.** Measured from all 50 longplay frames (#115): AB2's sky is a FLAT fill; many stages are flat edge-to-edge with NO glow and NO haze band (snow `#b7d3d6`, blue day `#0092f7`, pixel-identical top to ground). Where a glow exists it occupies only the last ~20% of sky height and is a HUE shift at held saturation (desert H29°→H52°, S pinned 1.00, V 0.90→0.98), not a brightness ramp. The horizon is a hard 6-20px cut. Per-biome measured anchors live in the `stage_data.gd` header. A whole-sky smooth gradient, a soft/hazy horizon, or an RGB-lerp passing through desaturated grey = FAIL.
 
 7. **Colors must match the reference stage-for-stage.** Measure mean HSV saturation against the equivalent reference stage — do NOT apply a flat floor. Desert measures S~0.87-0.90; snow measures S~0.14. A flat threshold wrongly fails a correct snow stage. Muted output on a stage whose reference is vivid = FAIL.
 
@@ -240,7 +240,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 | 1 | Spec completeness | Critical | Covers ALL requirements — nothing missing |
 | 2 | No scope creep | Critical | Only what's requested — no gold-plating |
 | 3 | Clear interfaces | High | Unambiguous — developer needs no design decisions |
-| 4 | Godot-native approach | Critical | Uses Godot built-in nodes |
+| 4 | Godot-native approach | Critical | Uses Godot built-in nodes. **N/A for non-game-code issues** (tooling, infra, scripts) — judge marks N/A, does not fail or fudge it |
 | 5 | Risks identified | Medium | Edge cases and constraints called out |
 
 ---

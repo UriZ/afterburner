@@ -1,5 +1,153 @@
 # Session Log
 
+### [2026-09-25 00:58] — TL — Retrospective: visual-qa #115 (sky fix) — PASS, 0 bugs
+
+**Agent TLDR (verbatim)**:
+
+> GitHub issue(s): #115
+> I found 0 bugs. The sky fix PASSES the TL-amended acceptance criterion 1, plus criteria 2-4.
+> Key findings: (1) Independently read the reference frames myself (burst-a-02, burst-b-08, burst-c-02, stage-12, stage-03) and confirmed the developer's claims hold: flat-biome stages are flat edge-to-edge, glow stages shift hue over only the last ~15-20% of sky height at held saturation, and the horizon cut is crisp. (2) Captured the live game myself on port 9512 (own instance, not reused from the developer's evidence) — stage 1 matches burst-a-02 closely, and matches the developer's own before/after screenshot in /tmp/afterburner-115-evidence/. (3) Ran the developer's tests/sky_stage_preview.gd harness myself over the MCP bridge and spot-checked 9 stages (5, 6, 7, 9, 11, 13, 15, 16, 19) covering all flat and glow biomes — every flat stage is genuinely flat, every glow stage has a tight banding-free glow band, no ground/horizon regressions. (4) Ran the full test suite myself: test_sky_gradient.gd 8/8, test_stage_data/stage_manager/game_world/ground_grid/environment_2d/game_manager_2d all unchanged and passing, test_jet_mesh_builder.gd has the same 13 pre-existing legacy-3D-path failures (unrelated, out of scope) — matches the developer's report exactly.
+> Posted the verdict as a comment on #115, removed the `qa` label, left the issue open for TL/user final approval.
+>
+> ## Improvement Insights
+> - **workflow**: The tests/sky_stage_preview.gd capture recipe (stop the capture.sh-managed instance on the port, manually launch Godot with `--script`, then capture without `--start-game`) worked cleanly. Worth generalizing into a documented pattern in the game-capture skill for any future non-main-scene visual harness, since capture.sh's `--start-game` only knows how to launch the real game scene.
+> - **visual-qa.md**: Explicitly cross-checking my own independently captured screenshots against the developer's posted evidence PNGs (not just their report text) is cheap insurance against a QA pass resting on stale/cherry-picked screenshots. Worth stating as a standard step rather than leaving it implicit.
+
+**Retrospective — applied**:
+- game-capture SKILL.md: documented the non-main-scene harness capture pattern. APPLIED.
+- visual-qa.md: added cross-check-own-captures-vs-developer-evidence as standard workflow step 5. APPLIED.
+- #115 QA-passed; sky fix committed to feature branch to protect it on the shared tree; issue left open for user final approval.
+
+
+---
+### [2026-09-25 02:10] — visual-qa — #115
+**Task**: Verify sky fix for #115 against the TL-amended acceptance criterion 1 (flat-biome stages flat edge-to-edge; glow stages a tight hue-shift band over ~last 20% of sky at held saturation; crisp horizon cut).
+**Result**: PASS (0 bugs found)
+**Issues verified**: #115 (PASS)
+**New bugs filed**: none
+**Improvement Insights**:
+- workflow: `tests/sky_stage_preview.gd`'s documented capture recipe (kill the capture.sh-managed instance on the target port, manually launch Godot with `--script`, capture without `--start-game`) works cleanly end to end — worth generalizing into a documented pattern for any future non-main-scene visual harness, since the current game-capture skill only knows how to launch the real game scene.
+- workflow: cross-checking my own independently-captured screenshots against the developer's posted `/tmp/afterburner-115-evidence/*.png` evidence (rather than only reading their report text) caught nothing wrong here but is cheap insurance against a QA pass built on stale or cherry-picked screenshots — worth keeping as standard practice, already implicit in this task's instructions but worth stating explicitly in visual-qa.md.
+
+### [2026-09-25 00:52] — TL — Retrospective: senior-developer #115 (sky fix)
+
+**Agent TLDR**: captured verbatim by the agent itself in its own entry below (inserted at top per newest-first rule); full fix report on #115. Key: measured all 50 reference frames before coding — AB2 sky is a FLAT fill (many stages edge-to-edge flat, no haze), glows are hue-shifts at held saturation over last ~20% of sky, horizon is a hard 6-20px cut. Root cause: all stages had sky_top==sky_horizon hue with only ~0.05 V delta + ground shader smearing 40px of sky over the horizon. 5 files changed, 8 new tests, 12 stages spot-checked, stage-1 match within 1/255. Flagged that the issue's Expected text contradicted the reference instead of following it.
+
+**Retrospective — applied**:
+- CLAUDE.md: added "measure, don't eyeball" rule (colour/geometry constants must cite real measurements) + stage-timer/harness note (30s stage timer, unattended play dies ~stage 3). APPLIED.
+- criteria.md rule 6: rewritten from "single-hue gradient" to the measured reality (flat fill + optional tight hue-shift glow + hard horizon cut, anchors in stage_data.gd header). Old rule was factually wrong (desert glow crosses H29°→H52°). APPLIED.
+- judge.md + qa.md: explicit "reference wins over issue Expected prose; flag the conflict, don't score it as failure". APPLIED.
+- capture.sh shared mcp_ports.cfg EXIT-trap deletion → filed as bug #117 (cross-agent port collision, observed live). FILED.
+- TL note: #115 acceptance criterion 1 amended on the issue before QA to match measured reality; visual-qa validates the amended criteria.
+
+
+### [2026-09-25 01:35] — senior-developer — #115
+**Task**: Sky does not read as sky — fix against AB2 reference (user escalation)
+**Result**: COMPLETED
+**Files changed**: `scripts/stage/stage_data.gd`, `scripts/game/game_world.gd`, `assets/shaders/ground_terrain_2d.gdshader`, `tests/test_sky_gradient.gd` (new), `tests/sky_stage_preview.gd` (new)
+**Key changes**:
+- `stage_data.gd:13-47` — header rewritten with the measured per-biome sky anchors; replaces the previous "sky_top and sky_horizon share the same hue" rule, which is what caused this bug.
+- `stage_data.gd:74-120` — all 23 stages' `sky_top`/`sky_horizon` re-derived from reference measurements. 12 stages now flat by data (`sky_top == sky_horizon`); the 11 glow stages carry a real hue shift toward yellow.
+- `game_world.gd:20-24` — new `SKY_FLAT_FRACTION` (0.80).
+- `game_world.gd:99-141` — `_draw_sky()` draws the flat 80% as one rect, the glow band per-scanline, and short-circuits to a single fill for no-glow stages; gradient math extracted to a pure static `sky_color_at()`.
+- `ground_terrain_2d.gdshader:480` — horizon haze `smoothstep(0.0, 0.16)` → `0.06`.
+**Technical decisions**:
+1. **Measure first, then code.** Median sky colour of all 50 `ab2-longplay` frames plus per-scanline column scans through the horizon on one frame per biome. Three findings drove everything: (a) AB2's sky is a flat fill and on many stages is flat edge to edge — snow `burst-b-08` holds `#b7d3d6` and blue day `stage-12` holds `#0092f7` unchanged from top of frame to ground; (b) where a glow exists it is a HUE shift at held saturation (desert H29°→H52°, S pinned 1.00, V 0.90→0.98), not a brightness ramp; (c) the horizon is a hard cut (6-20px).
+2. **Root cause was data, not the gradient shape.** The existing `smoothstep(0.75, 1.0)` shape was broadly right. Every stage had `sky_top` and `sky_horizon` at the *same hue* differing by ~0.05 V, so the glow was invisible and the whole sky sat at the horizon's gold — stage 1 measured H=37° S=0.93 end to end where the reference's flat region is H=29° S=1.00. Gold sky over gold desert ground is the literal complaint.
+3. **Flatness expressed as data, not a flag.** `sky_top == sky_horizon` means "no glow" and `_draw_sky()` branches on it. Avoids a parallel per-stage boolean that could contradict the colours.
+4. **Per-scanline glow band instead of 50 whole-sky bands.** The old loop put ~8px quantisation steps where the ramp is steepest. Per-scanline caps the step at smoothstep's peak slope (1.5) / 84 rows = 2.2/255 on the worst stage. Draw-call cost is unchanged — the flat 80% went from 40 rects to 1.
+5. **Ground haze narrowed inside the reference's own measured range** (0.022 `burst-c-02` to 0.094 `burst-a-02`) rather than to an eyeballed value. 0.16 was ~40px of sky-coloured ground, which on warm stages erased the horizon entirely.
+6. **Deviated from the issue's stated "Expected" and said so.** The issue asks for a gradient plus horizon haze band on all stages; the reference shows most stages have neither. Implemented what the frames show, flagged the discrepancy on the issue instead of silently reinterpreting the criteria.
+**Testing**: New `tests/test_sky_gradient.gd` (8/8) covers the gradient shape (flat through `SKY_FLAT_FRACTION`, exact endpoints, monotonic, per-scanline step under 3/255 across every real glow stage) and the palette invariants (flat biomes have no glow; glow stages shift ≥10° of hue toward yellow; no stage darker than the reference's darkest measured V). Two of these caught my own errors mid-work — an overstated "sub-1/255" claim in a code comment, and a bound that mixed channel units with delta fractions. Full suite run: `test_stage_data.gd` 12/12, `test_stage_manager.gd` 10/10, `test_game_world.gd` 15/15, `test_ground_grid.gd` 9/9, `test_environment_2d.gd` 13/13, `test_game_manager_2d.gd` 10/10, `test_missile_2d.gd` 89/89 — all unchanged and passing. `test_jet_mesh_builder.gd` 13 failures confirmed pre-existing and unrelated (asserts `MeshInstance3D` nodes on the legacy 3D jet path; not in my diff). `--check-only` clean on every touched file. Visual: live-game capture on port 9510 (own PID, killed only my own, `mcp_ports.cfg` removed after launch) — stage 1 flat sky `#e56f00` vs reference `#e67100`, glow peak `#f9d800` vs `#f0d100`; forest stage 5 `#a5d4a6`→`#f9f1d4` vs `#a4d3a5`→`#fbf2d5` (within 2/255); teal stage 15 `#00b292` vs `#00b292` exact. Horizon crispness: ground texture reaches full contrast 14px below the horizon after, vs still climbing at 30px+ before. 12 stages spot-checked across every biome. Evidence in `/tmp/afterburner-115-evidence/`.
+**Honest residual gap**: our ground remains more uniformly golden than the reference's browner, greyer scree — that is ground-shader scope (#42), not sky, and I left it alone.
+**Improvement Insights**:
+- **[CLAUDE.md]**: Add a "measure, don't eyeball" rule for visual work — state the measurement (pixel sample, coordinates, source frame) in the code comment next to any colour constant. The #108 pass that caused this bug wrote a long, confident, *partly measured* comment: it correctly found the sky is flat, then asserted "hue untouched" without ever sampling hue. A comment citing a measurement it did not take is worse than no comment, because the next agent trusts it.
+- **[CLAUDE.md]**: Document that stages advance on a 30s timer and unattended play dies around stage 3, so per-stage visual verification needs a harness, not play-throughs. I burned ~8 minutes on a long capture that returned 20 title-screen frames. `tests/sky_stage_preview.gd` is now that harness.
+- **[workflow]**: `capture.sh`'s EXIT trap does `rm -f mcp_ports.cfg` — a *shared* path. A finishing capture in one agent's session deleted the config another launch was mid-read of, and that Godot silently bound to default 9501 instead of its requested port. The per-port lock does not cover this because the delete happens outside it. The cfg should be per-port, or the trap should only remove a cfg it still owns.
+- **[criteria.md]**: The sky criterion should name the reference's actual shape — flat fill, per-biome glow, hard horizon cut — with the measured anchors. "Smooth gradient with horizon haze" (issue #115's wording) is wrong for most AB2 stages and would have driven the fix in the wrong direction if followed literally.
+- **[judge.md / qa.md]**: When an issue's "Expected" text conflicts with the reference frames, the reference wins and the agent should flag it. Worth stating explicitly so it is not scored as failing to meet acceptance criteria.
+
+
+### [2026-09-25 00:32] — TL — Retrospective: judge gate (architect #113) — FAIL 6/10
+
+**Judge TLDR (verbatim)**:
+
+> ## Judge Evaluation — architect — #113: **FAIL, 6/10** (threshold 9)
+>
+> Posted to the issue (https://github.com/UriZ/afterburner/issues/113#issuecomment-5822398726), `judge-fail` label added, SESSION_LOG.md appended.
+>
+> This is a tooling gate (no game rendering), so I verified the spec's factual claims against the machine and the cached clips rather than doing captures.
+>
+> **The spec is genuinely prototyped — most claims checked out exactly**: clip properties (686x480/30fps/AV1 and 960x672/15fps/h264), `.reference-cache/` gitignore coverage, ffmpeg 8.1 + python 3.13.3, venv + `opencv-python-headless` resolving with no system install (41.6 MB of wheels), HUD band positions, judge.md's duplicate "5." step, and the 180x96 strip-cell readability claim (I rendered cells from both clips and Read them back — jet bank angle and explosions are legible). The opencv-vs-ffmpeg rejection table is correct. Sections 2, 4, 6, 7, 8, 9 should survive revision intact. It is a revision, not a rewrite.
+>
+> **Four blocking gaps:**
+> 1. **(Decisive) The game capture has no real time base.** capture-video.sh grabs frames in an unpaced loop and then encodes with `-framerate $PLAYBACK_FPS` — the container fps is a label applied after the fact. Measured real rate: 17.3 fps. Videos are ~2.2x slow motion at documented `--playback-fps 8`, ~1.15x at 15, drifting with load. Nothing catches it.
+> 2. **The `--playback-fps 8` fix misses the copy that governs.** §10 updates judge.md:51 and qa.md:48 but not criteria.md:67; judge reads criteria.md first → captures at 8fps → tool exits 2.
+> 3. **The canned reference window is the wrong footage.** §10's `--ref-window 4:55-5:05` is the cloud-bank stage, hard-banked, bottom 25% cloud tops — contradicts the spec's own window guidance, breaks ground-band metric premise.
+> 4. **The selftest fixture doesn't move at the assumed speed.** `-loop 1` defaults 25fps input then `fps=30` duplicates frames (2 identical pairs/15 verified). Fixture is ground truth for tests 1-3 and the §4.2 bias sweep. Fix `-framerate 30`, re-run sweep.
+>
+> **Side finding worth acting on independently of #113**: every gameplay video any agent has reviewed to date has been between 1.15x and 2.2x slow motion, with nobody aware. That directly corrupts "does it feel as fast as AB2" judgements — the PRIMARY DIRECTIVE question. capture-video.sh should measure and print its real capture rate regardless of how #113 lands.
+
+**Retrospective — applied**:
+- Side finding filed as bug #116 (capture time base). Ownership folded into #113 spec revision (single owner of capture-video.sh) — architect instructed accordingly. APPLIED.
+- Judge feedback passed to architect verbatim per process; judge-fail label on issue; rework in progress.
+- Process note: judge independently verifying spec claims by building fixtures/rendering strips caught 4 gaps a paper review would miss — this validates the prototype-verification bar for tooling gates; no doc change needed (judge.md already permits it).
+
+
+### [2026-09-25 00:25] — TL — Retrospective: architect #113
+
+**Agent TLDR (verbatim)**:
+
+> GitHub issue(s): #113 — spec posted (https://github.com/UriZ/afterburner/issues/113#issuecomment-5822284691), relabeled `architect` → `developer`, SESSION_LOG.md updated.
+>
+> I specced the motion-metrics tool by **prototyping the entire pipeline against the real cached clips before writing a word of it**, so every parameter, default and test tolerance is measured rather than asserted. That mattered — three defaults I would have guessed are wrong.
+>
+> Key decisions: (1) **OpenCV Farneback, not ffmpeg filters** — I audited the ffmpeg route: `mestimate` emits motion vectors as frame side-data with no numeric output path (viewable only as a `codecview` overlay), `signalstats` has no temporal term, `scdet`/`freezedetect` are boolean, and the one viable proxy (`tblend=difference`+`signalstats`) conflates contrast with speed, so arcade dither vs our smooth shading would report different numbers under identical motion. Only dense flow yields px/frame, a unit comparable across clips. One dependency (`opencv-python-headless`, verified installing at cv2 5.0.0 on py3.13/arm64, 137 MB) in a gitignored venv; matplotlib rejected for cv2 drawing primitives. (2) **`--work-width` defaults to 192, not 384** — Farneback holds a near-constant −14% bias up to ~8 px/frame (so *ratios* are accurate to ~3%) then collapses non-linearly. The real footage at 384 measures 7.65 px/frame with p90 14.8 (saturated), and its ratio 0.936 disagrees with widths 256 (0.816) and 192 (0.827), which agree with each other. Saturation compresses the faster clip more, pulling the ratio **toward 1.0** — a false "they match" PASS, the dangerous direction for a gate — so a saturation warning is mandatory. (3) **Texture-gated mean is the headline metric** — AB2's horizon sits at 53% of frame height, ours at 64%, so the all-pixel ratio reads 0.753 while the textured ratio reads 1.068 on the same footage, i.e. opposite conclusions.
+>
+> Two latent bugs caught by measuring: a fixed scene-cut threshold would false-flag real gameplay (`absdiff_mean` peaks at 61.3 during ordinary fast motion in the reference), so the rule is relative — `max(55, 4 × median)`; and **judge.md/qa.md currently capture at `--playback-fps 8`**, which analysed at the default 15 fps duplicates frames that read as zero flow and silently deflate every game-side number. The spec makes that a hard error and bumps both docs to 15 — both halves are required, don't ship one without the other. My first test-fixture design was also broken and I caught it: white-noise pans collapse flow to near-zero at large displacement (coarse pyramid levels of white noise average to flat grey), so fixtures use a mandelbrot-plus-noise still with real multi-scale structure.
+>
+> Scope held to exactly the seven ACs: no MovieWriter, no HTML. I considered and rejected an automatic convergence re-run at a second work width as gold-plating — the required saturation warning covers the same risk far more cheaply. Artifact set is exactly 2 CSVs, 1 plot, 1–3 strips, report.md; the extra rigor went into CSV columns and report rows, not extra files.
+>
+> One transparency note for the judge: I did not read all 9 static reference screenshots. This issue designs analysis tooling, not game visuals, and my reference work was the quantitative kind — I measured HUD band positions and horizon heights off real frames to set the crop defaults, computed flow across 149 consecutive reference frames, and checked stage frames from two different levels to confirm the defaults generalize (no letterboxing anywhere, HUD bands consistent across stages, recommended `--ref-mask` verified to cover the lock-on radar). If the gate wants the literal checklist satisfied, tell me and I'll read them, but they have no bearing on this spec.
+>
+> ## Improvement Insights
+> - **architect.md**: add "prototype before speccing" for tooling/algorithm issues. Three defaults here would have shipped wrong if guessed, one of them biasing judge gates toward false PASS. ~20 minutes, and it converted unverifiable prose into numbers a judge can independently check.
+> - **criteria.md**: the Architect table's criterion 4 ("Godot-native approach — uses Godot built-in nodes") is marked Critical but is meaningless for tooling/infrastructure issues. Add an explicit "N/A for non-game-code issues" so a judge doesn't have to either fail it or fudge it.
+> - **CLAUDE.md**: once this ships, the "Videos Are MANDATORY" section should name `motion-metrics` alongside `youtube-reference`. The current rule makes agents *look* at motion; this makes them *measure* it, and a measured ratio is the only motion evidence that survives a paranoid gate.
+> - **workflow**: the `--playback-fps 8` in judge.md/qa.md was a latent correctness bug found only by probing the real capture files. Worth periodically auditing that example commands in agent docs still match what the tooling expects.
+> - **workflow (new, from this exchange)**: SESSION_LOG.md is newest-first, but every agent definition says "append to SESSION_LOG.md". That wording caused this false "missing entry" report. Change the instruction in the agent files to "insert your entry at the top of SESSION_LOG.md (newest-first)" and say so in the file's own format guide.
+
+**Retrospective — applied**:
+- architect.md: added "prototype before speccing" rule for tooling/algorithm issues (under Responsibilities #2). APPLIED.
+- criteria.md: Architect criterion 4 now explicitly N/A for non-game-code issues. APPLIED.
+- All 9 agent defs + CLAUDE.md + tl.md: "append to SESSION_LOG" wording corrected to "insert at TOP (newest-first)" — root-caused a false missing-entry report this session. APPLIED.
+- CLAUDE.md motion-metrics mention: DEFERRED until #113 ships (tool doesn't exist yet).
+- Doc-vs-tooling drift audit: noted; the concrete instance (judge.md/qa.md --playback-fps 8) is fixed by the #113 spec itself (dev implements both halves).
+
+
+### [2026-09-25 00:10] — architect — #113
+**Task**: Implementation spec for motion-metrics tooling — quantitative two-clip video comparison (optical-flow CSV + plot, aligned side-by-side strips, report.md) for judge/QA gates.
+**Result**: COMPLETED
+**Spec posted to**: GitHub issue #113 comment (https://github.com/UriZ/afterburner/issues/113#issuecomment-5822284691). Relabeled `architect` -> `developer`.
+**Approach**: Prototyped the entire pipeline against the real cached clips before writing the spec, so every parameter, default and test tolerance in it is measured rather than guessed.
+**Key decisions**:
+- **OpenCV Farneback over pure ffmpeg.** Audited the ffmpeg route the issue suggested: `mestimate` emits motion vectors as frame side-data with no numeric output path (viewable only via `codecview` overlay); `signalstats` has no temporal term; `freezedetect`/`scdet` are boolean. `tblend=difference`+`signalstats` does give a per-frame scalar with zero deps but conflates contrast with speed — arcade dither vs our smooth shading would differ under identical motion. Only dense flow yields px/frame, a unit comparable across clips.
+- **One dependency**: `opencv-python-headless` in a gitignored `.reference-cache/venv-metrics/` (verified installing: cv2 5.0.0, py3.13 arm64, 137 MB). Rejected matplotlib (+40 MB, headless backend flakiness) — plot is rendered with cv2 drawing primitives instead.
+- **Frame extraction shells out to ffmpeg**, not `cv2.VideoCapture`: the reference is AV1 and OpenCV's bundled FFmpeg may lack the decoder. Matches the existing skills' convention.
+- **Calibrated `--work-width` default to 192, not 384.** Swept Farneback params against synthetic pans of known speed: bias is a near-constant -14% up to ~8 px/frame (so ratios are accurate to ~3%), then collapses non-linearly. Measured the real clips: at width 384 REF mean is 7.65 px/frame with p90 14.8 — saturated, and its ratio (0.936) disagrees with widths 256 (0.816) and 192 (0.827), which agree with each other. Saturation compresses the faster clip more, biasing the ratio **toward 1.0** — i.e. toward a false PASS, the dangerous direction for a gate. Spec requires a saturation warning when mean p90 > 8 px/frame.
+- **Texture-gated mean is the headline metric.** Averaging flow over all pixels is confounded by composition: the reference's horizon is at 53% of frame height, ours at 64%. All-pixel ratio 0.753 vs textured ratio 1.068 on the same footage — opposite conclusions. Gate on Sobel gradient >= 12; report ground-band (bottom 25%) and all-pixel as context.
+- **Shared crop, per-clip masks.** `--crop` applies identically to both clips by design (different crops retain different fractions of the play field and break comparability); residual HUD like the reference's lock-on radar is handled by optional `--ref-mask`/`--game-mask`, which change the averaged pixel set without touching geometry. Measured both clips' HUD bands to set the 0.12/0.12 default.
+- **Hard error instead of silent fps upsampling.** `judge.md`/`qa.md` currently capture at `--playback-fps 8`; analysing that at 15 duplicates frames, which read as zero flow and deflate the mean. Spec aborts with exit 2 and suggests `--fps 8`, and the doc updates bump captures to 15. Both halves required.
+- **Scene-cut rule is relative, not absolute**: measured `absdiff_mean` peaking at 61.3 during ordinary fast motion in the reference, so a fixed 40-55 threshold would false-flag gameplay as cuts. Rule is `max(floor=55, 4 x median)`.
+- **Strip layout validated by rendering one and reading it back** — 8 cells x 180px = 1468x286, deliberately under the 1568px agent-image downscale limit. The prototype strip made AB2's hard bank vs our near-static jet immediately obvious.
+**Risks flagged in spec**: saturation-driven false PASS (primary); semantic misalignment (tool aligns time, not content — window choice is the operator's job, no automated fix attempted); composition confound; attract-mode/transition content in the 16.5-min reference; runtime on long windows.
+**Scope control**: no MovieWriter, no HTML integration, no automatic convergence re-run (considered and rejected as gold-plating — a required warning covers the same risk). Extra rigor went into CSV columns and report rows, not extra artifacts; artifact set is exactly 2 CSVs + 1 plot + 1-3 strips + report.md.
+**Improvement Insights**:
+- **architect.md**: add "prototype before speccing" for tooling/algorithm issues. Three of this spec's defaults would have been wrong if guessed — work-width 384 (saturated, ratio biased toward false PASS), a fixed scene-cut threshold (false-flags real motion at absdiff 61), and white-noise test fixtures (coarse pyramid levels of white noise are flat grey, so flow collapsed at large displacement and the test plan would have shipped broken). Cost ~20 min, and it turned unverifiable prose into measured numbers a judge can check.
+- **criteria.md**: the Architect table's criterion 4 "Godot-native approach / uses Godot built-in nodes" is marked Critical but is meaningless for tooling and infrastructure issues like this one. Add "N/A for non-game-code issues" so a judge doesn't have to either fail or fudge it.
+- **CLAUDE.md**: once this ships, the "HARD RULE: Videos Are MANDATORY" section should name motion-metrics alongside youtube-reference — the existing rule makes agents *look* at motion, this makes them *measure* it, and a measured ratio is the only form of motion evidence that survives a judge gate.
+- **workflow**: the `--playback-fps 8` in judge.md/qa.md is a latent correctness bug for any downstream numeric analysis, found only because I probed the real capture files. Worth a periodic audit that agent-doc example commands still match what the tooling expects.
+
 ### [2026-09-17] — developer — #97 (round-7 gate: many-blob textured interiors)
 **Task**: Round-7 gate findings #2/#4 — both explosion bodies still read as 2-3 flat-colour fills once the outline was fixed; criteria.md rule 12 gained a ">=8 distinct value levels by histogram" requirement. Death fireball: three nested flat-colour silhouettes instead of the reference's dozens of overlapping shaded blobs with scattered hot cores. Kill puff: smooth radial gradient with zero mottle, neutral grey-white instead of cream/pale-yellow, regular-facet rim.
 **Result**: COMPLETED
@@ -3900,3 +4048,36 @@ Caveat: my blob/feature-size metric uses simple median-threshold connected-compo
 **Improvement Insights**:
 - **workflow**: when a gate finding cites a percentage-scale metric ("cut ~40%", "7.92%W vs 4.96%W"), before touching any frequency constant, identify WHICH visual feature that metric actually measures (individual grain vs. material-patch blob) — grepping the shader for multiple frequency constants isn't enough; a matched-screen-fraction crop against the reference is what caught my first attempt scaling the wrong one (CELL_FREQ instead of PATCH_FREQ).
 - **workflow**: a small offline Python re-implementation of a shader's own HSV cluster math (not just visual inspection) is fast and caught an S=0 white-clip bug (stage 8's near-white `ground_c` clipping under RGB*1.25) that a live capture on stage 1 alone would never have surfaced without cycling through all 23 stages.
+
+---
+
+## Session 2026-09-24 — TL — Motion-metrics pipeline (#113)
+
+**Context**: User escalation — convergence too slow. Root cause identified: agents judge motion via sparse stills (0.25s apart) vs 15fps captures; feel-level qualities unverifiable. Built side-by-side comparison page (`.reference-cache/comparison.html`: local ab2-longplay.mp4 vs fresh game capture + 3 YouTube embeds + agent-reference-usage table). User approved fix plan.
+
+**Actions**:
+- Created #113 (motion-metrics tooling: optical-flow speed proxy, aligned same-fps strips, report.md) — enhancement,architect
+- Created #114 (60fps MovieWriter capture, follow-up) — enhancement,architect
+- Pipeline started on #113: architect → judge → developer → judge → qa → judge, retros after each
+- After pipeline: TL demos tool on ab2-longplay vs game capture, integrates results into comparison.html (user request)
+
+## Session 2026-09-24 — TL — Sky bug (#115)
+
+User escalation: sky doesn't read as sky. Created #115 (bug) with AB2-reference acceptance criteria; assigned senior-developer (dev-sky-115, capture port 9510) — runs parallel to #113 pipeline (no file overlap). visual-qa queued after dev completes.
+
+---
+### [2026-09-25 00:30] — judge — #113
+**Gate type**: per-agent (architect)
+**Verdict**: FAIL
+**Score**: 6/10 (threshold 9)
+**Key gaps**:
+- Game capture has no real time base: capture-video.sh encodes with `-framerate $PLAYBACK_FPS` over an unpaced grab loop. Measured real rate 17.3 fps on this machine, so videos are ~2.2x slow-motion at the documented `--playback-fps 8` and ~1.15x at the spec's fixed 15, drifting with load. The spec's headline px/frame ratio is therefore scaled by an unmeasured per-run factor the size of its own 0.85-1.18 decision band. No guard catches it (frames are distinct, so is_dup never fires).
+- `criteria.md:67` carries the same `--playback-fps 8` command and is missing from the spec's §10 doc-edit list. judge.md step 1 reads criteria.md first, so the tool would exit 2 on every judge capture.
+- Canned reference window 4:55-5:05 is the cloud-bank stage with the player hard-banked — verified by extracting both endpoints. Contradicts the spec's own window-selection guidance and breaks the ground-band metric's premise; §11 demo expectations inherit it.
+- Selftest fixture recipe duplicates frames: `-loop 1 -i png` defaults to 25fps input then `fps=30`. Built it and hashed frames — 2 identical pairs of 15. The "known speed" pan is the ground truth for tests 1-3 and the §4.2 bias sweep that justifies `--work-width 192`.
+**Honest assessment**: Tooling gate, no rendering — verified claims against the machine rather than screenshots. The spec is genuinely prototyped: clip properties, gitignore coverage, ffmpeg 8.1, venv+opencv wheel resolution (41.6 MB, no system install), HUD band positions, judge.md's duplicate "5." step, and 180x96 strip-cell readability (rendered and Read back — bank angle and explosions legible) all checked out exactly as written. The opencv-vs-ffmpeg rejection table is correct. Sections 2, 4, 6, 7, 8, 9 should survive revision intact. It fails on the timebase hole, which invalidates the one number the issue exists to produce.
+**Improvement Insights**:
+- The mandatory capture command is duplicated in criteria.md:67, judge.md:51 and qa.md:48 — three copies that drift. Single-source it.
+- capture-video.sh should record and print its real capture rate regardless of #113. Every gameplay video reviewed to date has been 1.15x-2.2x slow motion with nobody aware, which directly corrupts speed/feel judgements.
+- architect.md: require any canned command embedded in an agent doc to be executed once and its output inspected before the spec ships. Gaps 3 and 4 were both "plausible command, never run against the real artifact".
+- The judge procedure mandates the full screenshot+video ritual unconditionally; add a tooling-gate branch so the mandate stays meaningful where it matters.

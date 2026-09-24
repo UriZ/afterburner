@@ -75,6 +75,8 @@ afterburner/
 - apply critical thinking. don't tell me what i want to hear
 - read existing code before modifying it — never blind-edit
 - work in small chunks — one logical change at a time; small prs
+- **measure, don't eyeball**: any colour/geometry constant derived from the reference must cite its actual measurement in the comment (source frame, coordinates, sampled value). A comment citing a measurement that was never taken is worse than no comment — the next agent trusts it (#115 root cause).
+- **per-stage visual checks need a harness**: stages advance on a 30s timer and unattended play dies around stage 3 (title screen by ~90s). Use `tests/sky_stage_preview.gd`-style palette harnesses for late stages, never a long unattended capture.
 
 ## Team Agents
 
@@ -204,7 +206,7 @@ gh issue edit NUMBER --add-label "developer" --remove-label "architect"
 
 ### Session Log (MANDATORY)
 
-Every agent MUST append to `SESSION_LOG.md` (root) throughout and at the end of their work. See `SESSION_LOG.md` for the format guide.
+Every agent MUST log to `SESSION_LOG.md` (root) throughout and at the end of their work. The file is NEWEST-FIRST: insert your entry at the top, directly under the `# Session Log` header — do not append to the end. See `SESSION_LOG.md` for the format guide.
 
 ### Continuous Self-Improvement (MANDATORY)
 

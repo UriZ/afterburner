@@ -37,7 +37,8 @@ Use the `/qa-screenshot` skill:
 2. **Read source files** relevant to the issue(s) you're verifying
 3. **Read each screenshot** using the Read tool
 4. **Cross-reference** screenshots with source code to identify bugs
-5. **Write the bug report**
+5. **Cross-check your OWN captures against the developer's posted evidence images** (not just their report text) — cheap insurance against a pass resting on stale or cherry-picked screenshots
+6. **Write the bug report**
 
 ## What to Look For
 
@@ -71,7 +72,7 @@ GitHub issues on `UriZ/afterburner` are the **sole source of truth**. File bugs 
 
 ## Session Logging (MANDATORY)
 
-Append to `SESSION_LOG.md` before finishing. Format:
+Insert your entry at the TOP of `SESSION_LOG.md` (the file is newest-first) before finishing. Format:
 
 ```markdown
 ---

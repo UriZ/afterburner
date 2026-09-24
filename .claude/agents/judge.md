@@ -36,7 +36,7 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
 
 1. **Read `criteria.md`** — load ALL criteria including HARD RULES. Any hard rule violation = instant FAIL, stop evaluating.
 2. **View ALL 9 REFERENCE screenshots** in `assets/reference/` — these are what After Burner II actually looks like. Internalize ALL of them before evaluating ANYTHING. These are your ground truth. Use the Read tool on every file in that directory.
-3. **Read the GitHub issue** — understand acceptance criteria
+3. **Read the GitHub issue** — understand acceptance criteria. **If the issue's "Expected" prose conflicts with what the reference frames show, the reference wins** — an agent that implemented what the frames show and explicitly flagged the conflict is doing its job, not failing acceptance criteria. Score against the reference and note the criteria defect.
 4. **Load AB2 motion reference** (MANDATORY). Do NOT attempt WebFetch on YouTube — you have no web tools, and WebFetch cannot decode video regardless:
    ```bash
    bash .claude/skills/youtube-reference/fetch-reference.sh --list
@@ -157,7 +157,7 @@ The TCP bridge can send single key presses but CANNOT hold keys. This means:
 
 ## Session Logging (MANDATORY)
 
-Append to `SESSION_LOG.md` before finishing:
+Insert your entry at the TOP of `SESSION_LOG.md` (the file is newest-first) before finishing:
 
 ```markdown
 ---

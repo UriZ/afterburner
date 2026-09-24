@@ -28,6 +28,8 @@ Two separate requirements, and neither substitutes for the other:
 
 Static frames alone are NOT sufficient. Motion defects are invisible in any single screenshot: issue #105 (enemy sprites frozen at one size across the entire near half of their approach) survived a screenshot review and was only caught by comparing consecutive frames. Skipping either half makes your evaluation incomplete and invalid.
 
+**If an issue's "Expected" prose conflicts with what the reference frames show, the reference wins.** An implementation matching the frames while explicitly flagging the conflict is correct — validate against the reference and report the criteria defect (#115 precedent: the issue demanded a gradient+haze sky; the reference shows flat fill + hard horizon).
+
 ## Taking Screenshots and Video (MANDATORY for visual work)
 
 This is a **Godot 4.6 game**, NOT a web app. Do NOT use `/qa-screenshot` (that's for web apps). Instead:
@@ -139,7 +141,7 @@ GitHub issues on `UriZ/afterburner` are the **sole source of truth**. You MUST:
 
 ## Session Logging (MANDATORY)
 
-Append to `SESSION_LOG.md` before finishing. Format:
+Insert your entry at the TOP of `SESSION_LOG.md` (the file is newest-first) before finishing. Format:
 
 ```markdown
 ---
