@@ -17,6 +17,11 @@ const SCREEN_H: float = 672.0
 # and ground bands drift apart into a visible seam.
 const HORIZON_Y: float = _DepthUtil.HORIZON_Y
 
+# Fraction of the sky's height that is a single flat fill before the horizon
+# glow (if any) starts. Measured off burst-a-02: #e67100 is pixel-identical
+# from y=60 down to y=228 of a horizon at y~268, i.e. flat for the first ~80%.
+const SKY_FLAT_FRACTION: float = 0.80
+
 var sky_top_color: Color = Color(0.08, 0.04, 0.28)
 var sky_horizon_color: Color = Color(1.00, 0.72, 0.10)
 var ground_color_a: Color = Color(0.88, 0.65, 0.30)
@@ -92,26 +97,48 @@ func _draw() -> void:
 # --- Sky ---
 
 func _draw_sky() -> void:
-	var bands: int = 50
-	var band_h: float = HORIZON_Y / float(bands)
-	for i in range(bands):
-		var t: float = float(i) / float(bands)
-		# Measured directly off burst-a-02/burst-a-03 (#42 follow-up): pixel
-		# color is flat (within JPEG noise) from the top of frame down to
-		# ~80% of the sky's height, then brightens sharply into a haze band
-		# only in the last ~20% before the horizon. A plain linear lerp across
-		# the full sky height (the previous code) spreads that same total
-		# color change evenly, which reads as "one flat orange" because the
-		# top 80% barely moves off sky_top_color either way — smoothstep
-		# concentrates the whole ramp into the band where the reference
-		# actually has one.
-		var te: float = smoothstep(0.75, 1.0, t)
-		var color: Color = sky_top_color.lerp(sky_horizon_color, te)
-		draw_rect(Rect2(0.0, float(i) * band_h, SCREEN_W, band_h + 1.0), color)
+	# AB2's sky is a FLAT backdrop fill for most of its height, and on several
+	# stages it is flat edge to edge (#115). Pixel-scanned four reference
+	# columns across three biomes: snow (burst-b-08) holds #b7d3d6 and blue day
+	# (stage-12) holds #0092f7 completely unchanged from the top of frame all
+	# the way down to the ground — no gradient whatsoever. Desert (burst-a-02)
+	# and the olive/green stage (burst-c-02) do have a horizon glow, but only
+	# across the final ~20% of the sky's height, and it is a HUE shift (29deg ->
+	# 52deg for desert) at constant saturation, not a brightness ramp.
+	#
+	# Stages whose sky_top and sky_horizon are equal therefore render as a
+	# single flat fill by construction — that is the data saying "this stage has
+	# no glow", not a degenerate case to work around.
+	var flat_h: float = HORIZON_Y * SKY_FLAT_FRACTION
+	draw_rect(Rect2(0.0, 0.0, SCREEN_W, flat_h), sky_top_color)
+	if sky_top_color.is_equal_approx(sky_horizon_color):
+		draw_rect(Rect2(0.0, flat_h, SCREEN_W, HORIZON_Y - flat_h), sky_top_color)
+		return
+	# One rect per scanline across the glow band only. The previous code spread
+	# 50 fixed-height bands over the WHOLE sky, which put ~8px-tall quantisation
+	# steps exactly where the ramp is steepest. Per-scanline over an 84px band
+	# caps the step at smoothstep's peak slope (1.5) / 84 = 1.8% of the total
+	# delta — about 2/255 on the widest-ranging stage, spread over 1px, which is
+	# below the banding threshold. Cost is unchanged: the flat 80% is now a
+	# single rect instead of 40.
+	var rows: int = int(ceil(HORIZON_Y - flat_h))
+	for i in range(rows):
+		var y: float = flat_h + float(i)
+		draw_rect(
+			Rect2(0.0, y, SCREEN_W, 1.0),
+			sky_color_at(y / HORIZON_Y, sky_top_color, sky_horizon_color)
+		)
 	# No horizon stroke here (#42 redo) — the ground shader's own haze blend
 	# (ground_terrain_2d.gdshader, fades to sky_horizon_color as it nears the
 	# horizon) is the seam between sky and ground now. Every reference shows a
 	# density falloff, not a drawn line.
+
+
+# Sky colour at normalised height `t` down the sky (0 = top of frame,
+# 1 = horizon). Pure so the gradient shape is testable without a viewport —
+# see tests/test_sky_gradient.gd.
+static func sky_color_at(t: float, top: Color, horizon: Color) -> Color:
+	return top.lerp(horizon, smoothstep(SKY_FLAT_FRACTION, 1.0, clampf(t, 0.0, 1.0)))
 
 
 # --- Ground ---

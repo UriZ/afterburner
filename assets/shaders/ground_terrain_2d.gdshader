@@ -477,7 +477,17 @@ void fragment() {
 	// Haze: ground fades into the sky's horizon tone as UV.y -> 0 (the
 	// horizon), replacing the old hard white stroke with a density falloff —
 	// no visible seam where sky meets ground, matching every reference.
-	float haze = smoothstep(0.0, 0.16, UV.y);
+	//
+	// Width cut 0.16 -> 0.06 (#115). 0.16 of a 252px ground is ~40px of
+	// sky-coloured ground, and on the desert stages (where sky, haze and ground
+	// are all in the same warm hue family) that dissolved the horizon
+	// completely — sky and ground read as one continuous orange mass, which is
+	// the core of "the sky doesn't look like sky". Measured the reference's own
+	// blend depth instead of guessing: burst-a-02 goes gold -> unambiguous
+	// ground over y=268..288 of a 212px ground (0.094), and burst-c-02 does it
+	// in 6px of a 267px ground (0.022); snow (burst-b-08) has no blend at all.
+	// 0.06 sits inside that measured range and still antialiases the seam.
+	float haze = smoothstep(0.0, 0.06, UV.y);
 	terrain = mix(haze_color.rgb, terrain, haze);
 
 	COLOR = vec4(terrain, 1.0);
