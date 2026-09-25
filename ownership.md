@@ -10,6 +10,9 @@ Judge insight (#120-#122 gate): ownership must live in a repo file, not issue pr
 - **#120's `stage_data.gd` hunk lands as its own early commit**; #124 (palette re-grade) rebases onto it.
 - **#135** (biome structure) after #124 + #120.
 
+## Pending combined commit
+- #112+#92 (jet rebuild + opacity): QA-PASSED, but player_jet_2d.gd also carries in-progress #122 work (same owner dev-sky-115) — commits together when #122 completes+passes QA.
+
 ## Current assignments
 | Issue | Agent | Files owned | Ports |
 |---|---|---|---|

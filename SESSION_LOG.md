@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-25 21:50] — TL — Retrospective: vqa-123 #112+#92 — PASS 0 bugs; commit deferred to ride with #122
+
+**Agent TLDR**: verbatim in its entry below. Independent verification throughout: own row-scan of the reference dorsal (unbroken wingtip run confirmed), own frames at proven refuel spans, isolated-harness measurements (span 35.83%W, aspect 3.546 — inside the re-derived band; 10 brightness buckets = real area shading), 22-frame alpha solve (1.000 exact), and a scratch SceneTree harness for the death→respawn→flash sequence after idle-poll missed a 3-lives-in-~1s cascade twice. Traced suite noise on the concurrent tree to other agents' mid-save files rather than trusting or dismissing it.
+
+**Retrospective — applied**: qa.md (concurrent-tree suite noise protocol; scratch-harness default for live transitions). ownership.md: #112/#92 commit deferred — player_jet_2d.gd carries in-progress #122 (same owner); both land together after #122 QA. APPLIED.
+
+
 ### [2026-09-25 21:30] — TL — Retrospective: #128 PASS 9/10; #121 fixed; #124 defect caught; music #138 delivered
 
 **judge-cycle-1 TLDR (verbatim in its entry)**: ran the counter-proof first — holds bit-for-bit; corrected its own record ("reasoned from parenting alone"); the real defect (3 self-drawing Node2D classes) confirmed and fixed by §B; edge guard reproduces within 0.25°; negative-space coverage "best in the project" — judge could not construct a broken variant the suite passes; amendment 3 (caught by the step-15 freshness re-read, 2nd consecutive catch) withdrew out-of-regime canyon numbers outright. Self-caught its own phantom-gap near-miss (plain least squares vs the spec's stated iterative rejection).
