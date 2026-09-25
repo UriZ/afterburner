@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-26 09:30] — TL — Retrospective: architect-113 #131 amendment — at scoped re-gate
+
+**Agent TLDR**: verbatim in its entry below. Owned the inversion fully ("I had the binding constraint backwards... the spec couldn't reach its own stated target, and its own AC couldn't detect that"); fix: DRIFT_SCALE 5.0→8.3 (ceiling 57.07°), clamp 60° as non-binding guard, per-formation ranges published; SECOND defect surfaced by the fix (additive oscillation gave zero-drift enemies a constant ±20° roll — now multiplicative, level-at-zero-drift); AC 1 split deterministic-on-constants (57±2 computed; clamp-only build fails immediately) + observational (≥50); adopted the judge's value-spread side-by-side into §0. Notes this is the SECOND gate this session to revise its own finding rather than defend it.
+
+**Retrospective — applied**: architect.md ×3 (negative instructions need the same arithmetic; compute reachability before ACs; deterministic-on-constants split). Re-gate → judge-113-arch (judge-cycle-1 mid-#137). APPLIED.
+
+
 ### [2026-09-26 09:00] — TL — Retrospective: #132 PASS 9 / #133 PASS 9 — in-place fixes routed
 
 **Judge TLDR**: verbatim in judge-113-arch's entry below. Both segmentations reimplemented from text alone; #132 reproduces component-for-component (five statistics exactly); haze self-catch verified; the flat-sky fact's cloudless premise confirmed BY ACCIDENT (t=94 inspected). Two #132 reproductions (scope-box leak into the cloud classifier — matters because AC 1 runs on OUR build gaining that box via #129; truncation bias on height/aspect). Near-miss published: white jets are classifier-identical to white clouds — the row window is load-bearing. #133 exact on all measurements; deferral premise verified by eye (the night STAGE digit is an 18-pixel glyph, genuinely unassignable); AC 3's grep would miss the actual variable-alpha code it targets.

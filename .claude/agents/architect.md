@@ -95,6 +95,9 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Add clipping/saturation to the physical-plausibility checks**: a measurement pinned at exactly a frame dimension for consecutive frames is CLIPPED, and any ratio from it is silently wrong in a known direction (#137: 100.00%W for 14 frames).
    - **When raising a clamp or limit, show the current ACHIEVABLE RANGE against it** — #131's clamp never engages (34.38° achievable vs 35° clamp); the raise was inert and nothing in the ACs would have revealed it.
    - **An AC must FAIL if the change misses the spec's own stated reference target** — #131's AC bar (>45°) couldn't see a 54.43° ceiling against a stated 57°.
+   - **A 'leave constant X alone' instruction needs the same arithmetic as a change to it** — a negative instruction hides a bad premise, because nothing about it looks like it needs checking (#131: 'leave BANK_DRIFT_SCALE alone' forbade the only lever that binds).
+   - **Compute REACHABILITY before writing any AC** — two same-session defects were criteria the system cannot reach stated as though it could (#139 parity-against-a-bound; #131 ceiling below its own target).
+   - **Where a target is a function of constants, assert it deterministically ON the constants; use captures only to confirm it reaches the screen** — a sampling-dependent AC cannot distinguish wrong constants from an unlucky capture (#131 AC 1a/1b split).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
