@@ -1,5 +1,42 @@
 # Session Log
 
+### [2026-09-25 19:50] — TL — Retrospective: architect-113 #128 amendment 2 — re-gate dispatched
+
+**Agent TLDR**: verbatim in its entry below; amendment 5831109160. Key: accepted 3/4 verdict defects (edge guard reproduced WORSE — confident 22-30° errors, not noisy rejection); contradicted the bolt-upright-enemies claim with a one-command runnable proof (plain-Node entities drawn by GameWorld's canvas rotate with it — parenting is for group lookup only, per the code's own comment); genuinely-missed classes identified (player projectiles + explosions = self-drawing Node2Ds) and fixed by reparenting with fallback; parenting invariant settled ("rolling world iff pixels emitted by GameWorld's canvas") collapsing §4 to 3 sites + grep check; vacuous AC made decisive (must fail with wraps removed); §G ready-to-go follow-up mini-spec, content-anchored.
+
+**Retrospective — applied**: architect.md + judge.md (parent vs canvas-issuer distinction; runnable-proof norm — judges run counter-proofs FIRST); reference-facts.md (edge-guard generalization + Node/canvas fact). Re-gate → judge-cycle-1 with run-the-proof-first instruction. APPLIED.
+
+
+### [2026-09-25 19:20] — architect — #128 (amendment 2, judge rework)
+**Task**: Rework #128 §2/§4 after judge FAIL 5/10 (scene-tree premise false); add the §8 edge guard; ready-to-go jet-bank follow-up mini-spec.
+**Result**: COMPLETED. Amendment 2 posted: https://github.com/UriZ/afterburner/issues/128#issuecomment-5831109160 — `judge-fail` removed, issue back to `enhancement,developer`. Ready for re-gate.
+
+**Accepted three real defects from the verdict**, each re-verified against the current file before accepting:
+- `_is_ramming_range` (281) is NOT a site — body is a pure depth test, reads no player position. My "same" instruction was unimplementable.
+- `_arm_invincibility_grace` (252) IS a site and I omitted it — reads `player.get_screen_position()` and compares against enemy (255) and bullet (258) positions.
+- `_check_player_weapons_vs_enemies` (298) reads no player position at all; my "weapon origin/muzzle position" described something not in that function.
+- §8's detector omitted an edge guard. Reproduced on my own pipeline and it is worse than the verdict said: without the guard the two highest-roll frames come back **wrong by 22 and 30 degrees** (t=98: 38.11 deg/resid 65.5 -> **60.72 deg/1.94**; t=110: -34.45/53.8 -> **-64.51/1.36**). Spec'd with `EDGE_MARGIN=4`, `MIN_COLUMNS=40`, and the note that rejecting a frame is safe while reporting a wrong angle is not.
+
+**Corrected one load-bearing claim in the verdict, with proof rather than argument.** The verdict concluded that rotating GameWorld "rotates the sky fill and the ground quad, and nothing else", leaving "enemies standing bolt upright". That does not follow: **node parenting does not determine where a `draw_*` call lands — the CanvasItem issuing it does.** Enemies (`game_manager_2d.gd:139`) and enemy bullets (`enemy_jet_2d.gd:202`) are plain **`Node`** (not `Node2D`, so not CanvasItems, no transform, no draw), `enemy_jet_2d.gd` defines no `_draw()`, and GameWorld draws them into its OWN canvas (`draw_enemy(self, ...)` with signature `canvas: CanvasItem`; `_draw_bullet_obj` calls bare `draw_circle`). The Main2D parenting is for group lookup only — the code comment at `game_manager_2d.gd:141` says exactly that.
+Rather than argue from principle I replicated the pattern in a throwaway project (plain `Node` entities parented to Main, drawn by a *sibling* Node2D) and printed rendered positions: **roll=0 -> (400,100); roll=90 -> (716,256)** — precisely the 90-degree rotation about (480,336). Entities that are not children of the drawer still rotate with it.
+
+**What I actually missed, which the verdict was right to flag in substance**: three classes ARE self-drawing `Node2D`s parented outside GameWorld and would NOT have rotated — player vulcan bullets (`weapon_manager_2d.gd:202`), player missiles (:232), and explosions (`missile_2d.gd:199`, `enemy_jet_2d.gd:188`). Under my original spec these would have stayed screen-axis-aligned while the world rolled beneath them. That defect was mine.
+
+**Settled the parenting question the verdict asked be answered first**, with an invariant: *an entity is part of the rolling world iff its pixels are emitted by GameWorld's canvas — drawn by `GameWorld._draw()` directly, or by a descendant*. Enemies/enemy bullets: no change. Ground quad: already a child. The three self-drawing classes: reparent via a `world_layer` group helper that **keeps the existing `_get_container()` upward walk as a fallback**, so the standalone demo scenes (`test_missiles_2d.gd`, `sprite_scaling_demo.gd`) with no GameWorld keep working. Designed the consequences the verdict asked for rather than assuming: group lookups are parent-independent, despawn is `queue_free`, draw order is preserved because the ground quad sets `show_behind_parent`.
+
+**§4 collapsed to three wrap sites**, all of them the player jet's own position (157, 217, 252), with 302/317 needing none once projectiles are world entities. Replaced the unfalsifiable "confirm no fifth site exists" with a concrete check: re-run the grep and confirm the only `player.`-qualified reads are those three.
+
+**Made the vacuous AC decisive**: the banked-collision test now requires demonstrating it FAILS with the wraps removed — a guard without a negative control proves nothing (#113 lesson). Added two ACs that did not exist: projectiles/explosions must tilt with the horizon (the AC for the reparenting, without which it can be silently skipped), and enemies must roll (a regression guard, since giving enemies their own `_draw()` later would quietly opt them out).
+
+**Honesty markers preserved per the judge's explicit instruction**: §1.1's record that my own first pass used a loose mask and was wrong, and §3's "BANK_FOLLOW is the weakest number in this spec" with its three scattered measurements and the instruction not to derive it numerically. Both restated in the follow-up mini-spec so they survive the split.
+
+**Follow-up mini-spec written ready-to-go** (§G) so the jet-bank coupling can start the moment #112/#92 lands, with no further architect round — risk 4 says the interim state looks worse than today, so the gap must be short. Anchored by content, not line numbers, since that file is under active change.
+
+**Improvement Insights**:
+- **judge.md / architect.md**: "which node is the parent" and "which CanvasItem issues the draw call" are different questions in Godot, and conflating them produced a confident FAIL on a design that works. Worth naming in both files: when reasoning about what a Node2D transform affects, check the node TYPE (plain `Node` cannot draw) and who passes the canvas to the draw call — not the scene tree alone.
+- **workflow**: contradicting a judge needs evidence a judge can re-run in one command, not an argument. The 12-line throwaway project that printed `roll=90 -> (716,256)` settled a load-bearing disagreement in about two minutes; prose would have produced another round.
+- **criteria.md**: the edge-guard finding generalizes — any measurement that fits a line to a boundary crossing the frame needs an edge guard, or it silently returns a shallower angle. The failure is not noisy rejection, it is a confident wrong number (22-30 deg here). Worth adding to the reference-facts/measurement guidance alongside the flat-fill sky detector.
+
 ### [2026-09-25 19:30] — TL — Retrospective: architect-comp #120/#121/#122 reworks — re-gates dispatched
 
 **Agent TLDR**: verbatim in its entry below. Key: #120 root cause = unpublished classifier (free parameter worth 5pp; judge's values reproduced bit-for-bit once adopted); full-span re-derivation: stage 8 survives (13.12%H, was right by luck), stage 17 corrected 0.10→0.07; confidence asymmetry shipped; AC 10 rejects unmetricated figures. #121: self-contradictory colour rule replaced with controlled second hue family; 991/32 exact-binary lockstep; new AC 0 that our build fails today by design. #122: two-regime arithmetic surfaced a hidden between-regime centre difference (canyon = lower AND straighter); composition reproduces 10.44/12.16 exactly; per-regime AC with forced-weight falsification.

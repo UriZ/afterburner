@@ -60,6 +60,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Check acceptance criteria for what they DON'T cover, not just what they assert** — #128's suite would have gone green on a build where only the ground rolls: the passing AC tested the one element that already worked, and the collision AC passed vacuously.
    - **The PUBLISHED spec must carry the full classifier (metric, tolerance, command), not just the result** — declaring tolerances in a scratch script isn't declaring them; an unpublished free parameter made two correct measurements disagree by 5pp for a full gate cycle (#120).
    - **Never ship a value measured from one frame — re-measure over the full verified span first.** Of #120's two single-frame values, one survived ("by luck") and one was wrong, and the single-frame read gave no signal which (#120 rework: stage 8 median stable ±3.33pp, stage 17 ±7.92pp).
+   - **Godot: "which node is the parent" and "which CanvasItem issues the draw call" are DIFFERENT questions** — a plain `Node` cannot draw at all; entities drawn by another node's canvas inherit THAT node's transform regardless of parenting. Check node types and who passes the canvas before reasoning from the scene tree (#128 amendment 2's proof).
+   - **Contradicting a judge requires evidence the judge can re-run in one command** — a 12-line throwaway project settled a load-bearing disagreement in minutes; prose would have cost a full round (#128).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

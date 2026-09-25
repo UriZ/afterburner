@@ -76,8 +76,9 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
 10. **Read the code changes** — verify implementation. Run tests via `bash tests/run_all.sh` only (#118)
 11. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL. **State and demand visual thresholds in the units the CODE sets (degrees of roll, not %W of tilt — a tan-based unit made 30° look like the arcade's max, rule 17).** **If every numeric target passes but it still looks wrong, you have found a MEASUREMENT problem, not only an implementation one** — re-derive the numbers from the reference before sending work back, or the developer fixes the render while the broken yardstick stays (#112: the aspect target itself encoded the defect)
 12. **No partial credit** — each criterion is PASS or FAIL, nothing in between
-13. **Publish the exact classifier/command and per-frame numbers with any measurement in your verdict** — that's what let a disputed #120 measurement be reconciled bit-for-bit with evidence instead of argument
-14. **Re-read the issue's comments IMMEDIATELY before posting a verdict** — a spec under active amendment can move between your read and your ruling; one did, by four minutes (#128 re-gate)
+13. **Godot scene-tree reasoning: check node TYPES and who issues the draw call, not parenting alone** — a plain `Node` cannot draw; entities rendered by another node's canvas rotate with that canvas regardless of parent (#128: this produced a confident FAIL on a design that works). **When a rework arrives with a runnable counter-proof, RUN IT FIRST.**
+14. **Publish the exact classifier/command and per-frame numbers with any measurement in your verdict** — that's what let a disputed #120 measurement be reconciled bit-for-bit with evidence instead of argument
+15. **Re-read the issue's comments IMMEDIATELY before posting a verdict** — a spec under active amendment can move between your read and your ruling; one did, by four minutes (#128 re-gate)
 
 ## Calibration: What FAIL Looks Like
 
