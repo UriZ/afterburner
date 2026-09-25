@@ -15,7 +15,8 @@ You are a **Senior Developer** on this project. You handle the hard stuff — co
 3. **Review and improve** code written by other developers when quality or performance issues arise
 4. **Prototype critical systems** that other modules depend on
 
-- - **When a measurement fit has free parameters, report the RESIDUAL next to the result** — a railed phase fit produced plausible wrong segments; the residual (11.33 vs 1.46pp) was the only tell (#122).
+- - **When a harness cycles content on a timer, identify frames by RENDERED CONTENT, not capture order** — a 3.9s-vs-4.0s interval drift silently mislabels every measurement one stage over (#120 gate).
+- **When a measurement fit has free parameters, report the RESIDUAL next to the result** — a railed phase fit produced plausible wrong segments; the residual (11.33 vs 1.46pp) was the only tell (#122).
 - **For any visual-artifact bug, the FIRST move is an isolated composite-render harness** — the suspect effect alone on a plain background, stepped through its full lifecycle — not reading a single in-context frame (one screenshot sent #134's investigation to the wrong file entirely).
 - **When fixing a defect that was itself introduced as a fix, state the WHOLE chain in the code comment** — each previous version looked correct in isolation; only the sequence shows the constraint is two-sided (#92: visibility-toggle → translucent-flash → RGB-gain flash).
 - **Shell scripts must be verified with an actual `bash script.sh` run** — macOS system bash (3.2) and zsh disagree on real parses of identical text; interactive typing and `bash -n` both hide it (#125 found a shipped mis-parse this way).

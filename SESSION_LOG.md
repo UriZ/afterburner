@@ -1,5 +1,48 @@
 # Session Log
 
+### [2026-09-26 01:15] — TL — Retrospective: judge #120 impl gate — PASS 9/10; stage_data committed f99baff
+
+**Judge TLDR**: verbatim in its entry below. Additive-only proven mechanically (key-stripped diff = 0 changes); AC4 negative control replicated exactly (delete push → 9/1); AC6/6b bit-identical (15.48/6.25%H); haze explanation actively attacked and held (blend spans the GROUND range → predicts larger canyon offset AND stage 17's negative sign — coherent, not a dodge); cruise pre/post within 0.1pp using the judge's own cycle-1 method. Findings: (a) AC7 estimator plateau/tie-break unreproducible from its description (inherited pre-AC10) → architect amendment + sweep dispatched; (b) 5-frames-vs-20 disclosed honestly, moving-capture check handed to visual QA.
+
+**Actions**: stage_data hunk committed f99baff (unblocks #124 impl); visual QA → vqa-sky-115 (boundary artifacts, strips, moving canyon, rule-8 interaction); #121/#135 re-gates → judge-cycle-1; AC7 amendment + pre-AC10 sweep → architect-comp.
+
+**Retrospective — applied**: CLAUDE.md rsync-scratchpad pattern for destructive tests; dev defs frames-by-content rule; reference-facts haze-bias magnitudes with signs. APPLIED.
+
+
+### [2026-09-25 04:55] — judge — #129 (architect spec, HUD parity)
+
+**Gate type**: per-agent (architect)
+**Verdict**: PASS — four reproductions to satisfy
+**Score**: 9/10 (threshold 9)
+**Gated comment**: id 5833992855 (2026-09-25T14:22:43Z), newest at ruling time; freshness re-read showed no amendment.
+
+**Method (rule 14)**: rebuilt the evidence from scratch — my own 25 frames t=94-118, my own median composite, my own classifiers. A: white = B>=180&G>=180&R>=180. B: red = R>=140&(R-G)>=60&(R-B)>=60. C: gold = R>=150&110<=G<=210&B<=110. D: not-sky = (B-R)<60.
+
+**Six of seven published numbers reproduced to within 0.2 %W**: SCORE 5.2-22.0 (spec 5.2-22.2), HIT 50.4-59.3 (50.4-59.5), SPEED 5.2-13.0 (5.2-13.1), STAGE 42.6-51.2 (42.6-51.3), gold fill 25.7-30.2 (25.7-30.3), scope box 77.6-87.3 %W / 10.8-21.0 %H (77.3-87.6 / 10.4-21.7 — mine reads inside, expected from my stricter cutoff trimming AA edges), life-icon x 6.0-9.5 (6.0-9.6). Quadrant white counts TL30/TR34/BL27/BR15 confirm four corner brackets; central 50% has ZERO white px, matching "interior empty". Median technique works exactly as described.
+
+**Four reproductions to satisfy**:
+1. **Life-icon row extent is wrong**: spec and AC 8 both say 94.2-97.9 %H; classifier D row profile ends at y=462 = 96.2 %H with NOTHING between 96.2 and 97.9. Full extent incl. outline is 93.8-96.2 %H (~2.4 %H). A developer sizing to the published 3.7 %H box draws icons ~1.5x too tall AND passes AC 8, which quotes the same bad range.
+2. **§3.1/risk 3's justification is factually false**: grep gives exactly four high_score hits — hud.gd:10,39-40 (declare/update) and hud_canvas.gd:47 (the readout being deleted). NO title/game-over screen references it; after this change it is dead state with zero readers. Keeping it is still right, but not for the stated reason.
+3. **AC 6 constrains %W only** — apart from the scope box (AC 2) and lives (AC 8), no element has a vertical tolerance, though §1.2 publishes y extents. A build with right x and wrong y for SCORE/HIT/SPEED/STAGE passes everything.
+4. **AC 5 is slot-scoped** (68-100%W x 0-8%H): an HI readout MOVED elsewhere passes the pixel half. The grep half largely closes it in practice. True negative-space form is an inventory check, not single-region vacancy.
+
+**Stress targets**:
+- t=118 cloud (bg BGR 239,213,183): conclusion sound, adjective generous. LEFT two brackets unmistakable against surviving blue sky — proves the box IS drawn. Right-hand brackets are white-on-white cloud; I could not confidently resolve TR/BR by eye at 5x. Presence 25/25 and the template-correlation prescription are correct; "clearly visible" overstates the right half.
+- t=110 roll (bg BGR 212,78,38): FULLY confirmed and more convincing than claimed — axis-aligned white L-brackets over a world rolled ~64°, visibly diagonal behind them. Unchanged colour, no clip, no tint.
+- reticle_2d.gd IS the moving element (tracks _weapon_manager.locked_enemy lines 36-42/66-67, BRACKET_ARM corners, "The box itself is NEVER hidden" from a #49 round-5 fix). §2 assigns it correctly; §4 marks do-not-touch.
+- AC 5 region on the REFERENCE returns 0 white px and 0 red px — genuinely no HI field on the arcade play screen.
+
+**Self-caution worth recording**: my first pass searched x 60-100%W and swallowed the HIT digits into the scope-box bbox, and y 90-100%H and swallowed the SPEED plate into the life-icon bbox. Both produced plausible-looking wrong extents. Window the search to the element, not the band — same class of error as the spec's abandoned 11/25 count.
+
+**Notable**: AC 3 carries its own negative control ("temporarily gate the box on locked_enemy and confirm this test fails") written by the architect unprompted — first time that pattern arrived without a judge demanding it. §1.3 also documents the author's own failed measurement rather than discarding it, which saved me re-deriving the same artefact.
+
+**Improvement Insights**:
+- criteria.md: rule 14 should add that HUD geometry acceptance tests must constrain BOTH axes — this spec publishes y extents then tests only x, invisible unless you read the ACs against §1.2 side by side.
+- architect.md: state "window the search region to the element, not the band" explicitly. Both my false readings and the spec's abandoned count came from this.
+- judge.md: rule 15a worked in reverse here — my positive controls were the six numbers reconciling to 0.2 %W, which is what let me assert the seventh is wrong rather than suspect my own classifier.
+
+---
+
 ### [2026-09-26 00:50] — TL — Retrospective: architect-comp #121/#135 amendments — AC 0 reduction ACCEPTED
 
 **Agent TLDR**: verbatim in its entry below. #121: the judge's operator bug confirmed (window computed on the cropped band = measuring edge padding = band geometry); with the fix + area normalization, the architect's OWN separation claims died — 12 metrics, no discriminator; AC 0 made judgement-binding with published context (a threshold on a non-discriminating measure fakes a guarantee). Flagged the reduction openly rather than burying it. mean-|grad| lead preserved (harsher, not blurrier). #135: wall-detector control supplied (85.7/95.4/0.0/0.0% on hand-verified regions — genuinely in regime), stage-8 re-control required before quoting; own 81-vs-71% discrepancy reconciled (unstated column definitions); AC 6 median+p90 with mandatory spread.
