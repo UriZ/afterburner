@@ -155,7 +155,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 6. **Sky matches the reference's real shape: flat fill + optional tight glow + hard horizon.** Measured from all 50 longplay frames (#115): AB2's sky is a FLAT fill; many stages are flat edge-to-edge with NO glow and NO haze band (snow `#b7d3d6`, blue day `#0092f7`, pixel-identical top to ground). Where a glow exists it occupies only the last ~20% of sky height and is a HUE shift at held saturation (desert H29°→H52°, S pinned 1.00, V 0.90→0.98), not a brightness ramp. The horizon is a hard 6-20px cut. Per-biome measured anchors live in the `stage_data.gd` header. A whole-sky smooth gradient, a soft/hazy horizon, or an RGB-lerp passing through desaturated grey = FAIL.
 
-7. **Colors must match the reference stage-for-stage.** Measure mean HSV saturation against the equivalent reference stage — do NOT apply a flat floor. Desert measures S~0.87-0.90; snow measures S~0.14. A flat threshold wrongly fails a correct snow stage. Muted output on a stage whose reference is vivid = FAIL.
+7. **Colors must match the reference stage-for-stage — and "the equivalent reference stage" must be PROVEN, not assumed.** Before any per-stage color validation, establish the reference frame's stage identity with evidence (HUD stage number visible in frame, score continuity, or verified position in the longplay timeline) and cite it. Matching our stage N pixel-perfectly to an UNIDENTIFIED reference frame is how #115 passed two gates while stage 1 shipped a brown sky the user caught in seconds — the arcade's stage 1 is blue (#123). Then measure mean HSV saturation against that verified stage — do NOT apply a flat floor. Desert measures S~0.87-0.90; snow measures S~0.14. A flat threshold wrongly fails a correct snow stage. Muted output on a stage whose reference is vivid = FAIL. A biome/palette match to the wrong stage = FAIL.
 
 9. **No rendering artifacts.** Seams, tearing, Z-fighting, flickering, or visual glitches of any kind = FAIL.
 
@@ -225,7 +225,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 | 4 | LOOKS RIGHT | Critical | View ALL references in `assets/reference/` AND gameplay videos. Does your output look like After Burner II? If not, FAIL. Code that works but looks wrong = FAIL. |
 | 5 | Tests present | High | Tests for core logic |
 | 6 | No scope creep | High | Only what was specified |
-| 7 | Idempotent outputs | High | Re-running a tool into an existing output directory must not leave artifacts from the previous run — the directory must match the latest run alone (#113: stale strips read as current evidence). If the workflow allows concurrent reuse of a stable output name, concurrent runs must not silently corrupt outputs (#119) — test sequential AND concurrent reuse |
+| 7 | Idempotent outputs | High | Re-running a tool into an existing output directory must not leave artifacts from the previous run — the directory must match the latest run alone (#113: stale strips read as current evidence). If the workflow allows concurrent reuse of a stable output name, concurrent runs must not silently corrupt outputs (#119) — test sequential AND concurrent reuse. Any tool producing judge/QA evidence must be checked for "can it ever exit 0 with output an agent cannot use" — silent success with unusable output is worse than a crash (#113 stale strips, #119 torn strips) |
 
 ### QA
 

@@ -320,6 +320,110 @@ else
 fi
 
 echo
+echo "13. concurrent runs sharing one --out (#119)"
+# Two agents working the same issue land on the same --out, because both agent
+# inserts use a stable --name judge-<issue> / --name qa-<issue>. Pre-fix, both
+# processes wrote strip-01.png at the same instant and every strip became a torn
+# PNG that `file` and `sips` still called fine — only cv2/libpng caught it.
+#
+# Starts from a DIRTY directory on purpose: the sequential clearing path and the
+# concurrency path have to hold at the same time.
+OUT="$TMP/t13"
+$COMPARE --ref "$REF" --ref-window 0-10 --game "$GAME" --name t13-seed --out "$OUT" >/dev/null 2>&1
+SEEDED=$(ls "$OUT" | grep -c '^strip-')
+expect "seeded a populated --out before racing into it" "$SEEDED" "3"
+
+# The two runs do IDENTICAL work (same windows, so the same ffmpeg cost) and
+# differ only in --strip-cell-width, which makes their strips 1468px and 1948px
+# wide. Equal cost is what makes their compose phases actually collide; the
+# width difference is what makes a survivor's provenance visible.
+#
+# Measured on the pre-fix code over 6 trials: torn PNGs appeared in 1 trial, but
+# strips from BOTH runs survived side by side in 4. Mixed provenance is the
+# likelier symptom of this race, and it decodes perfectly — so a fix that only
+# stops the tearing would still leave an artifact describing two different
+# windows. Three trials, because a single one is a coin flip.
+for trial in 1 2 3; do
+  $COMPARE --ref "$REF" --ref-window 0-10 --game "$GAME" --game-window 0-10 \
+    --strip-cell-width 180 --name t13a --out "$OUT" >/dev/null 2>&1 &
+  PID_A=$!
+  $COMPARE --ref "$REF" --ref-window 0-10 --game "$GAME" --game-window 0-10 \
+    --strip-cell-width 240 --name t13b --out "$OUT" >/dev/null 2>&1 &
+  PID_B=$!
+  wait $PID_A; RC_A=$?
+  wait $PID_B; RC_B=$?
+  expect "trial $trial: both concurrent runs exit 0" "$RC_A$RC_B" "00"
+
+  VERDICT=$("$PY" - "$OUT" <<'PYEOF'
+import cv2, glob, os, re, sys
+out = sys.argv[1]
+strips = sorted(glob.glob(os.path.join(out, "strip-*.png")))
+imgs = [(os.path.basename(f), cv2.imread(f)) for f in strips]
+print("decodable" if strips and all(im is not None for _, im in imgs) else "corrupt")
+widths = sorted({im.shape[1] for _, im in imgs if im is not None})
+report = open(os.path.join(out, "report.md")).read()
+cell_w = int(re.search(r"cell size: (\d+)x\d+", report).group(1))
+cols = int(re.search(r"up to (\d+) cells each", report).group(1))
+expected = cols * cell_w + (cols - 1) * 4
+if len(widths) != 1:
+    print("mixed-provenance:%s" % widths)
+elif widths[0] != expected:
+    print("strips-disagree-with-report:%d-vs-%d" % (widths[0], expected))
+else:
+    print("one-run")
+PYEOF
+)
+  expect "trial $trial: every surviving strip decodes via cv2.imread" \
+    "$(echo "$VERDICT" | sed -n 1p)" "decodable"
+  expect "trial $trial: surviving strips all come from the run that wrote the report" \
+    "$(echo "$VERDICT" | sed -n 2p)" "one-run"
+done
+
+if [ -z "$(ls -d "$OUT"/.staging-* 2>/dev/null)" ]; then
+  pass "no staging directories left behind"
+else
+  fail "no staging directories left behind"
+fi
+
+# Negative control: the validator above must be capable of returning "corrupt",
+# or "decodable" proves nothing. Torn exactly the way the race tore them — a
+# valid PNG header over a damaged IDAT stream, which `file` still calls a PNG.
+CONTROL="$TMP/t13-control.png"
+cp "$OUT/strip-01.png" "$CONTROL"
+"$PY" - "$CONTROL" <<'PYEOF'
+import sys
+data = bytearray(open(sys.argv[1], "rb").read())
+for i in range(len(data) // 2, len(data) // 2 + 2000):
+    data[i] ^= 0xFF
+open(sys.argv[1], "wb").write(data)
+PYEOF
+CONTROL_RESULT=$("$PY" -c "
+import cv2, sys
+print('corrupt' if cv2.imread(sys.argv[1]) is None else 'decodable')" "$CONTROL" 2>/dev/null)
+expect "the decode check does detect a torn PNG" "$CONTROL_RESULT" "corrupt"
+
+echo
+echo "14. lock timeout is reported, not silently ignored"
+OUT="$TMP/t14"
+mkdir -p "$OUT"
+# Hold the lock from outside, then race a run against it with a 1s patience.
+"$PY" - "$OUT/.lock" <<'PYEOF' &
+import fcntl, os, sys, time
+fd = os.open(sys.argv[1], os.O_CREAT | os.O_RDWR, 0o644)
+fcntl.flock(fd, fcntl.LOCK_EX)
+time.sleep(6)
+PYEOF
+HOLDER=$!
+sleep 1
+MOTION_METRICS_LOCK_TIMEOUT=1 $COMPARE --ref "$REF" --ref-window 0-5 --game "$GAME" \
+  --game-window 0-5 --name t14 --out "$OUT" >/dev/null 2>&1
+expect "a held lock times out with exit 8" "$?" "8"
+wait $HOLDER 2>/dev/null
+# And the lock is genuinely released when the holder exits, so the next run works.
+$COMPARE --ref "$REF" --ref-window 0-5 --game "$GAME" --game-window 0-5 --name t14 --out "$OUT" >/dev/null 2>&1
+expect "the same --out works once the lock is free" "$?" "0"
+
+echo
 echo "================================"
 echo "$PASSED passed, $FAILED failed"
 [ "$FAILED" -eq 0 ]

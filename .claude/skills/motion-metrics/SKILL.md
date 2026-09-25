@@ -48,10 +48,11 @@ bash .claude/skills/motion-metrics/compare.sh \
   --name qa-<issue>
 ```
 
-**Concurrency**: never let two `compare.sh` runs share one `--out` — pass a distinct
-`--name` per agent (e.g. suffix your role/port). Concurrent runs into the same directory
-silently corrupt every strip: both exit 0, `file`/`sips` call the PNGs fine, and only
-`cv2.imread` reveals the CRC error (#119).
+**Concurrency**: two runs sharing one `--out` are safe — they serialize on a lock and the
+second cleanly replaces the first, so you always read one complete run's evidence (#119
+fixed). The second run prints `Waiting for another compare.sh run to finish ...` and may
+take a few seconds longer. A distinct `--name` per agent is still preferable when you want
+*both* results, since the loser's output is replaced, not merged.
 
 Then `Read` every `strip-NN.png` it prints, and `Read` the `report.md`.
 
@@ -162,6 +163,19 @@ and **before** extraction, so a bad invocation never destroys a good previous ru
 that fails during extraction leaves the directory empty rather than stale. Files the tool
 does not itself write are never touched.
 
+**Concurrent runs into the same `--out` are also safe** (#119). Each run takes an exclusive
+`flock` on `<out_dir>/.lock` for its whole working phase, so two processes serialize instead
+of interleaving; the waiting one says so on stderr. Everything is built in a
+`.staging-<token>` subdirectory and moved into place with `os.replace` only once complete, so
+the paths you are told to read never hold a half-written file — not even if a run is killed
+mid-compose. The lock is an `flock`, which the kernel drops when the process dies, so there
+is no stale lock to clean up by hand.
+
+The loser of a race is **replaced, not merged**: you get one complete run's evidence, never a
+`strip-01.png` from one window beside a `strip-02.png` from another. Before the fix, that
+mixed-provenance outcome was the *likelier* symptom (4 of 6 measured trials) and it decodes
+perfectly — the torn PNGs everyone noticed first were the rarer half.
+
 ## 7. Troubleshooting
 
 | Exit | Meaning | Do |
@@ -173,6 +187,7 @@ does not itself write are never touched.
 | 5 | input missing or unprobeable | Check the path; confirm the capture actually produced a video |
 | 6 | post-crop aspect mismatch >2% under `strict` | `--aspect-policy center-crop`, or fix the capture resolution |
 | 7 | fewer than 2 cells extractable | Widen the window or lower `--strip-fps` |
+| 8 | waited over 5 min for another run's lock on this `--out` | Check nothing else is running against it; otherwise delete `<out>/.lock` or use a different `--name` |
 
 `--strip-fps` above a clip's true rate is exit 2: the clip cannot supply distinct frames that
 fast, and upsampling would duplicate cells that look like a frozen game.
@@ -180,9 +195,9 @@ fast, and upsampling would duplicate cells that look like a frozen game.
 ## 8. Limits
 
 - **No speed numbers**, by design (§1). If a gate needs a speed claim, it is blocked on #114.
-- **Not concurrency-safe on a shared `--out`** (#119): re-running is safe *sequentially*; two
-  simultaneous runs into one directory corrupt all strips silently (exit 0, PNGs pass `file`/
-  `sips`, only `cv2.imread` catches the CRC error). One agent, one `--name`.
+- **Concurrent runs on a shared `--out` serialize, they do not merge** (#119). Both succeed,
+  but only the last one's strips and report survive. Use a distinct `--name` when you need
+  both results side by side.
 - **Content alignment is the operator's job** (§4). The tool guarantees time alignment only.
 - Runtime is a few seconds per clip; long windows are bounded by `--max-strips`.
 - A `--game-true-fps container` declaration on a pre-#116 clip is only as good as the label.
@@ -195,11 +210,15 @@ fast, and upsampling would duplicate cells that look like a frozen game.
 bash .claude/skills/motion-metrics/selftest.sh
 ```
 
-50 assertions: pure-function unit tests (window parsing, crop geometry, aspect resolution,
-sampling plan, and the §3.4 time-base worked example used as a known-answer oracle) plus 11
+64 assertions: pure-function unit tests (window parsing, crop geometry, aspect resolution,
+sampling plan, and the §3.4 time-base worked example used as a known-answer oracle) plus 14
 end-to-end tests against generated fixtures — strip geometry, row alignment, real-time
 equalization on a deliberately mislabeled clip, sidecar precedence, every error path, frame
-cleanup, and the scope-boundary guard **together with a negative control proving the guard
-can fail**.
+cleanup, sequential re-run idempotency, concurrent-run safety, and the lock timeout.
+
+Two of those carry **negative controls proving the guard can fail**: the scope-boundary
+check is run against a report that does contain speed figures, and the concurrency check's
+PNG-decode assertion is run against a deliberately torn PNG. The concurrency test itself was
+verified against the pre-fix code, where it fails 3 times out of 3.
 
 `example-report.md` in this directory is the committed demo run (report text only).

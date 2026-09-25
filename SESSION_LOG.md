@@ -1,5 +1,109 @@
 # Session Log
 
+### [2026-09-25 13:05] — qa — #119 (scoped recheck of the finder's original repro)
+
+**Task**: as the original bug finder, re-run my exact #119 repro (two `compare.sh` racing on one `--out`) against the current fix (flock + staging/atomic replace) and confirm the corrupt-PNG symptom is gone.
+**Result**: PASS (3/3 trials clean)
+**Issues verified**: #119 (PASS)
+**New bugs filed**: none
+**Key findings**:
+- 3 trials, distinct `--name`s (`qa119-recheck`, `-t2`, `-t3`) to avoid colliding with other agents (stayed off port 9510 per TL note — this tool doesn't need Godot anyway).
+- All 3 trials: both processes exit 0/0 (unchanged, expected), and — the check that matters — **every strip now decodes via `cv2.imread`** (previously `None` + `libpng: IDAT CRC error` on all 3, every time). One consistent width per run, no mixed provenance, no `.staging-*` residue.
+- One trial's log captured the expected `Waiting for another compare.sh run to finish...` message from the losing process; its `report.md` window matched the surviving strips' content — confirms replace-not-merge, not a lucky race.
+
+## TLDR
+GitHub issue(s): #119
+Re-ran my original two-process race repro against the current fix 3 times. Original symptom (silent exit-0 success with corrupted, undecodable strip PNGs) is gone in all 3 trials — every strip now decodes cleanly via `cv2.imread`, one consistent window per run, no staging leftovers. Posted confirmation to #119, removed its `qa` label.
+
+## Improvement Insights
+- None new — the developer's flock+staging fix and the judge's prior verification already covered this thoroughly; my recheck just confirms it holds from the finder's own exact repro.
+
+---
+
+### [2026-09-25 12:58] — TL — USER ESCALATION: stage 1 sky brown → #123 filed, gate rule amended
+
+User launched the game: stage 1 sky is brown/orange; arcade stage 1 is blue. #115 passed dev+vQA+judge because all layers verified our-stage-1 vs burst-a-02 (orange frame) without anyone proving burst-a-02 IS stage 1 — correspondence failure, not measurement failure. Third gate failure this session with the same root shape: internally-consistent evidence never anchored to ground truth (fictional fps labels; sub-Nyquist speed stills; unidentified reference frames).
+
+**Actions**:
+- #123 filed (top priority): prove stage identity of every palette reference frame (HUD stage number/score continuity/timeline), re-derive stage 1 from the arcade's actual stage 1, audit all 23 stages. Assigned dev-sky-115 (full #115 context), port 9510.
+- criteria.md rule 7 amended: per-stage validation requires PROVEN frame↔stage identity, cited; match-to-unidentified-frame = FAIL.
+- comparison.html: gate post-mortem panel added (what passed, why it passed wrongly, what changed) per user request.
+
+
+### [2026-09-25 12:50] — TL — Retrospective: judge scoped verify #119 — PASS 10/10
+
+**Judge TLDR**: verbatim in the judge's entry below; verdict on #119. Key: own 4-trial symmetric race — all clean, single provenance, no staging residue; external-lock timeout path (stderr announce → exit 8 → clean after release); validation-before-lock ordering confirmed; executed the flock/SIGKILL claim rather than accepting it (kill -9 holder → immediate re-acquire). Selftest 64/64. Closes both #113 final-gate doc conditions. Non-blocking nit: MOTION_METRICS_LOCK_TIMEOUT undocumented.
+
+**Retrospective — applied**:
+- developer.md + senior-developer.md: measure the failure-mode distribution before fixing only the named mode; negative-control expectation for silently-always-passing tests. APPLIED.
+- CLAUDE.md: concurrency rule now points at out_dir_lock() as the reference implementation. APPLIED.
+- Next: scoped QA confirmation (qa-113-116 re-runs its own original repro), then commit.
+
+
+### [2026-09-25 03:05] — judge — #119 (scoped verify, concurrency fix)
+
+**Gate type**: per-agent, scoped to the #119 concurrency fix
+**Verdict**: PASS
+**Score**: 10/10 (threshold 9)
+**Key gaps**: none. One non-blocking nit: MOTION_METRICS_LOCK_TIMEOUT is used by the tooling but undocumented in SKILL.md (the exit-8 row gives sensible remedies without it).
+
+**Verified by execution**:
+- **My own symmetric race, 4 trials** (identical work, differing only in --strip-cell-width so provenance is visible from pixel width): every trial both exits 0, 3 strips, 0 corrupt, all survivors share ONE width [1468], and that width matches the surviving report's own cell size (8x180+7x4). Report and strips describe the same run. No staging residue.
+- **Lock path independently**: external flock held on <out>/.lock + MOTION_METRICS_LOCK_TIMEOUT=4 -> announces "Waiting for another compare.sh run to finish ..." on stderr, then exit 8 naming the lock file with three remedies; after release the same --out runs clean (exit 0, 3 strips).
+- **Validation-before-lock ordering confirmed directly**: the "windows differ in length" warning printed BEFORE the lock wait, so a bad invocation still cannot destroy a good previous run — last gate's sequential guarantee survives.
+- **flock/SIGKILL claim executed, not accepted**: held an exclusive flock, kill -9'd the holder, re-acquired immediately; compare.sh then ran clean into that dir. The kernel does drop it, so there is genuinely no stale-lock recovery path — correct primitive over a PID lockfile.
+- **selftest 64/64**. Test 12's 5 sequential-idempotency assertions intact and still discriminating. Test 13: 12 assertions over 3 trials plus no-staging-residue AND the torn-PNG negative control. Test 14: exit 8 + release.
+- **SKILL.md** documents the fixed semantics in three places matching what I measured (serialize not interleave, second cleanly replaces first, stderr announcement, kernel-dropped flock, staging + os.replace, "replaced, not merged"). Exit 8 in the troubleshooting table. Assertion count current at 64. This also closes BOTH documentation conditions I attached to the #113 final gate.
+
+**Honest assessment**: the substantive contribution is that the developer measured the race before choosing the fix — mixed provenance 4/6 trials vs tearing 1/6. QA's suggested rename-only direction would have fixed the visible half and left the commoner half in place, decoding perfectly while describing two different windows: exactly the failure class this feature's history already blocked a gate over, and invisible. I reproduced the fixed behaviour independently and every claim held.
+
+**Improvement Insights**:
+- criteria.md / developer.md: third artifact-integrity bug on this feature, first where the fix was chosen by measuring the failure distribution rather than pattern-matching the reported symptom. State it as a rule — when a bug report names one failure mode, measure how often the others occur before fixing only the named one.
+- CLAUDE.md: my earlier "one rule for per-agent-unique output paths" suggestion now has a reference implementation. Point it at motion_metrics.py's out_dir_lock() so the next tool copies a working pattern instead of inventing one.
+- Negative controls appeared twice on this feature (scope-guard regex, torn-PNG decode check) and both times were what made the assertion meaningful. Promote from habit to expectation for any test whose failure mode is "silently always passes".
+
+---
+
+### [2026-09-25 04:05] — TL — Retrospective: senior-developer #119 (concurrency fix)
+
+**Agent TLDR**: verbatim in the dev's entry below; report on #119, relabeled qa. Key: measured the race before fixing — QA's suggested rename-only fix covers tearing (1/6 trials) but not mixed provenance (4/6), the commoner failure; shipped flock (kernel-dropped on SIGKILL, no stale-lock path) + staging/os.replace. First concurrency test was vacuous (asymmetric windows never collided) — rewritten to symmetric distinguishable workloads, verified failing 3/3 on pre-fix code. Selftest 64/64 (was 50). Exit 8 on lock timeout; serialize-don't-error preserves spec semantics; last-run-wins residual documented in SKILL.md.
+
+**Retrospective — applied**:
+- qa.md: explicit post-checklist concurrency/reentrancy probe step. APPLIED.
+- developer.md + senior-developer.md: race-test validity rule (must fail on broken code; equalized, distinguishable workloads). APPLIED.
+- criteria.md criterion 7: extended — gate-evidence tools checked for "exit 0 with unusable output". APPLIED.
+- Consumer-library decode rule: already in qa.md from #119 QA retro. DUPLICATE.
+- Next: scoped judge verify, then QA.
+
+
+---
+### [2026-09-25 04:10] — senior-developer — #119
+**Task**: Two concurrent `compare.sh` runs sharing one `--out` exit 0 but byte-corrupt every strip.
+**Result**: COMPLETED
+**Files changed**: `.claude/skills/motion-metrics/{motion_metrics.py,selftest.sh,SKILL.md}`
+
+**Key changes**:
+- `motion_metrics.py` — `out_dir_lock()`: exclusive `fcntl.flock` on `<out_dir>/.lock` held across clear → extract → compose → publish; exit 8 on timeout (`MOTION_METRICS_LOCK_TIMEOUT`, default 300s).
+- `motion_metrics.py` — everything builds under `<out_dir>/.staging-<token>` and is `os.replace`d into place only once complete (`publish()`).
+- `motion_metrics.py` — `clear_previous_run()` sweeps abandoned `.staging-*` trees and excludes `.lock`; signature dropped `frames_root` (frames now live in staging).
+- `selftest.sh` — test 13 (concurrency, 3 trials, dirty start, negative control) and test 14 (lock timeout). Suite 50 → **64**.
+
+**Technical decisions**:
+- **Went beyond QA's suggested rename-only fix, on measured evidence.** `os.replace` alone stops tearing but not provenance: process B can clear, then rename its single `strip-01` over A's published set, leaving A's `strip-02/03` beside it — decodes perfectly, describes two different windows. Six pre-fix races (symmetric work, differing only in `--strip-cell-width` so each strip's origin is visible from its width): **mixed provenance in 4/6, tearing in 1/6**. The corruption everyone saw first is the *rarer* half. So: lock for consistency, staging+rename for atomicity.
+- **`flock`, not a PID lockfile.** The kernel drops it when the process dies, including SIGKILL, so there is no stale-lock recovery path to get wrong.
+- **Serialize rather than error.** Preserves the documented "`--out` already populated: overwrite, do not error" semantics; the waiting run says so on stderr.
+- **Sweeping `.staging-*` is safe only under the lock** — no peer can be mid-write in one. Documented at the call site.
+- Residual, documented not fixed: racing runs serialize, they do not merge. Merging two windows into one directory is not a meaningful artifact.
+
+**Testing**: Reproduced the original defect first (3/3 strips `libpng IDAT CRC error`). Post-fix: 5 real-clip races all clean and consistent, both orderings observed. Selftest **64 passed, 0 failed** — all 50 prior assertions still green. Test 13 starts from a dirty directory, races identical-cost runs (asymmetric windows made the processes miss each other entirely — my first attempt was vacuous), and asserts decode + single-width-matching-the-report over 3 trials. **Verified against pre-fix code: test 13 fails 3/3.** Negative control tears a good PNG and requires the decode check to report `corrupt`. Test 14 holds the lock externally and requires exit 8, then that the same `--out` works once released. `demo-1` regenerated on the real clips, three strips at 1468x286, read back and legible.
+
+**Improvement Insights**:
+- **[qa.md]**: this bug was found by "try something that could realistically break it", outside the assigned checklist, and it is the highest-value find of the cycle. Worth making an explicit QA step: after the assigned checks pass, spend one probe on the concurrency/reentrancy of any tool the workflow runs repeatedly.
+- **[senior-developer.md]**: a concurrency test is only a regression guard if it fails on the broken code. Mine did not, at first — asymmetric workloads made the two processes miss each other. Rule: for any race test, (a) equalize the work so the critical sections collide, (b) make each process's output distinguishable, and (c) run it against the pre-fix code and confirm it fails.
+- **[workflow]**: `file` and `sips` both reported torn PNGs as valid. Any check that an image artifact is usable must decode it with the same library the consumer uses (`cv2.imread`), not ask the OS what type it is.
+- **[criteria.md]**: silent-success-with-bad-output is worse than a crash for gate artifacts, and this is now the second instance in this skill (stale strips, then torn strips). Worth a standing rule that any tool producing judge/QA evidence must be checked for "does it ever exit 0 with unusable output".
+
+---
 ### [2026-09-25 03:45] — TL — #113+#116 shipped; #119 assigned; #120-#122 filed; page updated
 
 - Committed 6c48c12 (motion-metrics v1 + true time base, 18 files) after final gate PASS.

@@ -20,6 +20,8 @@ the point ffmpeg is invoked.
 """
 
 import argparse
+import contextlib
+import fcntl
 import json
 import math
 import os
@@ -27,6 +29,8 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 
 # Exit codes — mirrored in SKILL.md's troubleshooting table.
@@ -36,6 +40,12 @@ EXIT_VENV = 4
 EXIT_INPUT = 5
 EXIT_ASPECT = 6
 EXIT_TOO_FEW_CELLS = 7
+EXIT_LOCK_TIMEOUT = 8
+
+# A run is a few seconds; this only trips if a peer is wedged. Overridable so
+# selftest.sh can exercise the timeout path without waiting five minutes.
+LOCK_TIMEOUT_S = float(os.environ.get("MOTION_METRICS_LOCK_TIMEOUT", "300"))
+STAGING_PREFIX = ".staging-"
 
 GUTTER = 4
 LABEL_BAND_H = 26
@@ -248,7 +258,55 @@ def probe(path):
         raise UserError("unusable probe output for %s (%s)" % (path, exc), code=EXIT_INPUT)
 
 
-def clear_previous_run(out_dir, frames_root):
+@contextlib.contextmanager
+def out_dir_lock(out_dir, timeout_s=LOCK_TIMEOUT_S):
+    """Exclusive lock over an `--out` directory, held for the whole run.
+
+    Two agents working the same issue land on the same `--out`, because both
+    agent inserts use a stable `--name judge-<issue>` / `--name qa-<issue>`.
+    Without this, both processes write `strip-01.png` at the same instant and
+    every strip ends up a torn PNG: valid signature and IHDR, interleaved IDAT,
+    `libpng error: IDAT: CRC error`. `file` and `sips` call those files fine, so
+    nothing signals the agent to distrust them (#119).
+
+    `fcntl.flock` rather than a PID lockfile: the kernel drops it when the fd
+    closes, including on SIGKILL, so there is no stale-lock recovery path to get
+    wrong. Serializing also preserves the documented "`--out` already populated:
+    overwrite, do not error" semantics — the second run simply waits, then
+    replaces the first run's output completely.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    lock_path = os.path.join(out_dir, ".lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
+    deadline = time.monotonic() + timeout_s
+    announced = False
+    try:
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise UserError(
+                        "another compare.sh run has held %s for over %ds.\n"
+                        "  Concurrent runs sharing one --out are serialized so they cannot\n"
+                        "  corrupt each other's strips. If nothing else is running, remove the\n"
+                        "  lock file, or give this run its own --out / --name."
+                        % (lock_path, int(timeout_s)), code=EXIT_LOCK_TIMEOUT)
+                if not announced:
+                    print("Waiting for another compare.sh run to finish with %s ..." % out_dir,
+                          file=sys.stderr)
+                    announced = True
+                time.sleep(0.25)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+def clear_previous_run(out_dir):
     """Remove this run's own artifacts from a re-used --out directory.
 
     `--out` defaults to a directory derived from `--name`, and both the judge
@@ -260,15 +318,38 @@ def clear_previous_run(out_dir, frames_root):
 
     Deliberately narrow: only the files this tool writes. An operator may have
     put notes or a copied report in the directory, and `--out` can be pointed at
-    an existing path, so this must never behave like `rm -rf <out_dir>`.
+    an existing path, so this must never behave like `rm -rf <out_dir>`. The
+    `.lock` file is excluded for the obvious reason.
+
+    Only ever called while holding out_dir_lock(), which is what makes sweeping
+    abandoned `.staging-*` trees safe — no peer can be mid-write in one.
     """
     for entry in os.listdir(out_dir):
+        path = os.path.join(out_dir, entry)
         if re.fullmatch(r"strip-\d+\.png", entry) or entry == "report.md":
             try:
-                os.remove(os.path.join(out_dir, entry))
+                os.remove(path)
             except OSError:
                 pass
-    shutil.rmtree(frames_root, ignore_errors=True)
+        elif entry == ".frames" or entry.startswith(STAGING_PREFIX):
+            shutil.rmtree(path, ignore_errors=True)
+
+
+def publish(staging_dir, out_dir, artifacts):
+    """Move finished artifacts into place with os.replace (atomic per file).
+
+    The lock already prevents two runs from interleaving, so this is the second
+    line of defence and the one that covers a crash: a run that dies mid-compose
+    leaves a half-written PNG in the staging tree, never at the path an agent is
+    told to read.
+    """
+    published = []
+    for name in artifacts:
+        src = os.path.join(staging_dir, name)
+        dst = os.path.join(out_dir, name)
+        os.replace(src, dst)
+        published.append(dst)
+    return published
 
 
 def extract(clip, rect, cell_size, cstart, cdur, cfps, n_cells, out_dir):
@@ -543,9 +624,27 @@ def run(args, argv):
     args.name = name
     out_dir = args.out or os.path.join(REPO_ROOT, ".reference-cache", "metrics", name)
     out_dir = os.path.abspath(out_dir)
-    os.makedirs(out_dir, exist_ok=True)
-    frames_root = os.path.join(out_dir, ".frames")
-    clear_previous_run(out_dir, frames_root)
+
+    # Everything from here to publish() runs under an exclusive lock on out_dir,
+    # and writes into a staging tree rather than the paths agents are told to
+    # read. Two concurrent runs therefore serialize instead of interleaving, and
+    # a failure leaves the directory empty rather than half-written (#119).
+    with out_dir_lock(out_dir):
+        clear_previous_run(out_dir)
+        staging = tempfile.mkdtemp(dir=out_dir, prefix=STAGING_PREFIX)
+        try:
+            return _build_and_publish(
+                cv2, np, args, argv, clips, windows, rects, cell_size, cells,
+                interval, widened, effective, effective_real_fps, truncation_note,
+                aspect_note, out_dir, staging)
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+
+
+def _build_and_publish(cv2, np, args, argv, clips, windows, rects, cell_size, cells,
+                       interval, widened, effective, effective_real_fps, truncation_note,
+                       aspect_note, out_dir, staging):
+    frames_root = os.path.join(staging, "frames")
 
     extracted = {}
     for key in ("ref", "game"):
@@ -566,16 +665,23 @@ def run(args, argv):
         "command": "bash .claude/skills/motion-metrics/compare.sh " + " ".join(_quote(a) for a in argv),
     }
 
-    strips, used = compose_strips(cv2, np, extracted["ref"], extracted["game"], cell_size, args, meta, out_dir)
+    strips, used = compose_strips(cv2, np, extracted["ref"], extracted["game"], cell_size, args, meta, staging)
     meta["cells"] = min(cells, used)
-    report = write_report(args, meta, strips, out_dir, _collect_warnings(clips, truncation_note))
+    write_report(args, meta, strips, staging, _collect_warnings(clips, truncation_note))
 
-    if not args.keep_frames:
-        # Default because these are frames of copyrighted arcade footage.
-        shutil.rmtree(frames_root, ignore_errors=True)
+    # Publish only once every artifact is fully written.
+    published = publish(staging, out_dir,
+                        [os.path.basename(p) for p in strips] + ["report.md"])
+    if args.keep_frames:
+        kept = os.path.join(out_dir, ".frames")
+        # Must not exist, or shutil.move nests inside it instead of replacing.
+        shutil.rmtree(kept, ignore_errors=True)
+        shutil.move(frames_root, kept)
+    # Otherwise the frames die with the staging tree — default because they are
+    # frames of copyrighted arcade footage.
 
-    print("Strips: %s" % ", ".join(strips))
-    print("Report: %s" % report)
+    print("Strips: %s" % ", ".join(published[:-1]))
+    print("Report: %s" % published[-1])
     return 0
 
 

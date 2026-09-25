@@ -77,6 +77,7 @@ same cell index in each row is the same number of seconds into its window. See
 
 ### Key points:
 - **Strips support composition and pose findings, not speed findings.** Horizon height, ground coverage, object count, jet pose and explosion size are all fair game. Speed is not: AB2's ground aliases below ~60fps sampling, so no frame-to-frame comparison at these rates can support a speed claim (#113; gated on #114).
+- **After the assigned checks pass, spend one probe on concurrency/reentrancy** of any tool the workflow runs repeatedly — the highest-value finds of the #113/#119 cycle came from off-checklist probes (concurrent same-`--out` runs), not the assigned list.
 - **Verify outputs with the tool's OWN decoder, not `file`/`sips`** — both reported byte-corrupted PNGs as valid; only `cv2.imread` (what the tool and Read actually use) caught them (#119).
 - **Port-conflict tests on macOS**: confirm the occupier is actually bound to the same address family via `lsof -i tcp:PORT` BEFORE launching the process under test — bare `nc -l PORT` can bind a different family than Godot's explicit `127.0.0.1` and produce a false "no conflict" that looks like a hang (#117 QA).
 - **Always use `--start-game`** — this restarts Godot fresh, avoiding stale GAME OVER states
