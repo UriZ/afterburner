@@ -74,7 +74,7 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
 8. **View ALL frames** — Read EVERY PNG in `/tmp/game-capture/`. Describe what you ACTUALLY see across the sequence.
 9. **Compare EACH frame against the reference** — for every element (jet, enemies, ground, explosions, colors, HUD), describe the gap between our game and the reference screenshot. Be specific: "our jet is flat grey, reference jet has shading and panel lines."
 10. **Read the code changes** — verify implementation. Run tests via `bash tests/run_all.sh` only (#118)
-11. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL. **If every numeric target passes but it still looks wrong, you have found a MEASUREMENT problem, not only an implementation one** — re-derive the numbers from the reference before sending work back, or the developer fixes the render while the broken yardstick stays (#112: the aspect target itself encoded the defect)
+11. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL. **State and demand visual thresholds in the units the CODE sets (degrees of roll, not %W of tilt — a tan-based unit made 30° look like the arcade's max, rule 17).** **If every numeric target passes but it still looks wrong, you have found a MEASUREMENT problem, not only an implementation one** — re-derive the numbers from the reference before sending work back, or the developer fixes the render while the broken yardstick stays (#112: the aspect target itself encoded the defect)
 12. **No partial credit** — each criterion is PASS or FAIL, nothing in between
 
 ## Calibration: What FAIL Looks Like

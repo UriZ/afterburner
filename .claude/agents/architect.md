@@ -54,6 +54,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Negative-control variant: check time SERIES for physical coherence**, not just individual fits — a smooth monotonic ramp is evidence a detector tracks the real thing; scattered plausible values are not (#128 roll ramp).
    - **When criteria.md changes mid-task, re-read the rules your already-posted specs depend on** — a posted spec went quietly non-compliant for hours after a rule amendment (#121/rule 11).
    - **A METHOD carried between issues needs its own re-validation, not just its output** — #123's modal estimator worked because skies are flat fills (mode share 97.8%); it fails on dithered grounds (mode share 5.7%) and 'do what #123 did' was a dead end (#124).
+   - **Any claim about the SCENE TREE must be verified against the .tscn AND every runtime add_child before a design rests on it** — #128's implementation half was built on a diagram a source comment contradicted in plain words (same error class as #122's nonexistent attract-flight).
+   - **A detector shipped for developer+judge to share must be RUN end-to-end on the frames the ACs will use, with its reject rate reported** — #128's §8 detector, implemented literally, rejected nearly every frame above 30° roll (missing edge guard).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
