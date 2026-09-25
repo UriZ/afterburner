@@ -143,7 +143,7 @@ The judge MUST internalize these visual standards. This is what we're trying to 
 
 **RULE ZERO — whole-frame comparison comes first.** Before measuring any attribute, put a full captured frame of our build beside a full reference frame and answer one question: *do these look like the same game?* Name every difference you see, ranked by how much of the screen it affects. Only then measure.
 
-Attribute measurement is a check on a judgement already made by eye — never a substitute for it. A build can pass every numeric target and still look wrong: aspect 2.92 vs 2.95, wingspan 36.25% vs 35.6%, saturation 0.853 vs 0.867 all passed while the ground read as foam bubbles and the jet read as a sticker. Measuring a proxy cannot detect a defect the proxy does not cover, and no attribute rule covered ground feature size — the single most damaging error on screen.
+Attribute measurement is a check on a judgement already made by eye — never a substitute for it. Worked example (#121): SEVEN object statistics all matched the arcade while the ground demonstrably read wrong; the three that discriminate (features >=8%W: ours 0 vs arcade 1-5; max width; small-object count ours ~2x arcade) had to be found by measuring, not assumed. A build can pass every numeric target and still look wrong: aspect 2.92 vs 2.95, wingspan 36.25% vs 35.6%, saturation 0.853 vs 0.867 all passed while the ground read as foam bubbles and the jet read as a sticker. Measuring a proxy cannot detect a defect the proxy does not cover, and no attribute rule covered ground feature size — the single most damaging error on screen.
 
 Never evaluate a cropped subject alone. Composition defects live between elements.
 

@@ -78,7 +78,8 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
 12. **No partial credit** — each criterion is PASS or FAIL, nothing in between
 13. **Godot scene-tree reasoning: check node TYPES and who issues the draw call, not parenting alone** — a plain `Node` cannot draw; entities rendered by another node's canvas rotate with that canvas regardless of parent (#128: this produced a confident FAIL on a design that works). **When a rework arrives with a runnable counter-proof, RUN IT FIRST.**
 14. **Publish the exact classifier/command and per-frame numbers with any measurement in your verdict** — that's what let a disputed #120 measurement be reconciled bit-for-bit with evidence instead of argument
-15. **Re-read the issue's comments IMMEDIATELY before posting a verdict, and state the newest comment id/timestamp your verdict gated** — the freshness re-read caught an addendum five minutes old on first use (#120)
+15. **Re-read the issue's comments IMMEDIATELY before posting a verdict, and state the newest comment id/timestamp your verdict gated** (two consecutive catches; gate requests should cite a comment id and the verdict restate the newest id actually gated, so brief-vs-reality drift is visible from both ends)
+15b. **Before logging a gap from your own re-derivation, check whether the spec already specifies the method you simplified** — a plain-least-squares re-run nearly logged a phantom under-specification against a spec that said 'iterative outlier rejection' (#128) — the freshness re-read caught an addendum five minutes old on first use (#120)
 16. **State gaps as REPRODUCTIONS TO SATISFY, not prescribed patches** — two of three #120-#122 reworks produced better fixes than the judge's suggested remedy — a spec under active amendment can move between your read and your ruling; one did, by four minutes (#128 re-gate)
 
 ## Calibration: What FAIL Looks Like

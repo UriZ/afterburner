@@ -64,6 +64,10 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Contradicting a judge requires evidence the judge can re-run in one command** — a 12-line throwaway project settled a load-bearing disagreement in minutes; prose would have cost a full round (#128).
    - **Any measured figure in a spec or AC carries its metric and threshold** (generalized #120 AC 10) — #121 reintroduced the identical unpublished-classifier defect in the SAME batch; the lesson does not transfer between issues by itself.
    - **An AC added in response to a gate finding must be RUN against the current build with the number published** — #121 asserted "our build scores ~0" on an AC that actually scores 76 (more objects than the reference).
+   - **Run every method against the HARDEST case it must handle, not a convenient one** — #124's frame selector was fine on desert and structurally incapable on stage 1, the stage the issue was named for (sky and sea share #009fff; the selector rejected the sea itself).
+   - **Consulting reference-facts.md is a checklist STEP, not an optional reference** — the fact that would have prevented #124's selector defect was already recorded there and was walked past.
+   - **When a spec states a grep or count as a verification instruction, run it and paste the output** — #128's 'returns 12 hits' returned 13.
+   - **Reference example for the whole discipline: #128** — a judge error corrected by runnable proof, three architect defects accepted, two measurement sets withdrawn as out-of-regime, a negative control demonstrated on every guard.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
