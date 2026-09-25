@@ -1,5 +1,66 @@
 # Session Log
 
+### [2026-09-26 07:40] — TL — Retrospective: ground consolidation applied (3bfe0a1)
+
+**Agent TLDR**: verbatim in architect-113's entry below; draft on #126. Nine fact/rule disagreements found in cross-check; three would mis-gate (eyeball-speed line contradicting the aliasing evidence; rule 11 baking literals while forbidding bakes; single-hue failing a correct ocean). TL rulings: all three in the draft's direction. Six staleness fixes incl. the DUPLICATE rule number 8 (every 'rule 8' citation was ambiguous). Discipline held: no new requirements, no invented numbers, no incident history dropped.
+
+**Retrospective — applied**: criteria.md G0-G7 applied surgically (superseded rules deleted, movement rule renumbered 19, TODO replaced with the do-not-re-add pointer); tl.md standing step (fact lands in reference-facts → grep criteria for the superseded rule — 5 of 9 disagreements were criteria lagging recorded facts). Point-vs-bound now lives in G7 for ground rules; the two-list structure audit for non-ground rule pairs queued as a future criteria pass. APPLIED.
+
+
+---
+### [2026-09-25 22:40] — visual-qa — #120
+**Task**: Verify #120 (per-stage horizon/ground coverage) beyond what architect/developer/judge already covered — live gameplay (not just static preview harness), AC6 re-check with a genuine moving capture, independent AC8 strip run, rule-8 enemy interaction on a low-horizon stage, run_all.sh.
+**Result**: PASS (0 blocking bugs; 1 non-blocking visual finding filed inline on the issue)
+**Issues verified**: #120 (PASS)
+**New bugs filed**: none as a separate issue — flagged inline on #120: ground_terrain_2d.gdshader's `aa_horizon`/`haze` bands scale with `ground_span` (UV.y-based), which is 2.3-2.5x larger on canyon stages post-#120, producing an ~80-135px soft/hazy sky-to-ground transition vs the reference's 6-20px crisp cut. Does not violate any stated AC (cut-position band and ≥82% ground coverage both still pass) so not gating the issue; recommended as a shader follow-up (likely #121's territory). Also reproduced the already-known #134 vulcan-bullet glow (out of scope, confirms it's a single pre-existing issue, not new).
+**Improvement Insights**:
+- workflow: reaching a late-game stage (8, 30s/stage x 7 = ~230s) for genuine live verification is only practical with `set_capture_invincible` + continuous fire + a real-time background wait; polling the wait repeatedly wastes turns; a single `run_in_background` sleep-then-capture command that blocks until the target stage is the right shape, and is worth documenting as a pattern in game-capture's skill doc for "verify stage N live" tasks generally, not just #120.
+- workflow: hit the same transient black-sky-on-launch glitch a second time (previously seen in #130/#134 QA), this time mid-run rather than at launch, and now with an additional adjacent symptom (a harness snapshot showing a frozen/wrong sky color on stage 19 that a later stage-21 snapshot did not reproduce). Still not enough evidence to root-cause confidently, but it's now been observed 3 times under heavy concurrent multi-agent load — worth a dedicated investigation rather than three separate QA agents each independently shrugging it off as transient.
+- process: two "you went idle" pings arrived while I was correctly blocked on real-time-bound background captures (a ~230s live-gameplay wait, then a ~66s harness-cycle wait) — the work was progressing, just not producible faster than real time allows. Worth the TL/orchestration layer distinguishing "no tool calls because idle" from "no tool calls because waiting on a `run_in_background` job it already started," e.g. by checking for an outstanding background task before pinging.
+
+---
+### [2026-09-25 20:55] — judge — #131 enemy-rendering spec
+**Gate type**: per-agent (architect), first gate
+**Verdict**: FAIL
+**Score**: 8/10 (threshold 9). judge-fail applied.
+**Gated**: newest comment 5838321106 (19:27:08Z).
+
+**PREMISE CORRECTION IS RIGHT — MY CYCLE-1 GAP-8 WORDING WAS WRONG.** Verified in code first, per the TL's instruction: draw_set_transform(pos,bank_rad,ONE) at :70 with identity reset at :183 (no leak); 9-key colour table x 3 types; 8 layers; size tiers 1.5/4/4/6/8/10/16; nozzle red s*0.13 -> black s*0.087 -> glow s*0.033; bank wired through get_bank_angle(). Then re-examined MY OWN cycle-1 frame magnified: both enemies show lighter fuselage vs darker wings, cream leading-edge lines, pale canopy triangle, tail stub, wing-tip chevrons, three-part nozzle. "Flat single-fill polygons" was an overstatement.
+**But the perception was right and the two crops demonstrate G2 better than the colour table**: side by side, the type-2 charcoal enemy reads as a shaded aircraft while the type-0 green reads as one dark mass — same renderer, same 8 layers, same frame, only the value spread differs (0.219 vs 0.102). Recommended the spec adopt this as its §0 evidence.
+**On "zero bank"**: both enemies I re-examined are near level — CONSISTENT with G4's frozen-at-spawn story but not proof; a capture of statues with small draws is indistinguishable from aircraft that happen to be level. AC 2's negative control is what settles it.
+
+**All four gap measurements reproduce EXACTLY**: type 0 spread 0.102 (0.251/0.208/0.149/0.173), type 1 0.251, type 2 0.219; core/red 25.4%; MAX_BANK_RAD 0.6109 = 35.00deg; _x_drift set once at :117, read at :132, never rewritten; formation drifts +-0.05/0.10/0.07/0.12 -> 14.32/28.65/20.05/34.38 deg, all four exact. G3's fix also checks: 0.052/0.13 = 40.0% and 0.052 < 0.087 < 0.13 satisfies AC 4's ordering.
+
+**FAILURE — §3.1's binding-constraint claim is ARITHMETICALLY INVERTED, with a practical consequence.** Spec says "with drift up to +-0.12 the clamp is what binds". It does not: max achievable today = 0.12*5.0 = 0.6000 rad = 34.38 deg vs clamp 0.6109 rad = 35.00 deg — the clamp NEVER engages (would bind only above |drift| = 0.1222; every formation caps at 0.12). Three consequences: (1) G1 alone is INERT — raising the clamp 35->60 deg changes nothing until G4 lands, yet it is presented as an independently measured gap; (2) the spec explicitly FORBIDS the lever that actually binds ("leave BANK_DRIFT_SCALE alone"), steering a developer away from the only control on the range, on a false premise; (3) with G4's specified BANK_OSC_AMOUNT=0.35 the ceiling is 0.6+0.35 = 0.95 rad = 54.43 deg, so §3.1's "brackets the measured 57deg" is unreachable — would need BANK_OSC_AMOUNT >= 0.3948. NO AC catches it: AC 1's bar is >45 deg, which 54.43 clears. Severity is modest (nothing wrong ships; 54.4 vs 57 is visually negligible; the constant is correctly labelled tunable) but the reasoning is wrong in a way that costs a tuning cycle and overstates delivery against the spec's own reference figure.
+
+**Strong and must survive**: the published method failures (sky-swallowed nozzle window — 87,310 px for one enemy because stage 3's sky is orange, correctly named as the same class as #128's white-pixel count and #129's life-icon row; JPEG-inflated tier count 19-22 vs ~6 real tiers, now in reference-facts); honest limits (only two arcade enemies characterised, both large, so no smallest-tier claim and gate thresholds left alone BECAUSE evidence cannot justify changing them; BANK_OSC_* labelled visual with an instruction not to derive them from two frames); the #128 composition contract (world_roll + bank_rad additive, never compensate for roll_rad, never derive bank from screen-space deltas because a screen-space derivative already contains the roll) with AC 6's negative control whose arithmetic I checked — adding roll_rad inside get_bank_angle gives 20+40=60 then the canvas adds 40 again = 100 deg, correctly required to FAIL; "red marking is NOT a gap" with AC 8 guarding against a plausible wrong fix derived from MY imprecise cycle-1 wording, citing #100's :133-135 comment which I confirmed exists; ownership boundary verified by reading the call site.
+
+**Improvement Insights**:
+- **judge.md / cycle-2 prep**: my cycle-1 gap wording ("flat single-fill polygons, zero bank") was an overstatement that a spec had to spend a section correcting, and it nearly caused a real regression (shrinking a red marking that is already smaller than the arcade's). When writing convergence-cycle gaps, magnify the element before characterising its construction — a gameplay-scale read of a dark-on-bright sprite says nothing about whether layers exist.
+- **architect.md**: when a spec raises a clamp/limit, require showing the current achievable range against that limit. #131's G1 is inert alone and nothing in the spec or its ACs would have revealed that.
+- **architect.md**: an AC bar should be set so it fails if the change misses the spec's OWN stated reference target. AC 1's >45 deg passes at 54.43 against a stated 57, so the shortfall is invisible to the acceptance suite.
+- **criteria.md / reference-facts.md**: the type-0-vs-type-2 crop pair is a compact worked example of "value spread, not layer count, determines whether a sprite reads as shaded". Worth keeping as reference material for future sprite work.
+
+---
+### [2026-09-26 03:05] — architect — #137 (fireball end-of-life)
+**Task**: Characterize how the arcade ENDS a fireball, then spec the fix against that.
+**Result**: COMPLETED — spec posted, relabeled `developer`.
+
+**Key decisions**:
+- **The arcade ends a fireball by SHRINKING it, not by fading it — measured, not assumed.** Two isolated stage-2 fireballs sampled at native 30fps, each preceded by a near-zero window so the life cycle isn't a blend of two explosions. Through the decay the radius falls to **15.5% of peak** while **mean V is HELD at 0.78-1.00 and actually RISES**. An alpha ramp necessarily drags V toward the background, so the reference directly contradicts our mechanism. Both explosions agree independently (A's mean V rises 0.783 -> 0.867 through its decay).
+- **Designed the measurement so each candidate ending has a distinct signature** before looking at any data — fade: area flat + V falls; shrink: area falls + V flat; fragment: count rises; smoke: hot falls as desaturated mass appears. That made the answer unambiguous rather than a judgement call.
+- **Caught my own contaminated first pass**: the desert SKY is orange, so a naive hot-pixel mask measured 10-20% "fireball" coverage on frames with no explosion — it was reading the ground. Added a sum|dRGB from #e67100| > 60 term and restricted to the sky band; that term is load-bearing and is stated in the spec.
+- **Excluded explosion A's radius ratio for saturation**: its max radius reads exactly 100.00 %W for 14 consecutive frames, i.e. clipped at frame width, so a ratio from it would understate the collapse. Used explosion B (peak 71.57 %W, unsaturated) for the decay law and wrote the saturation check into AC 6.
+- **Timing was already right; only the mechanism was wrong.** Measured life split is growth ~70% / decay ~30%; our fire phase already fades over its final 40%. So the fix keeps the dissolve onset at 0.62 and changes alpha -> radius collapse, rather than re-timing a gate-passed effect.
+- **Fragmentation falls out for free**: pieces rise 16 -> 29 through the arcade's decay. The fire body is already a dark base plus bubble blobs, so giving the bubbles a later dissolve onset (0.72 vs the base's 0.62) makes them separate into distinct hot fragments as the base collapses. No new system.
+- **Deferred the fire/smoke overlap with its measurement**: the arcade's smoke appears **0.33s AFTER** the fireball is gone; ours cross-fades. That is what the issue means by the fade being "masked by smoke", but re-timing phase boundaries on a gate-passed effect is its own issue. Guarded mechanically — a test asserting the boundaries are unchanged, plus a negative-control fixture with a shifted boundary proving the checker rejects it.
+
+**Spec posted to**: #137 comment 5838407960
+
+**Improvement Insights**:
+- [architect.md]: worth a standing step — **enumerate the candidate answers and their distinct signatures BEFORE measuring**. It turned "does the arcade fade or shrink?" from an interpretation into a table lookup, and it is the cheapest technique I have used this session.
+- [architect.md]: add saturation/clipping to the physical-plausibility checklist. A measurement pinned at exactly the frame dimension for many consecutive frames is clipped, and any RATIO derived from it is silently wrong in a known direction.
+
 ### [2026-09-26 07:00] — TL — Retrospective: qa #127 confirm — NOT CLEAN; regex-engine mismatch in test 17
 
 **Agent TLDR**: verbatim in its entry below. 4 of 5 items clean (regenerated report leak-free under 10 own rephrasings; legit-text fixture 0; negative control 0-old/1-new exact; 0.9672 byte-identical; 87/0). Blocking find: test 17 compiles the guard with Python re where POSIX [[:space:]] silently matches nothing — proven by feeding the shipped leak line to both engines (grep 1, re 0). Its PASS today is an artifact of the fixed code; a revert would sail through it (test 16, bash-based, would still catch).
