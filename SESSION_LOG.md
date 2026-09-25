@@ -1,5 +1,85 @@
 # Session Log
 
+### [2026-09-26 10:00] — TL — Retrospective: judge #137 gate — FAIL 8/10; fixes routed
+
+**Judge TLDR**: verbatim in its entry below. Shrink-not-fade verified twice (decay law 0.150-0.179 vs 0.155 under a DIFFERENT radius definition — robustness, not luck; explosion A near-exact); found stronger saturation evidence than the spec (span pinned while area moves 67%). FAILs: AC 5's unstated component-size filter (unfiltered count runs BACKWARDS); AC 3 inverted on the bright stage-2 sky (an alpha fade would PASS the anti-fade bar; AC 4 is the true discriminator).
+
+**Retrospective — applied**: architect.md ×2 (per-AC parameter completeness; background-value statement); judge.md 15aa promoted to DEFAULT for measurement-bearing specs (decisive 3 consecutive gates); reference-facts: the self-measuring-window trap NAMED with its 4 instances. Fixes → architect-comp's queue (after #132/#133). APPLIED.
+
+
+---
+### [2026-09-26 03:40] — architect — #132, #133 (post-PASS in-place fixes)
+**Task**: Apply the gate's reproductions on #132 and corrections on #133 (both PASSED 9/10).
+**Result**: COMPLETED — amendments posted on both; both queue for developers.
+
+**Key decisions**:
+- **#133's AC 3 grep could not see the code it targets — the most serious of the batch.** I wrote "grep for a Color( with a fourth argument < 1.0", but the current trail is `Color(1.0,1.0,1.0,a)` with a VARIABLE alpha, so no textual "<1.0" test can match it. **The defect this issue exists to remove would have passed its own guard.** Rephrased to match on ARITY not value: any 4-arg Color( whose fourth argument is not the literal 1.0 fails. And the mandated negative-control fixture must use the VARIABLE form — a fixture with a literal 0.35 would pass a broken checker and prove nothing.
+- Same failure class as #121's AC 0 and #120's AC 7 this batch: a criterion correct on the cases I thought of and blind on the one actually in front of me. The negative control is what converts it from a hope into a guard.
+- **#132's HUD rect was too short and produced a phantom cloud.** #129 measures the scope box at 10.4-21.7 %H = y50-104; my rect stopped at y=82, so its lower bar scored as a 17.5 %W "bank" on t=94 — a frame reference-facts calls cloudless with std 0.00. Extended to (495,30)-(660,105): on my own n=29 set, 54 -> 50 banks, frames-with-bank 76% -> 69%. Matters most because AC 1 runs this classifier on OUR build and #129 is adding that very box — our capture would have scored a phantom bank while rendering no clouds.
+- **Re-derived on MY OWN n=29 set rather than adopting the judge's n=25 figures**, so the spec stays internally consistent. Confirms them: 32% of banks truncate at the 45 %H cut; untruncated height median 6.04 %H and aspect 0.97 vs pooled (biased) 7.08 and 1.00.
+- **Height and width need OPPOSITE treatment, which the judge's framing didn't separate**: the cut biases height DIRECTLY (a clipped bank reports a height it doesn't have) but biases width only through SELECTION (truncation preferentially catches large banks). So height/aspect come from untruncated-only, while POOLED width stays authoritative — and I explicitly warned against substituting the untruncated width median (7.07), which is a biased sample of small clouds.
+- **Adopted the judge's near-miss into the spec text as load-bearing**: the classifier cannot distinguish a white jet or sea foam from a white cloud (all satisfy S<0.25, V>0.80) — the row window is what excludes them, not just the haze band. Added the consequence: anyone widening the window to recover low clouds must add aircraft/foam rejection FIRST, or the count inflates with jets.
+- **Reconciled #133's background-V discrepancy exactly**: my 0.004 was the near-black SUBSET (V<0.2), a circular choice for a "is the background dark?" comparison; all non-red pixels gives 0.0118, matching the judge's 0.012. Adopted the honest figure, which strengthens the conclusion to a 15x separation.
+
+**Spec posted to**: #132 comment 5838493143, #133 comment 5838502110
+
+**Improvement Insights**:
+- [architect.md]: the negative-control rule should say the fixture must reproduce the **exact form of the code being removed**, not merely a violating example. Three guards in this batch were correct against a literal and blind against a variable; only the form of the real code proves the checker works.
+- [criteria.md]: a measurement window chosen to exclude a contaminant becomes part of the acceptance test when both sides are measured through it — so any such window must state what it ALSO excludes. Here the window silently removes aircraft and sea foam (a virtue) and truncates a third of the banks (not).
+- [reference-facts.md]: the "sky is a flat fill, zero local variance" entry should carry the frame it was measured on (t=94) and the caveat that it holds only for CLOUDLESS frames. #132's entire detector-impact section is about the damage that one unqualified fact does downstream; qualify it at source.
+
+---
+### [2026-09-26 09:45] — senior-developer — #129
+**Task**: HUD parity — fixed bracketed scope box, HI removed, winged emblems, marked SPEED bar, two-size missiles, jet lives.
+**Result**: COMPLETED — all 11 ACs pass
+**Ownership**: `scripts/ui/hud_canvas.gd` (all drawing), `scripts/ui/hud.gd` (comment only), `tests/test_hud_layout.gd` (new). **Untouched**: `scripts/ui/reticle_2d.gd` (verified `git diff` empty — rule 14 keeps the moving brackets separate), `scenes/hud/hud.tscn`, `block_font.gd`, and everything outside `scripts/ui/`.
+
+**Results**: `test_hud_layout.gd` **101 passed, 0 failed**; `run_all.sh` **1156 passed, 13 failed** (known legacy). AC 6 **16/16** within ±2 %W and ±2 %H, most within 0.2. AC 7 colours exact (dmax **0**). AC 1 scope box 72/72 frames by template correlation. AC 8 life height 1.79 %H against the 2.5 cap. AC 10 pitches 2.50 / 1.10 %W.
+
+**Three defects my own measurements caught**:
+1. **A clipped window hid a wrong icon count.** My first missile measurement windowed to 69.7 %W and reported a perfect 63.3–68.9. Widened, it showed I was drawing **four** large silhouettes with the fourth at 70.9 %W, colliding with the small run. Four at 2.5 %W pitch span 7.8 %W; the measured run is 5.4 %W = two pitches plus one icon = **three**. Exactly the amendment §5 failure, committed one message after reading the warning about it.
+2. **Square glyph pixels made the stage digit invisible.** BlockFont uses one `px` for both axes; the arcade's stage digit is 1:2.2 against the font's 5:7, so width-constrained sizing gave 1 px per cell — present in source, invisible on screen, and it would have passed a %W-only check. `_draw_digits` now stretches cells per axis.
+3. **A colour "failure" that was a capture artifact.** Digit cream measured dmax 54 off target from the mp4 median; h264 yuv420p chroma subsampling bleeds thin cream strokes over blue sky. Re-measured from a lossless bridge screenshot: dmax **0** on all seven.
+
+**Technical decisions**:
+- **Gold speed band, not a prefix fill.** The reference shows unfilled pips on BOTH sides of the gold; a fill-from-left model sits 5.6 %W too far left and fails AC 6. Track end is set so the band lands on the measured 25.7 %W at the default ratio.
+- **Emblem wings are structural.** The measured extent covers wings plus letters, so the wings are what carry the element to its recorded %W.
+- **Two structural tests instead of numeric ones** for rule 14: AC 5's binding grep, and a check that `_draw_scope_box()` sits at `_draw()` top level (one tab, not two) with no `locked_enemy` anywhere in the file. The defect rule 14 exists to prevent is a conditional creeping in, and indentation is the cheapest mechanical proof that none has.
+- **Rendering-level ACs stay on the issue**, not in the suite: they need a capture rig and minutes per run. The suite pins the measured constants so nobody rounds them later.
+
+**Negative control (AC 3)**: gated `_draw_scope_box()` off, re-captured, re-ran the AC 1 detector — **0/10 frames**, so the test fails when the box is absent. File restored and verified byte-identical.
+
+**Improvement Insights**:
+- **[reference-facts.md]**: colour verification needs a **lossless** source. h264 `yuv420p` subsamples chroma and shifts thin bright strokes over saturated backgrounds by ~50 per channel; geometry is unaffected, so the median composite stays right for extents but wrong for colour. Without this, someone will file a false colour-mismatch bug off an mp4.
+- **[criteria.md]**: the amendment's "report the extent found, never the window searched" rule needs teeth — a measurement whose extent **touches its window edge** should be treated as invalid and re-run wider, automatically. I printed a `<window-clipped>` flag for exactly this and it is what exposed the four-vs-three icon defect.
+- **[CLAUDE.md]**: `BlockFont.draw_text` is square-pixel only. Any HUD element whose measured box is not close to 5:7 needs the per-axis path, or it silently renders at 1 px per cell.
+- **[workflow]**: my Godot `--import` passes generated `.uid` files for several previously-unimported `scripts/ui/*.gd`. Worth a project decision on whether `.uid` files are committed or ignored, before they appear in an unrelated diff.
+
+---
+### [2026-09-25 21:30] — judge — #137 fireball end-of-life spec
+**Gate type**: per-agent (architect), first gate
+**Verdict**: FAIL
+**Score**: 8/10 (threshold 9). judge-fail applied.
+**Gated**: newest comment 5838407960 (19:34:14Z).
+
+**HEADLINE FINDING IS CORRECT — verified two independent ways.** Reimplemented §1's segmentation from the spec text alone (R>1.6B AND S>0.60 AND V>0.55 AND sum|dRGB from #e67100|>60, rows 12-58%H) and re-measured from ab2-longplay.mp4 at 30fps.
+- **Explosion B area series reproduces at EVERY listed timestamp** within 0.10-0.21 pp (mine uniformly ~0.1 high = frame-phase offset): 1.29/4.87/5.98/6.23/4.41/3.47/1.53/1.09 vs spec 1.12/4.77/5.77/6.09/4.32/3.39/1.41/0.99. Mean V within 0.01-0.02 except the two white-hot spikes.
+- **Decay law reproduces**: my radius definition differs ~2x in absolute terms (max pixel-distance-from-centroid vs their extent measure) but the RATIO — the load-bearing number — comes out 0.150 (peak 147.90) / 0.179 (peak 148.00) against their 0.155.
+- **Value held through collapse, non-monotonic**: mine 0.844, 0.786, 0.833, 0.853, 0.855, 0.818 — dip then rise, excursion 0.058, never ramping toward background.
+- **Explosion A confirms independently, near-exactly**: area 22.34->8.25 (spec 22.06->8.04), meanV 0.782->0.859 (spec 0.783->0.867). Area falls 63% while V RISES.
+- **Saturation exclusion CONFIRMED and I found stronger evidence than the spec has**: A's mask touches BOTH frame edges, span exactly 100.00%W, longest run 12 frames (spec 14). Better proof: across t=137.50-138.07 the span is PINNED at exactly 100.00 while AREA varies 13.46->22.50% — the extent metric is flat while the underlying quantity moves 67%. That is the signature of clipping, not of a genuinely frame-wide explosion. Recommended adding it; it makes AC 6's >=99%W rule self-justifying.
+
+**FAILURE (a) — AC 5's piece count depends on an UNSTATED minimum component size, and without it the metric RUNS BACKWARDS.** Applying the stated segmentation with no filter my count goes 267->187 through the decay (falls); spec reports 16->29. With a filter the finding is robust: >=20px 25->37 (1.48x), >=60px 8->15 (1.88x), >=150px 4->8 (2.0x) — all clear AC 5's 1.4x bar, and the spec's 16->29 sits between my 20px and 60px rows. So the FINDING is sound; the AC is not executable as written and an implementer would fail a correct build. Same class the spec explicitly guards against elsewhere — §1 states the fireball mask in full citing "the AC 10 rule", then omits the parameter the piece metric depends on.
+**FAILURE (b) — AC 3 does not discriminate what it claims to, and its reason is inverted for this background.** Spec argues "an alpha ramp necessarily drags mean V toward the background". Stage 2's background is the ORANGE DESERT SKY at V~0.90 — HIGHER than the fire's peak mean V of 0.844 — so fading toward it would RAISE V. What actually happens: a fading pixel exits the mask once within dRGB 60 of the sky, so survivors stay bright under EITHER mechanism. Working the blend through, a genuine alpha fade holds pixels to ~alpha 0.15 over which V falls ~0.09 — which PASSES AC 3's "not more than 0.10" bar. AC 4 (radius ratio <=0.30 vs arcade 0.155 vs our 0.64) is the real discriminator and is strong.
+
+**Strong and must survive**: the four-candidate signature table enumerated with distinct signatures BEFORE measuring (pre-registration, not a post-hoc story — the strongest structural thing in the spec); the A-exclusion; timing preservation (0.62 onset vs existing 0.60, matching the measured 30-33% decay share — mechanism change not timing change on a gate-passed effect); fragmentation-for-free via two dissolve rates on existing shapes; the deferred smoke gap measured (smoke at +0.33s vs our 0.05 overlap), recorded, and guarded by asserting phase boundaries unchanged PLUS a negative-control fixture.
+
+**Improvement Insights**:
+- **architect.md**: when a spec states a segmentation "in full", the statement must cover EVERY parameter each derived metric depends on — not just the pixel mask. #137 stated the mask completely and still shipped an inexecutable AC because the component-size filter lives one level up. Suggest: for each AC, list the parameters its metric consumes and check each is published.
+- **architect.md / criteria.md**: an AC justified by "X necessarily moves toward the background" must state the background's value for the stage measured. #137's argument is inverted on stage 2 (sky V 0.90 > fire V 0.844) and nobody would notice without computing it.
+- **judge.md**: reimplementing from spec text alone caught both defects here, as it did on #121. Third consecutive gate where it was the decisive technique — worth promoting from step 15aa to the default approach for any measurement-bearing spec.
+- **workflow**: #137 is the second spec this session to catch a self-measuring-window trap IN ADVANCE (the orange desert sky reading as fireball) after #131 caught the same class. The trap now has four instances (#128, #129, #131, #137) — worth a named entry in reference-facts.md so it is checked rather than rediscovered.
+
 ### [2026-09-26 09:30] — TL — Retrospective: architect-113 #131 amendment — at scoped re-gate
 
 **Agent TLDR**: verbatim in its entry below. Owned the inversion fully ("I had the binding constraint backwards... the spec couldn't reach its own stated target, and its own AC couldn't detect that"); fix: DRIFT_SCALE 5.0→8.3 (ceiling 57.07°), clamp 60° as non-binding guard, per-formation ranges published; SECOND defect surfaced by the fix (additive oscillation gave zero-drift enemies a constant ±20° roll — now multiplicative, level-at-zero-drift); AC 1 split deterministic-on-constants (57±2 computed; clamp-only build fails immediately) + observational (≥50); adopted the judge's value-spread side-by-side into §0. Notes this is the SECOND gate this session to revise its own finding rather than defend it.

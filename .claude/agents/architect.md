@@ -98,6 +98,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **A 'leave constant X alone' instruction needs the same arithmetic as a change to it** — a negative instruction hides a bad premise, because nothing about it looks like it needs checking (#131: 'leave BANK_DRIFT_SCALE alone' forbade the only lever that binds).
    - **Compute REACHABILITY before writing any AC** — two same-session defects were criteria the system cannot reach stated as though it could (#139 parity-against-a-bound; #131 ceiling below its own target).
    - **Where a target is a function of constants, assert it deterministically ON the constants; use captures only to confirm it reaches the screen** — a sampling-dependent AC cannot distinguish wrong constants from an unlucky capture (#131 AC 1a/1b split).
+   - **Per AC, list every parameter its metric consumes and check each is PUBLISHED** — #137 stated the pixel mask in full (citing the completeness rule) and still shipped an inexecutable AC because the component-size filter lives one level up; unfiltered, its metric ran backwards.
+   - **An AC justified by 'X moves toward the background' must state the background's VALUE for the stage measured** — stage 2's sky is V≈0.90, brighter than the fire, so the claimed direction was inverted and the broken mechanism would have PASSED the bar (#137).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
