@@ -55,6 +55,27 @@ extends Node2D
 ## makes each layer's edge visible as a seam once alpha drops below 1 — the
 ## kill puff now collapses to a single flat polygon for the final fade
 ## stretch instead of re-drawing the full stack at reduced alpha.
+##
+## Round 8 (cycle-1 #130/#134): the round-7 bubbles, at the fireball's actual
+## peak size (r_base ~336px), read as ~12 GIANT flat "onion rings" with
+## visible straight facets — reproduced with a composite render before this
+## fix — because each bubble's mid/hot-core layer was an exact scaled COPY of
+## its own rim shape (perfectly concentric nesting reads as a flat ring
+## regardless of how irregular the outline is) and there were only 16 of them
+## at up to 38% of r_base. Fixed by using an independently-shaped, slightly
+## off-centre inner blob per bubble (breaks the concentric read) and going
+## denser/smaller (70 bubbles at 3.5-6% of r_base, keeping every edge chord
+## under ~10px even at peak size) plus reaching closer to the lobe tips
+## (dist_frac up to 0.97) so no bare unshaded patch of the dark base is left
+## exposed as a "detached slab". Round-7's kill-puff fix also turned out to
+## have the SAME translucent-halo failure mode it was trying to avoid: fading
+## via alpha over a blue sky blends cream into a pale cyan disc (rule 12a
+## bans exactly this). Fixed by fading via shrinking radius at constant full
+## opacity instead — the same fix that motivated collapsing to one polygon in
+## round 7 (no alpha < 1 anywhere means no seam and no colour-mixed halo).
+## Also dropped the kill puff's separate hard-edged draw_circle() "ignition
+## flash" — a perfect geometric circle is banned by rule 12(a) regardless of
+## how small, and the reference's kill puffs show no such disc.
 
 ## Defaults to true (kill puff) because the two aircraft-kill call sites
 ## (enemy_jet_2d.gd, missile_2d.gd) instantiate this script directly and
@@ -119,12 +140,29 @@ const FIRE_EDGE_JITTER := 0.02
 # 12, round 7) — ab2-arcade-huge-explosion.jpg's burst-c-05 frame shows
 # dozens of these, each with its own rim/mid/hot-core shading, forming the
 # cauliflower texture. Distances/sizes as a fraction of r_base.
-const FIRE_BUBBLE_COUNT := 16
-const FIRE_BUBBLE_DIST_MIN := 0.12
-const FIRE_BUBBLE_DIST_MAX := 0.82
-const FIRE_BUBBLE_SIZE_MIN := 0.20
-const FIRE_BUBBLE_SIZE_MAX := 0.38
+#
+# #130 (cycle-1 gap 6): at the old 16-count/0.20-0.38-size settings, a
+# composite render at the fireball's actual peak size (r_base ~336px at
+# base_radius=120) showed these read as ~12 GIANT flat "onion rings" with
+# visible straight facets (16 verts on an 80-150px circle) — exactly the
+# reported "flat heptagons with concentric rings" defect, reproduced before
+# this fix. Count up 16->70 and size down ~5x so each bubble's edge chord
+# (diameter*pi/verts) stays under ~10px even at peak r_base (rule 12b: no
+# straight edge >~10px), reading as a dense mass of small lobes instead.
+# DIST_MAX raised 0.82->0.97 so bubbles reach the tips of the underlying
+# lobed base shape — at 0.82 a lobe's tip beyond that radius got zero bubble
+# coverage and showed as a bare, unshaded, disconnected patch of the dark
+# outer-body fill (the reported "detached maroon slab").
+const FIRE_BUBBLE_COUNT := 70
+const FIRE_BUBBLE_DIST_MIN := 0.10
+const FIRE_BUBBLE_DIST_MAX := 0.97
+const FIRE_BUBBLE_SIZE_MIN := 0.03
+const FIRE_BUBBLE_SIZE_MAX := 0.055
 const FIRE_BUBBLE_HOT_CHANCE := 0.4  # fraction of bubbles with a bright core
+# Vertex count for each bubble's own outline (kept as a named constant, not
+# inlined, so a unit test can compute the worst-case edge chord — see
+# test_fireball_bubble_facet_size_bounded — without duplicating the literal).
+const FIRE_BUBBLE_VERTS := 14
 
 # Dense speckle blobs scattered over the kill puff (rule 12, round 7) —
 # replaces the old smooth 3-layer gradient with visible cream/pale-yellow
@@ -294,13 +332,22 @@ func _init_shapes() -> void:
 func _init_bubbles() -> void:
 	for i in range(FIRE_BUBBLE_COUNT):
 		var angle := randf() * TAU
+		var inner_angle := randf() * TAU
 		_bubbles.append({
 			"dir": Vector2(cos(angle), sin(angle)),
 			"dist_frac": randf_range(FIRE_BUBBLE_DIST_MIN, FIRE_BUBBLE_DIST_MAX),
 			"size_frac": randf_range(FIRE_BUBBLE_SIZE_MIN, FIRE_BUBBLE_SIZE_MAX),
 			"jitter": randf_range(-0.08, 0.08),
 			"hot": randf() < FIRE_BUBBLE_HOT_CHANCE,
-			"blob": _make_blob(16, 0.78, 1.0, 0.0, 1.0, 1.0),
+			"blob": _make_blob(FIRE_BUBBLE_VERTS, 0.78, 1.0, 0.0, 1.0, 1.0),
+			# #130: the mid/hot-core highlight used to be an exact scaled
+			# COPY of "blob" — perfectly nested, which is what reads as a
+			# flat concentric "onion ring" no matter how irregular the
+			# outline itself is. An independently-shaped blob plus a small
+			# off-centre offset breaks that bullseye look while keeping the
+			# dark-rim -> bright-highlight shading.
+			"inner_blob": _make_blob(10, 0.78, 1.0, 0.0, 1.0, 1.0),
+			"inner_offset": Vector2(cos(inner_angle), sin(inner_angle)) * randf_range(0.0, 0.22),
 		})
 
 
@@ -443,9 +490,14 @@ func _draw_fire(t: float) -> void:
 		var j: float = bub["jitter"]
 		var bblob: Dictionary = bub["blob"]
 		draw_colored_polygon(_blob_polygon(bcenter, br, bblob), Color(0.9, clampf(0.32 + j, 0.16, 0.56), 0.03, alpha))
-		draw_colored_polygon(_blob_polygon(bcenter, br * 0.6, bblob), Color(1.0, clampf(0.62 + j, 0.45, 0.85), 0.06, alpha))
+		# Inner highlight/hot-core use an independently-shaped blob at a
+		# small offset from bcenter, not a scaled copy of bblob — an exact
+		# concentric copy is what reads as a flat "onion ring" (#130).
+		var icenter: Vector2 = bcenter + bub["inner_offset"] * br
+		var iblob: Dictionary = bub["inner_blob"]
+		draw_colored_polygon(_blob_polygon(icenter, br * 0.6, iblob), Color(1.0, clampf(0.62 + j, 0.45, 0.85), 0.06, alpha))
 		if bub["hot"]:
-			draw_colored_polygon(_blob_polygon(bcenter, br * 0.32, bblob), Color(1.0, clampf(0.92 + j * 0.5, 0.85, 1.0), clampf(0.55 + j, 0.4, 0.75), alpha))
+			draw_colored_polygon(_blob_polygon(icenter, br * 0.32, iblob), Color(1.0, clampf(0.92 + j * 0.5, 0.85, 1.0), clampf(0.55 + j, 0.4, 0.75), alpha))
 
 	# Bright white-hot core — an irregular blob, not a perfect circle, so it
 	# reads as part of the mottled interior rather than a flat disc.
@@ -483,40 +535,46 @@ func _draw_smoke(t: float) -> void:
 		draw_colored_polygon(_blob_polygon(drift, rr * 0.55, puff["blob"]), color.lightened(0.18))
 
 
+## Kill puff visual radius at life-progress t in [0,1], given the puff's
+## radius cap. Growth ramps up over the first 20% of life; the puff then
+## SHRINKS to exactly 0 over the final quarter, staying fully opaque the
+## whole time — round 7 faded this via alpha instead, but alpha-blending the
+## puff's cream body over a blue sky at partial opacity reads as a pale cyan
+## disc (#134's reported "translucent halo"), which is precisely what rule
+## 12(a) bans, not a compliant way to fade. Nested same-shape layers scaled
+## by the same r_base stay strictly nested at every size, so shrinking
+## geometrically can't open the seam round 7's alpha fade was guarding
+## against either — one draw path for the whole life, no separate fade
+## branch needed. Peaks at exactly r_cap (growth contributes up to 0.22,
+## matching the 0.78 baseline) rather than overshooting past it —
+## composite-render measurement showed a 0.3 growth term put the peak
+## diameter at ~12.2% of screen height, right at the edge of rule 10's
+## 10-12% band.
+func _kill_puff_radius(t: float, r_cap: float) -> float:
+	var growth: float = smoothstep(0.0, 0.2, t)
+	var dissolve: float = smoothstep(0.75, 1.0, t)
+	return r_cap * (0.78 + growth * 0.22) * (1.0 - dissolve)
+
+
 func _draw_kill_puff() -> void:
 	var t: float = _lifetime / _duration
 	var r_cap: float = clampf(base_radius * KILL_RADIUS_SCALE, KILL_MIN_RADIUS, KILL_MAX_RADIUS)
-	var growth: float = smoothstep(0.0, 0.2, t)
-	var shrink: float = smoothstep(0.55, 1.0, t)
-	# Peaks at exactly r_cap (growth contributes up to 0.22, matching the
-	# 0.78 baseline) rather than overshooting past it — composite-render
-	# measurement showed a 0.3 growth term put the peak diameter at ~12.2%
-	# of screen height, right at the edge of rule 10's 10-12% band.
-	var r_base: float = r_cap * (0.78 + growth * 0.22 - shrink * 0.22)
-	# Opaque for nearly all of the puff's life — only fades in the final
-	# quarter, so it reads as a solid cream cloud, never a translucent haze
-	# (rule 12a).
-	var alpha: float = 1.0 - smoothstep(0.75, 1.0, t)
+	var r_base: float = _kill_puff_radius(t, r_cap)
 
 	if _lifetime < 0.4:
 		_draw_sparks()
 
-	# Single cohesive cauliflower silhouette — one simple polygon, no offset
-	# lobe scatter (that used to blow the puff's true extent well past
-	# r_cap and leave gaps of sky between lobes, rule 12a/b).
-	if alpha < 0.999:
-		# Fading (final stretch only): collapse to ONE flat polygon. Round 7
-		# gate found that independently alpha-blending the base + speckle
-		# stack during fade makes each layer's edge visible as a seam —
-		# shapes "showing through" (rule 12a). A single flat fill can't seam.
-		draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _puff_blob), Color(0.88, 0.81, 0.58, alpha))
+	if r_base < 1.5:
 		return
 
-	# Opaque phase: base + a brighter nested layer give it depth, then dense
-	# cream/pale-yellow speckle blobs on top break up what used to be a
-	# smooth grey gradient into visible cauliflower texture (rule 12, round
-	# 7) — colors pushed warmer (cream/pale-yellow, not neutral grey-white)
-	# to match ab2-arcade-desert-explosions.png's puffs.
+	# Base + a brighter nested layer give it depth, then dense cream/pale-
+	# yellow speckle blobs on top break up what used to be a smooth grey
+	# gradient into visible cauliflower texture (rule 12, round 7) — colors
+	# pushed warmer (cream/pale-yellow, not neutral grey-white) to match
+	# ab2-arcade-desert-explosions.png's puffs. No separate hard-edged
+	# "ignition flash" circle (round 7 had one via draw_circle()) — a perfect
+	# geometric circle is banned by rule 12(a) regardless of size, and the
+	# reference's kill puffs show no such disc, just the cauliflower.
 	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base, _puff_blob), Color(0.76, 0.68, 0.45))
 	draw_colored_polygon(_blob_polygon(Vector2.ZERO, r_base * 0.85, _puff_blob), Color(0.88, 0.81, 0.58))
 	for speck in _speckles:
@@ -524,12 +582,6 @@ func _draw_kill_puff() -> void:
 		var sr: float = speck["size_frac"] * r_base
 		var j: float = speck["jitter"]
 		draw_colored_polygon(_blob_polygon(scenter, sr, speck["blob"]), Color(clampf(0.93 + j, 0.85, 1.0), clampf(0.87 + j, 0.78, 0.96), clampf(0.62 + j, 0.5, 0.78)))
-
-	# Brief white ignition point — white is not a fireball color, still
-	# permitted on a kill puff.
-	var flash_a: float = alpha * (1.0 - smoothstep(0.0, 0.25, t))
-	if flash_a > 0.0:
-		draw_circle(Vector2.ZERO, r_base * 0.26, Color(1.0, 1.0, 0.97, flash_a))
 
 
 func _draw_sparks() -> void:

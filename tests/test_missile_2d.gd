@@ -42,6 +42,9 @@ func _initialize() -> void:
 	test_fireball_body_is_rounded_lobes_and_nests_correctly()
 	test_fireball_has_many_shaded_bubbles()
 	test_kill_puff_has_many_shaded_speckles()
+	test_kill_puff_dissolves_via_radius_not_alpha()
+	test_fireball_bubble_facet_size_bounded()
+	test_fireball_bubble_inner_layer_is_independent_shape()
 	print("=== %d passed, %d failed ===" % [_passed, _failed])
 	quit(1 if _failed > 0 else 0)
 
@@ -119,12 +122,12 @@ func test_missile_screen_position() -> void:
 	m.logical_depth = 0.9
 	var pos: Vector2 = m.get_screen_position()
 	assert_approx(pos.x, 480.0, "center x at logical 0.0", 10.0)
-	assert_true(pos.y > _DepthUtil.HORIZON_Y, "missile below horizon")
+	assert_true(pos.y > _DepthUtil.horizon_y, "missile below horizon")
 
 	# At horizon (depth=0) should be near horizon y
 	m.logical_depth = 0.0
 	var pos_horizon: Vector2 = m.get_screen_position()
-	assert_approx(pos_horizon.y, _DepthUtil.HORIZON_Y, "depth=0 near horizon", 5.0)
+	assert_approx(pos_horizon.y, _DepthUtil.horizon_y, "depth=0 near horizon", 5.0)
 	m.queue_free()
 
 
@@ -152,7 +155,7 @@ func test_missile_homes_toward_target_altitude() -> void:
 	for i in range(30):  # past HOMING_DELAY (0.3s) at 1/60s steps
 		m._process(1.0 / 60.0)
 	assert_true(m.logical_altitude > 0.0, "missile altitude homes toward the target's nonzero altitude (%.3f)" % m.logical_altitude)
-	assert_true(m.get_screen_position().y < _DepthUtil.HORIZON_Y, "homed missile has risen above the horizon toward the airborne target")
+	assert_true(m.get_screen_position().y < _DepthUtil.horizon_y, "homed missile has risen above the horizon toward the airborne target")
 	m.queue_free()
 	target.queue_free()
 
@@ -169,7 +172,7 @@ func test_missile_climbs_without_lock() -> void:
 	while m.logical_depth > -0.05:
 		m._process(1.0 / 60.0)
 	assert_true(m.logical_altitude > 0.5, "unlocked missile still climbs toward a sky altitude (%.3f)" % m.logical_altitude)
-	assert_true(m.get_screen_position().y < _DepthUtil.HORIZON_Y, "unlocked missile has risen above the horizon by the end of its flight")
+	assert_true(m.get_screen_position().y < _DepthUtil.horizon_y, "unlocked missile has risen above the horizon by the end of its flight")
 	m.queue_free()
 
 
@@ -326,4 +329,59 @@ func test_kill_puff_has_many_shaded_speckles() -> void:
 		assert_true(speck.has("dist_frac") and speck.has("size_frac") and speck.has("blob"), "speckle has position/size/shape data")
 		jitters[speck["jitter"]] = true
 	assert_true(jitters.size() > 1, "speckle brightness jitter varies per speckle, not a single repeated shade")
+	e.queue_free()
+
+
+func test_kill_puff_dissolves_via_radius_not_alpha() -> void:
+	# #134: round 7 faded the kill puff out via alpha, which blends the cream
+	# body into the sky as a pale cyan disc — the reported "translucent
+	# halo". The fix dissolves via RADIUS instead, staying opaque throughout.
+	# Guard against regressing back to an alpha fade: the radius itself must
+	# reach (near) zero by end of life, not just look faded via a lowered
+	# alpha while staying full-size.
+	var e := _make_explosion(true)
+	var r_cap := 40.0
+	var r0: float = e._kill_puff_radius(0.0, r_cap)
+	var r_mid: float = e._kill_puff_radius(0.5, r_cap)
+	var r_dissolve_start: float = e._kill_puff_radius(0.75, r_cap)
+	var r_almost_gone: float = e._kill_puff_radius(0.95, r_cap)
+	var r_end: float = e._kill_puff_radius(1.0, r_cap)
+	assert_true(r0 > 0.0, "puff has nonzero radius at spawn")
+	assert_true(r_mid > 0.0 and r_mid <= r_cap, "puff radius stays within cap mid-life")
+	assert_true(r_dissolve_start > r_almost_gone, "radius shrinks once the dissolve window (t>0.75) begins")
+	assert_true(r_almost_gone > r_end, "radius keeps shrinking toward the very end of life")
+	assert_true(r_end < 0.5, "radius reaches (near) zero by t=1.0 (got %.3f) — a real fix dissolves to nothing rather than fading alpha while staying full-size" % r_end)
+	e.queue_free()
+
+
+func test_fireball_bubble_facet_size_bounded() -> void:
+	# #130: at the old size/count, bubbles read as giant flat "onion rings"
+	# with visible straight facets — a composite render confirmed 40-80px
+	# edges at the fireball's peak size. Guard the fix by asserting the
+	# worst-case bubble (largest size_frac, at the class's own MAX_BASE_RADIUS
+	# clamp ceiling — not just the one real caller's base_radius=120, so this
+	# holds even if a future caller passes a bigger value) can never produce
+	# an edge chord anywhere near that: diameter*pi/verts, per vertex pair.
+	var e := _make_explosion(false)
+	# _draw_fire()'s r_base peaks at base_radius * 2.8 (growth=1, shrink=0).
+	var peak_r_base: float = e.MAX_BASE_RADIUS * 2.8
+	var worst_diameter: float = 2.0 * e.FIRE_BUBBLE_SIZE_MAX * peak_r_base
+	var worst_chord: float = worst_diameter * PI / e.FIRE_BUBBLE_VERTS
+	assert_true(worst_chord < 10.0, "worst-case bubble edge chord stays under ~10px even at peak fireball size (got %.2f)" % worst_chord)
+	assert_true(e.FIRE_BUBBLE_DIST_MAX > 0.9, "bubbles reach close to the lobe tips, leaving no bare unshaded 'detached slab' patch")
+	e.queue_free()
+
+
+func test_fireball_bubble_inner_layer_is_independent_shape() -> void:
+	# #130: the mid/hot-core highlight used to be an exact scaled COPY of the
+	# bubble's own rim shape — perfectly concentric nesting, which reads as a
+	# flat "onion ring" no matter how irregular the outline is. Guard that
+	# the inner highlight is a genuinely different shape, not a copy.
+	var e := _make_explosion(false)
+	assert_true(e._bubbles.size() > 0, "sanity: fireball has bubbles")
+	for bub in e._bubbles:
+		assert_true(bub.has("inner_blob") and bub.has("inner_offset"), "bubble carries an independent inner shape and offset")
+		var outer_radii: PackedFloat32Array = bub["blob"]["radii"]
+		var inner_radii: PackedFloat32Array = bub["inner_blob"]["radii"]
+		assert_true(outer_radii != inner_radii, "inner highlight is NOT the exact same radii array as the outer rim (would read as a concentric ring)")
 	e.queue_free()
