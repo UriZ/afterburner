@@ -1,5 +1,192 @@
 # Session Log
 
+### [2026-09-25 15:50] — TL — Convergence cycle 1 processed — FAIL 3/10; 7 issues filed; 3 fixes dispatched
+
+**Judge TLDR**: verbatim in judge-cycle-1's entry below; full evaluation #126 comment 5830645972. 15 ranked gaps; what held: #123 sky exact, horizon height, Super Scaler scale-up, weapons (proven via input-driven burst — flipped the verdict vs idle capture), kill-puff colour.
+
+**TL verification**: gap 15 (silent test files) did NOT reproduce — run_all.sh shows enemy_jet 23/0, aiming 17/0. Corrected on #126 and the page.
+
+**Filed**: #128 world-roll (top move), #129 HUD scope/HI, #130 fireball facets, #131 enemy shading/bank, #132 clouds, #133 trails, #134 kill-puff halo. Mapped: #124, #121/#42, #120, #112, #92, #103/#86.
+
+**Criteria/doc hardening applied**: rule 11 baked literal removed (gate-time measurement; more-monochrome-than-arcade also FAIL — second bad literal in that rule); NEW rule 17 world-roll (never >2%W tilt under bank = FAIL); NEW rule 18 clouds; rule 12 halo clause; jet non-numeric silhouette checks + opacity; judge.md input-driven capture mandatory; CLAUDE.md flight-window note.
+
+**Page**: cycle-1 section published — verdict, side-by-side money shot, 14-row gap table with issue links, strips, TL correction note.
+
+**Dispatched (idle agents reused)**: #128 spec → architect-113 (must coordinate game_world boundary with #120 spec); #112+#92 jet → dev-sky-115 (judge's don't-chase-numbers passed verbatim; function-boundary claim required in game_world.gd); #130+#134 explosions → dev-125 (effects scripts ownership; root-cause the halo). Remaining queue: #129/#131/#132/#133 await free developers; #127 awaits #114 commit; architect-comp still owes #120-#122/#124 specs.
+
+**Ownership map**: dev-sky-115 = jet draw path (claimed fns in game_world.gd/player) port 9510; dev-125 = scripts/effects/ port 9515; architect-113 = read-only + scratch; architect-comp = read-only; judge-113-arch = #114 gate ports 9600+; qa-117 = youtube-reference verification; dev-113-116 idle (reserved for #114 fixes).
+
+
+### [2026-09-25 04:15] — judge — #114 (developer implementation)
+
+**Gate type**: per-agent (senior-developer)
+**Verdict**: PASS
+**Score**: 10/10 (threshold 9)
+**Key gaps**: none
+
+**All four of my spec-gate corrections verified by execution**:
+1. **physical_keycode** — capture_input.gd sets both fields with a why-comment at the call site. I reproduced their negative control myself: `CONTROL keycode_only_action=0 keycode_only_rawkey=1 both_action=1`. A keycode-only event is inert for gameplay while FALSELY reading as pressed via the raw-key API — exactly the silent-failure mode I flagged, now pinned by a probe that fails if it stops being true. They went past the correction: I asked for the test to assert through an action; they also built the control proving the wrong assertion would have passed. **I re-measured the offset through the action system** (my own run, --capture-probe fire_vulcan): key_down@10 -> 0 at f10, 1 at f11; key_up@20 -> 1 at f20, 0 at f21; tap@30 -> 1 at f31 ONLY, 0 at f32. Offset exactly 1 both directions. At the spec gate I could only confirm via is_key_pressed; now confirmed through the API the game uses.
+2. **ffprobe not stdout** — my own capture/ffprobe: nb_read_frames=120, r_frame_rate=60/1, duration=2.000000. 8s run gave exactly 480. No fudge factor.
+3. **Wall vs game time** — my runs add a SIXTH data point: 60% (2.000s game in 3.3404s wall) and 79%. Span across all measurements is now 60%-150%; "no fixed relationship" is the only defensible statement and SKILL.md says it. Summary output labels wall_elapsed_s "diagnostics only — NOT the time base" where a reader sees it.
+4. **Sidecar omits, not zeroes** — verified on my own capture: interval_mean_s/stdev/max and pacing_slip ABSENT; schema unchanged at game-video-capture/1; measured_fps exactly 60.0; frames/measured_fps=2.0 shown beside wall_elapsed_s=3.3404 so the discrepancy is visible.
+
+**End-to-end, my own invocation**: compare.sh with NO --game-true-fps and --game-window 2-8 consumed the sidecar automatically — report records "container 60.0000, true 60.0000 (time scale 1.0000) — measured, sidecar". Read the strips: both rows gameplay, ours labelled t0=0:02, menu prefix correctly skipped.
+
+**Game-code diffs read line by line, exactly the claimed minimum**: project.godot ONE line with CaptureInput declared FIRST in [autoload] per §3.3; game_manager_2d.gd 4 lines + 1 comment with randomize() PRESERVED on the else branch and the #103 comment untouched. Nothing else in the game tree.
+
+**Their own best find**: test 9 hard-coded port 9595 and went GREEN because an unrelated agent's Godot held it and answered — a bridge-reachability test passing on somebody else's bridge. Fixed by allocating from 9590 upward, skipping bound ports, never killing what it did not start. I proved the allocator deterministically by holding 9590+9591 myself (it skipped both, returned 9592/9593/9594), and the live evidence is better: the suite ran 44/44 while 9595 was occupied by judge-cycle-1 — the exact collision that caused the original false pass.
+
+**Suites**: game-movie selftest 44/44 (run by me while 9595 was held); tests/run_all.sh 790 passed / 13 known-failed, "Suite clean" — unchanged, which matters because the new autoload loads in all 26 runs.
+
+**Honest assessment**: exemplary. Every correction applied, one improved on, two defects self-found including a false-pass class this project is structurally prone to. Unblocks #113's §12 entry gate on the game side; reference side is #125.
+
+**Improvement Insights**:
+- developer.md: name the *negative control on an assertion* pattern — before trusting a test, construct the broken implementation and confirm the test fails on it. Third appearance on this feature family (scope-guard regex, torn PNG, keycode-only event); each time it converted a plausible test into a real one.
+- CLAUDE.md: record that project.godot binds physical_keycode with keycode: 0. Two separate agents have now had to discover this.
+- criteria.md/testing convention: hard-coded ports in any test are a false-pass waiting to happen on this machine. next_port() in game-movie/selftest.sh is a good reference implementation — point the concurrency rule at it alongside out_dir_lock().
+
+---
+
+### [2026-09-25 15:20] — TL — Retrospective: developer #125 — done, entry gate PASSED; in QA
+
+**Agent TLDR**: verbatim in dev-125's entry below; report on #125, relabeled qa. Key: --min-fps with height auto-bump; distinct <name>-<fps>fps cache (30fps copy checksummed byte-identical); post-download ffprobe verification failing loudly with the selector + -F listing; fixed a pre-existing bash-3.2 mis-parse found only by real-bash execution. AC4: reproduced the #113 negative-control at 60fps — ratio 0.5022 vs true 0.5 (0.4% error) = ENTRY GATE PASSED; speed metric unblocked.
+
+**Retrospective — applied**:
+- #127 filed (§12 quantitative speed metric; blocked only by #114 commit; mandates re-deriving the gate as a committed selftest per dev-125's own warning; inverts the scope guard for 60fps runs; first real measurement lands on #126/#127).
+- developer defs: real-bash invocation rule for shell scripts. APPLIED.
+- QA dispatched to qa-117 (idle, reused per user rule).
+
+
+---
+### [2026-09-25 13:10] — judge — #126 (convergence cycle 1)
+**Gate type**: final (full-game convergence evaluation, not a per-issue gate)
+**Verdict**: FAIL
+**Score**: 3/10 (threshold 9)
+**Key gaps** (ranked, full table on #126): (1) stage-1 ground biome+brightness wrong — arcade is blue sea/green headland at V 0.835, ours brown desert at V 0.513 [#124]; (2) NO world roll — arcade stage-1 horizon tilts 1.5-57.7% of screen width across 9 verified frames, ours 0.1% in 24/24 [NEW]; (3) player jet reads as a flat paper dart with a projecting needle nose, no canopy, no body mass — despite span/height/aspect 35.9%/17.6%/2.92 all passing target [#109/#112]; (4) ground is a uniform blurred lozenge field, edge frac>0.05 0.714 vs ref 0.558-0.574 [#121/#42]; (5) HUD missing the fixed top-right scope box and carries a non-AB2 "HI" readout in its slot [#49+NEW]; (6) death fireball = ~12 giant flat heptagons with 40-80px edges [NEW]; (7) player jet renders semi-transparent in play [#92]; (8) enemies flat-fill, zero bank [NEW]; (9) no clouds [NEW]; (10) projectile trails are bead chains [NEW]; (11) kill puff has a cyan halo, 60.8% blue-dominant, 7 value levels [NEW]; (12) ground coverage locked at 37.1% [#120]; (13) 3 deaths in 15s idle [#103/#86]; (14) one biome all run [#124]; (15) test_enemy_jet.gd still absent from run_all.sh [#118].
+**What held**: #123 sky — ours rgb(0,159,255) vs arcade stage-1 rgb(0,158,255), exact. Horizon height 62.8-62.9% (rule: 60-65%). Enemy Super Scaler working (4 sizes simultaneously — #105 not reproducing). Player on screen 24/24 + 15/15. Weapons demonstrably work: driven capture reached SCORE 1800 / HIT 3 (rule 16 PASS). Kill puffs are cream, no orange (rule 10).
+**Screenshot honest assessment**: Side-by-side of our stage 1 against the arcade's VERIFIED stage 1 (t=116s, HUD reads STAGE 1) at /tmp/cycle1-evidence/sidebyside-stage1.png. Arcade: brilliant blue textured sea filling the lower frame, a banked heavy shaded F-14 with two hot nozzle discs and a green enemy alongside, winged SCORE/HIT emblems, bracketed scope box top-right. Ours: dark brown blurred speckle, a level skeletal white dart with a needle nose, plain yellow text and "HI 00000000" where the scope box belongs. These do not read as the same game.
+**Evidence**: video /tmp/game-capture/cycle1.mp4 (225/225 frames, measured 11.759fps, encoded at measured rate); burst /tmp/cycle1-frames/ (24 frames, driven with held-Z vulcan + hold Left/Right/Up + X missiles); strips .reference-cache/metrics/judge-cycle1/strip-01..03.png (ref window 1:28-1:38 = verified stage 1); published set in /tmp/cycle1-evidence/. Tests: 790 passed / 13 failed (jet_mesh_builder, known). No speed claim made anywhere (#113/#114 gate).
+**Improvement Insights**:
+- **criteria.md rule 11**: the baked figure "89.2% of saturated near-band pixels in one 20-degree bin" does NOT reproduce. My independent measure on verified arcade desert frames (stage 2, t=130/140, 20-deg bins, S>0.25) gives 72.0% and 53.6% — while OUR ground measures 99.4%, i.e. we are now MORE monochrome than the arcade. The rule as written would pass us and fail the original. Re-derive or drop the number; this is the second time a baked literal in rule 11 drove the shader the wrong way.
+- **criteria.md — add a world-roll rule**: no rule names horizon roll, so the single biggest feel gap survived every prior gate. Suggested: "The horizon must roll with the player's bank. Measure sky-ground boundary tilt across a capture; a capture whose tilt never exceeds ~2% of screen width while the player banks = FAIL. Arcade stage-1 reference: 1.5-57.7% of W across 9 verified frames."
+- **criteria.md — add a cloud rule**: AB2's skies carry cloud banks; "flat fill + optional glow + hard horizon" (rule 6) is read by developers as licence for an empty sky.
+- **criteria.md rule 2 / visual table row 2**: the jet passed span 35.9%, height 17.6%, aspect 2.92 — dead centre of every target — while reading as origami. Add an explicit non-numeric clause: topmost pixel astern must be the canopy, the nacelles must be visually joined to the fuselage, and the body must show a value gradient, checked by crop at 2x against ab2-arcade-reload-dorsal.
+- **criteria.md rule 12**: extend the opacity clause to explosion HALOS. Our kill puff is a correct cream cauliflower sitting on a pale-cyan translucent disc that no reference has; "body is opaque" did not catch it.
+- **judge.md / workflow**: driving real input during the burst (held Z + hold Left/Right + X) changed the verdict materially — it proved rule 16 PASS where the idle video showed SCORE 0 for 15s straight. Make the input-driven burst an explicit mandatory step, not an aside.
+- **workflow**: `motion-metrics/compare.sh --ref-window 1:28-1:38` lands on the carrier-launch cinematic, not flight. Stage 1 flight starts nearer t=1:34. Worth recording good per-stage flight windows next to the stage map in stage_data.gd so every cycle aligns to comparable content.
+
+### [2026-09-25 15:05] — TL — Retrospective: senior-developer #114 impl — in QA gate
+
+**Agent TLDR**: verbatim in dev's entry below; report on #114, relabeled qa. Key: all 4 judge corrections applied with controls (keycode-only event proven inert via action system while falsely passing raw-key API); ffprobe-only frame counts; no realtime-band dependence (spread now 66-150%); sidecar omits wall-clock keys (consumer verified reads measured_fps only). Two self-caught defects: swallowed timeline warning now surfaced; test 9 passed off ANOTHER AGENT'S instance on hard-coded 9595 → suite now allocates ports upward, skipping bound. 2s capture = exactly 120 frames at 60/1. Selftest 44/44; suite 790/13-KNOWN. Ownership held exactly (project.godot 1 line, game_manager_2d 4-line conditional, randomize() preserved).
+
+**Retrospective — applied**:
+- criteria.md dev criterion 5: negative-control requirement for NEW tests promoted to standing gate requirement (3 catches this session). APPLIED.
+- CLAUDE.md: test harnesses allocate ports, never assume. APPLIED.
+- qa.md: movie-capture menu-prefix trap (--game-window 2-N). APPLIED.
+- Measured-claims re-run: already standing in judge.md. DUPLICATE.
+- Next: judge gate (judge-113-arch), then QA. Note judge-cycle-1 owns port 9595.
+
+
+---
+### [2026-09-25 12:57] — developer — #125
+**Task**: Add `--min-fps N` to `fetch-reference.sh` so `youtube-reference` can pull the 60fps longplay as the reference side of the future #113 §12 speed metric (sibling to #114's game-side 60fps capture).
+**Result**: COMPLETED
+**Ownership map**: developer (this session) owned `.claude/skills/youtube-reference/fetch-reference.sh` + `SKILL.md` only. Did not touch game code, capture skills, or motion-metrics — confirmed via `git status` (only those two files modified; unrelated concurrent changes from #114/#116 work present but untouched by me).
+**Files changed**:
+- `.claude/skills/youtube-reference/fetch-reference.sh` — `--min-fps N` flag, `[fps>=N]` format term, auto height bump to 720 when unset, ffprobe post-download fps verification, dual-cache naming (`<name>-<min-fps>fps`), fixed a pre-existing real-bash `awk` nested-quote bug in the closing status line
+- `.claude/skills/youtube-reference/SKILL.md` — new "Getting 60fps footage" section documenting `--min-fps` and the dual-cache layout
+
+**Key changes**:
+- `fetch-reference.sh:110-127` — height auto-bump + `CACHE_NAME`/`FPS_TERM` computation
+- `fetch-reference.sh:150-188` — format selector with `[fps>=N]`, ffprobe fps verification with hard failure (naming the selector + full format list) if unmet
+- `fetch-reference.sh:225` — `awk -v` fix for the real-bash nested-quote bug (see Testing)
+
+**Testing**:
+- `bash -n` syntax OK; `--help`/`--list` unaffected
+- Downloaded `ab2-longplay-60fps.mp4` (av01, 1028x720, 317.8 MiB) via `--min-fps 60`; ffprobe independently confirms `r_frame_rate=60/1`
+- Checksummed `ab2-longplay.mp4` (30fps) before and after multiple `--min-fps 60` runs — byte-identical (`ec93f4ec1bca5798d409d4b7650911bc`, same size/mtime)
+- Ran `motion-metrics/compare.sh --ref ab2-longplay-60fps.mp4 --ref-window 6:00-6:08 --game game-truespeed-2026-09-25.mp4 --name dev125-check` — clean run, read `strip-01.png`, legible 1028x720 AB2 desert-canyon frames correctly labelled
+- **#113 §12 entry gate attempted and PASSED**: reproduced the architect/judge's exact negative-control methodology (crop 0.12/0.12, work-width 192, Farneback + Sobel>=12 texture gate) on the same 6:00-6:08 window, this time at 60fps vs 30fps instead of 15fps-based decimations. True ratio 0.5000, measured 0.5022, **error 0.4%** (vs the 15fps result's 84% error) — well inside the 10% tolerance. Gate script was a throwaway, deleted after use, not committed.
+- Real bash `awk` bug: found because the exact same script text parses fine under zsh (interactive default) but fails under bash 3.2.57 (the script's own shebang) — reproducible every real invocation via `bash fetch-reference.sh`. Fixed with `awk -v` to avoid the fragile nested-quote form entirely.
+- `bash tests/run_all.sh`: 790 passed, 13 failed (all pre-existing `test_jet_mesh_builder.gd` known failures) — confirms the GDScript suite is unaffected by this shell/markdown-only change
+- `.reference-cache/` confirmed gitignored; nothing accidentally staged
+
+**Improvement Insights**:
+- **workflow**: any script whose shebang is `#!/usr/bin/env bash` but gets manually tested by typing into an interactive session should be re-verified with an actual `bash script.sh` invocation before considered tested — macOS's ancient system bash (3.2.57) and the interactive shell (zsh) can silently disagree on nested-quote parsing of the exact same text. This cost real debugging time here (a 2-minute hang plus several isolation runs) for a pre-existing, unrelated bug that surfaced only because I ran the script end-to-end rather than trusting `bash -n`.
+- **architect.md / #113 follow-up**: the 60fps entry gate now has a measured, reproducible result (0.4% error) sitting on an issue comment as a throwaway script. Whoever picks up the #113 §12 quantitative-speed follow-up should re-derive/commit a proper version of this decimation check as part of that work's own test plan, rather than treating this comment as the implementation.
+
+---
+### [2026-09-25 15:45] — senior-developer — #114
+**Task**: 60fps deterministic gameplay capture via Godot MovieWriter, with the four judge corrections folded in.
+**Result**: COMPLETED
+**Files changed** (ownership map — nothing outside this list):
+- `.claude/skills/game-movie/{SKILL.md,capture-movie.sh,selftest.sh,timelines/start-game.json,probes/keycode_only_control.gd}` — new skill, mine
+- `scripts/autoload/capture_input.gd` — new, mine
+- `project.godot` — ONE line, `CaptureInput` first in `[autoload]` (§3.3 ordering)
+- `scripts/game/game_manager_2d.gd` — EXACTLY the §5 conditional, 4 lines + comment
+- NOT touched: `stage_data.gd`, `game_world.gd`, `tests/test_sky_gradient.gd`, `tests/sky_stage_preview.gd` (#123); `game-video` and `motion-metrics` skills
+
+**Key changes**:
+- `capture_input.gd` — frame-scheduled input playback, inert without `--capture-input`. Sets BOTH `keycode` and `physical_keycode` on every event.
+- `capture-movie.sh` — validates the timeline before launching, captures windowed, verifies AVI and mp4 with ffprobe, writes the sidecar, cleans up the MJPEG scratch.
+- `game_manager_2d.gd:47` — `seed(CaptureInput.requested_seed)` when >= 0, else `randomize()`. #103 is not reverted.
+
+**Technical decisions**:
+- **Built the negative control, not just the assertion.** `probes/keycode_only_control.gd` measures `keycode_only_action=0 keycode_only_rawkey=1 both_action=1` — proving a keycode-only event is inert for gameplay while falsely passing a raw-key probe. The judge's correction 1 said this would happen; this pins it so it fails if it ever stops being true.
+- **Sidecar omits the four wall-clock keys rather than zeroing them** (judge correction 4). Schema stays `game-video-capture/1` — omitting a key changes no existing key's meaning. Verified `motion_metrics.py:127` reads only `measured_fps` and never inspects `schema`, by reading it rather than assuming.
+- **Out-of-range warnings reported from `_exit_tree`**, so the autoload names exactly which events never fired without needing `--quit-after` plumbed in as a second flag.
+- **Selftest allocates ports instead of hard-coding them.** See the false pass below.
+
+**Testing**: `game-movie/selftest.sh` **44 passed, 0 failed**. `tests/run_all.sh` **790 passed, 13 failed** (known legacy set), unchanged — the new autoload loads in all 26 test runs and broke none. Exact frame counts at 60 and 30 fps. Input offset measured through `Input.is_action_pressed`: `key_down` at F=10 → 0 at 10, 1 at 11; `key_up` at 20 → 1 at 20, 0 at 21; tap at 30 → held on 31 only. Two `--seed 4242` runs byte-identical, two unseeded runs differ. End-to-end into `compare.sh` with no `--game-true-fps`, producing strips at the exact 60.0000 rate. Added two data points to the game-time/wall-clock spread: 74% and 73%, alongside the spec's 66%/100% and the judge's 150%.
+
+**Two defects my own testing surfaced**:
+- The "N timeline events never fired" warning was produced and then swallowed by the log redirect. A warning that never reaches the operator does not exist — now surfaced after a successful run.
+- Test 9 went **green from another agent's process**: it used a hard-coded port 9595 with `--quit-after 120; sleep 3`, which finishes headless in under a second, so the probe found an unrelated Godot instance holding that port and counted it as our bridge. Ports are now allocated from 9590 upward, skipping any bound (never killing what we did not start), and the reachability test runs a live instance it stops itself.
+
+**Improvement Insights**:
+- **[criteria.md / judge.md]**: "a test that passes must be shown to fail on the broken input" is now the third time this session that rule has caught something real (motion-metrics race, #118 suite guard, and here). Worth promoting from per-task habit to a standing gate requirement for any new test.
+- **[CLAUDE.md]**: hard-coded ports in test harnesses are as unsafe as hard-coded ports in capture scripts — #117 fixed the capture side, but a suite that assumes a port is free can silently pass on a neighbour's process. Worth a line: allocate and skip, never assume.
+- **[workflow]**: the architect's §0 measured-claims table was worth more than the spec text, and two of its eleven entries were wrong in ways the judge caught by re-running them. Re-running load-bearing measurements at the gate is earning its cost.
+- **[qa.md]**: the default timeline spends its first ~1.7s on menus, so `compare.sh --game-window 2-N` is required or the strips compare arcade gameplay against our title screen. Easy trap, documented in SKILL.md, worth QA knowing before the first run.
+
+---
+### [2026-09-25 15:20] — architect — #120, #121, #122
+**Task**: Implementation specs for the three composition issues (ground coverage, discrete terrain features, player screen-position distribution), independently implementable in parallel.
+**Result**: COMPLETED — one spec comment per issue, all three relabelled architect -> developer.
+
+**Key decisions**:
+- **Stage identity proven from the HUD, not inferred.** AB2 shows the stage number continuously at bottom-centre (x=376..414, y=426..450 of 686x480), not only on the transition banner. Read directly: t=355/360/365/370 -> STAGE 8 (the #120 evidence window); burst-a -> STAGE 2; burst-c -> STAGE 17. Independently corroborates dev-sky-115's #123 span table, which was derived separately.
+- **Six estimators built, five abandoned on their own controls.** Horizon: colour-seed split (-6.55 pp, breaks on our own sky gradient), per-column top-run (-44 pp, clouds truncate), deepest-sky-row (+19.6 pp, sky colour recurs in ground), narrow-band (-43 pp). The last failure is a finding in itself: **AB2's horizon tilts with player bank**, so no per-column method can work. Survivor: texture-split, control-validated at +1.19 pp against our build's known 62.50%H. It correctly REFUSES on canyon frames (separation goes negative) — canyon horizons come from a published row profile instead, which needs no estimator.
+- **Jet detector: five failed, one passed.** A per-pixel colour classifier cannot isolate the F-14 across stages (airframe S 0.09-0.70 overlaps explosion cream and snow ground completely; best attempt missed by 53 pp). Crop-then-centroid passed its control at -0.17 pp, and independently reports 36.0%W x 15.4%H on burst-a-02, matching criteria's separately-measured jet size.
+- **#122's stated root cause is wrong, and the spec says so.** There is no default/attract flight in the codebase. The jet is centred because the evidence capture had no input (cx sd 0.40 = literally zero movement). Control envelope measured ample on all three axes, so the fix is a demo-flight controller (default OFF, live input always wins) with amplitudes solved from the measured sd — not control tuning, which would have risked criterion 4 for nothing.
+- **Latent bug found in #120's path**: `ground_terrain_2d.gdshader` declares `uniform float horizon_y = 420.0` and comments that GameWorld pushes it; nothing does. It works only because the default equals the const. A per-stage horizon would silently desync the shader from its own quad. Spec requires the push.
+- **Deferred scope is mechanically guarded.** #121 defers canyon walls (they rise above the horizon and would be overpainted by `_draw_sky`) and ground targets, with a required test that no feature rises above the horizon **plus a negative-control fixture proving the guard can fail**.
+- **Ownership is disjoint by construction** so three developers can work in any order: #120 = depth_util/stage_data/game_manager/ground_terrain + `_draw_sky()`; #121 = new ground_features_2d.gd + one appended function in game_world.gd (named merge point); #122 = player_jet_2d.gd + a capture timeline. stage_data.gd is additive-only against dev-sky-115's concurrent #123 rewrite.
+- **Honest gate expectation recorded in both specs**: #120 + #121 together still will not read as a canyon, because the walls (81% column occlusion in the reference) are deferred. Better said now than discovered two gates later.
+
+**Measurements posted** (all reproducible from commands in the specs):
+- Stage 8 horizon 12-14 %H, stage 17 9-11 %H, cruise 60-65 %H (median ~63).
+- Stage 17 ground features: 4.4 / 8.2 / 12.4 clumps per frame in far/mid/near bands; ~25 clumps + ~18 speckles on screen at once.
+- Feature growth x1.45-x1.69 per 0.25 s — and our existing `depth_to_scale()` predicts that within 5-11 %, so no new scaling law is needed.
+- Jet position, 17 HUD-proven frames: cx sd 10.44 pp, cy sd 11.99 pp, 41 % of frames >5 pp off-centre. Ours: 0.40 / 2.24 / 0 %.
+
+**Spec posted to**: GitHub issue #120, #121, #122 comments
+
+**Follow-up pass — #124 coordination** (TL raised mid-task):
+- **#124 stays SEPARATE from #121.** #124 owns ground palette VALUES in stage_data.gd; #121 owns a new renderer that reads those colours at runtime and touches no stage data. Posted the full three-way file-ownership matrix on #124.
+- **#120 and #124 collide on the same 23 dict lines in stage_data.gd.** Agreed sequencing: #120 first (one-key append, spec'd and ready), #124 rebases. Advised #120's developer to land the stage_data hunk as its own early commit so #124 has a clean base.
+- **#124's criterion 3 is not reachable as written, and I said so.** Pulled arcade stage 1 (HUD-proven t=92/100/108/116): the ground is open ocean with strongly DIRECTIONAL horizontal wave streaks plus an occasional green island. Setting ground_a blue on our isotropic Worley rock field yields blue rocks, not sea. Wave banding is structure, not palette. Recommended the TL either narrow #124 to palette or split per-biome ground STRUCTURE into its own shader issue.
+- **Tried to hand over a validated sky-exclusion mask and FAILED three times; shipped the record, not a method.** Pre-declared control (our build's horizon is known at 62.50%H; bar: remove >=95% of true sky, <5% of true ground): colour-match 84.6% FAIL; per-column-to-first-textured 81.9% FAIL; per-column sustained-run union 94.7% FAIL against a 95.0 bar. **I did not relax the bar for a 0.3 pp miss.** Diagnosed: 82% of the residual leak is our own sky glow band, invisible to both a colour test and a horizontal-texture test — a third discriminator (vertical smoothness) is the untested candidate.
+- **Reusable finding for any masking work**: never use a horizontal split line. AB2's horizon tilts with bank (confirmed by a 43 pp disagreement between narrow-band and full-frame estimators on one frame), so per-row masking leaks a wedge of sky on every banked frame. Per-column is right for a MASK even though it is wrong for horizon ESTIMATION.
+- **Amended #121 criterion 5** to avoid the unsolved mask entirely: measure the single-hue rule over the union of the node's own drawn feature footprints, not over a screen band. It is the exact population the rule is about and needs no classifier.
+- **Corrected #120's merge-point note**: #123 committed as 7a7c4ef during this task, so stage_data.gd is clean and no rebase dance is needed — branch at/after 7a7c4ef.
+
+**Improvement Insights**:
+- **[architect.md]**: the rule says prototype tooling before speccing; it should add "budget for the control to FAIL — five of six estimators here died on theirs." The instruction currently reads as if one control run confirms a method. Naming the abandoned attempts in the spec is what stops the next agent rebuilding them.
+- **[criteria.md]**: hard rule 8 ("enemies must occupy the SKY", measured as enemy pixels above the horizon) breaks on canyon stages, where the sky is ~4 % of frame. It needs the same per-biome qualification rule 5 just received, before #120 lands and a judge fails a correct stage 8.
+- **[CLAUDE.md]**: record that AB2's HUD carries the stage number continuously at bottom-centre. #123 was a whole post-mortem about unprovable stage identity, and the persistent field makes identity a one-frame crop for any agent.
+- **[workflow]**: issue #122's premise ("the DEFAULT/attract flight keeps the jet centered") named a subsystem that does not exist; the real cause was an input-free capture. A one-line `grep` at issue-filing time would have caught it. Worth having the TL confirm a named subsystem exists before writing it into an issue's evidence section.
+
 ### [2026-09-25 14:35] — TL — Retrospective: visual-qa #123 — PASS; committed 7a7c4ef; page updated
 
 **Agent TLDR**: verbatim in the vqa entry below; findings comment 5830451196. Key: fully independent verification — own ffmpeg frame extraction at exact timestamps, own HUD digit reads (8 stages matched dev's map, several exact hex), score continuity bracketing (482610/487210 around cited 485420), live capture confirms #009FFF, glow shape matches rule 6 on all 5 glow stages, deleted bug-encoding tests confirmed gone, ground_a/b/c byte-identical (caveat real). 790/13-KNOWN suite.
