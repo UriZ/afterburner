@@ -4,6 +4,7 @@ Judge insight (#120-#122 gate): ownership must live in a repo file, not issue pr
 
 ## Sequencing decisions (binding)
 - **#120 lands before #128** (TL decision 2026-09-25): #120 is a small per-stage horizon constant + shader-uniform fix; #128 (world roll) is the larger projection refactor and rebases on it. #128's spec must define its merge against post-#120 `game_world.gd` explicitly.
+- **#122/#128 adjacency**: #122's `_process_demo_flight()` calls `_update_banking()`, which the #128 follow-up deletes — #122's implementer is NOT blocked: re-point the call if the follow-up hasn't landed; the follow-up adapts.
 - **#128 jet-bank follow-up is SCHEDULED immediately behind #112/#92 landing** (judge: spec's own risk 4 says world-roll-without-jet-change looks worse than today — the gap must be short; amendment 2 carries a ready-to-go mini-spec).
 - **#128 SPLIT** (TL decision, per architect): world-roll core (depth_util.gd, game_world.gd, ground_terrain_2d.gdshader) lands as #128; the jet-bank coupling (§3 — deletes `_update_banking()`/`MAX_BANK_ANGLE` in player_jet_2d.gd) is a small FOLLOW-UP after dev-sky-115's #112/#92 diff lands — never merged blind against the open 400-line silhouette rebuild.
 - **#120's `stage_data.gd` hunk lands as its own early commit**; #124 (palette re-grade) rebases onto it.

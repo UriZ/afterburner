@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-25 19:30] — TL — Retrospective: architect-comp #120/#121/#122 reworks — re-gates dispatched
+
+**Agent TLDR**: verbatim in its entry below. Key: #120 root cause = unpublished classifier (free parameter worth 5pp; judge's values reproduced bit-for-bit once adopted); full-span re-derivation: stage 8 survives (13.12%H, was right by luck), stage 17 corrected 0.10→0.07; confidence asymmetry shipped; AC 10 rejects unmetricated figures. #121: self-contradictory colour rule replaced with controlled second hue family; 991/32 exact-binary lockstep; new AC 0 that our build fails today by design. #122: two-regime arithmetic surfaced a hidden between-regime centre difference (canyon = lower AND straighter); composition reproduces 10.44/12.16 exactly; per-regime AC with forced-weight falsification.
+
+**Retrospective — applied**: criteria.md measurement-publication rule (metric+tolerance+command); architect.md (classifier in the artifact; full-span before shipping single-frame values); judge.md (publish exact classifier with verdicts; renumbered). ownership.md: #122/#128 _update_banking adjacency decision. #124 go confirmed (sea-only). Re-gates → judge-cycle-1. APPLIED.
+
+
 ### [2026-09-25 19:10] — TL — Retrospective: judge re-gate #128 — FAIL 6/10 (expected; §2/§4 rework already in flight)
 
 **Judge TLDR**: verbatim in its entry below; re-gate 5831015783. Self-reported gating an incomplete document first time (amendment landed 4 min before verdict). Amendment 1 verified exactly (§A shader claims read+confirmed; §A.1 worked values; §B.1 degeneracy matches own fit; §C no-block holds). Sharpest new finding: the AC suite would go GREEN on a broken build (terrain AC tests the already-working element; collision AC vacuous; no AC covers non-rotating entities). Canyon numbers soft — detector outside validated regime (0.08-0.27% sky coverage on stage 8). The stage-8 6.0%H figure downgraded to least-supported of three.

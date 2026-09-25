@@ -58,6 +58,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **A detector shipped for developer+judge to share must be RUN end-to-end on the frames the ACs will use, with its reject rate reported** — #128's §8 detector, implemented literally, rejected nearly every frame above 30° roll (missing edge guard).
    - **When a measurement tool is reused on a different stage/biome, re-report its operating stats there** (coverage, reject rate) — a stage-1-validated flat-fill detector found <0.3% coverage on a canyon sky and its numbers shipped with stage-1 confidence (#128 re-gate).
    - **Check acceptance criteria for what they DON'T cover, not just what they assert** — #128's suite would have gone green on a build where only the ground rolls: the passing AC tested the one element that already worked, and the collision AC passed vacuously.
+   - **The PUBLISHED spec must carry the full classifier (metric, tolerance, command), not just the result** — declaring tolerances in a scratch script isn't declaring them; an unpublished free parameter made two correct measurements disagree by 5pp for a full gate cycle (#120).
+   - **Never ship a value measured from one frame — re-measure over the full verified span first.** Of #120's two single-frame values, one survived ("by luck") and one was wrong, and the single-frame read gave no signal which (#120 rework: stage 8 median stable ±3.33pp, stage 17 ±7.92pp).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

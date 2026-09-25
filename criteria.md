@@ -58,6 +58,9 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 
 ## Hard Rules (automatic FAIL if violated)
 
+> **Measurement publication rule (#120 rework)**: any colour or threshold measurement published as gate evidence must state its distance METRIC and TOLERANCE, and the exact classifier/command so the other side can re-run it. An unpublished classifier cost a full gate cycle — the same estimator legitimately gives 10.2 or 15.6 %H depending on a free parameter neither side had stated.
+
+
 > TODO (TL, from #120-#122 spec retro): rules 2, 5, 8, 11 + #124's biome identity all partly govern ground/composition and overlap — consolidate into one ground section on the next criteria pass so defects can't fall between rules.
 
 
