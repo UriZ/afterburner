@@ -58,6 +58,9 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 
 ## Hard Rules (automatic FAIL if violated)
 
+> **Audibility rule (#138)**: 'audio works' requires an audibility check distinct from 'the player reports playing' — the Master bus was muted for the project's entire history while every audio test passed.
+
+
 > **Median rule (#135/#120)**: when an AC or constant leans on a median, publish the per-frame spread beside it — this project's medians sit over distributions with 4-10x spreads.
 >
 > **Spread rule (#127)**: a measured claim verified on ONE sample is not verified — any gate or calibration that licenses future numbers must be demonstrated across a spread of inputs with the pass rate reported (#125's gate pass was correct, reproducible, and generalized to 3 of 10 windows).

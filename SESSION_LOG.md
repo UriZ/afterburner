@@ -1,5 +1,127 @@
 # Session Log
 
+### [2026-09-26 02:30] — TL — Retrospective: dev-113-116 #138 music wiring — in QA; TWO project-level finds
+
+**Agent TLDR**: verbatim in its entry below. Finds: (1) the committed .ogg is FLAC-in-Ogg — this ffmpeg has no libvorbis and silently falls back (recipe right, toolchain lied); dev correctly did NOT install dependencies (proposed instead), shipped lossless WAV native import — sample-exact gapless loop verified empirically (loop_mode enum trap: 1=Disabled, 2=Forward; seam step 6490 vs p99 22125). (2) audio_manager.gd:100 muted Master unconditionally — the project has NEVER had audible audio; every audio test passed silent. Music bus −12dB vs SFX −6dB; phase-polled start (no setter/signal on phase — didn't edit unowned game_state.gd); title chip-tune now stopped (would have double-played); caught own #118-class bare-name regression via the runner (221 assertions un-silenced).
+
+**TL decisions**: WAV stays as the shipped asset (technically superior loop); .ogg remains the lossless master; no vorbis-tools install (dependency policy). #143 filed (mute captures). Audibility rule added to criteria; audio traps to CLAUDE.md.
+
+**Retrospective — applied**: CLAUDE.md audio traps (no-libvorbis, import enums, runtime autoload lookups, audible-by-default); criteria audibility rule. QA → qa-113-116; user does the final listening test in-game after commit. APPLIED.
+
+
+### [2026-09-25 23:30] — architect — #139
+**Task**: Spec world speed to arcade parity — our game measures at most 61% of arcade stage-1 speed (#127's certified bound).
+**Result**: COMPLETED. Spec posted: https://github.com/UriZ/afterburner/issues/139#issuecomment-5834157641 — relabelled `architect` -> `developer`. **Sequenced AFTER #120.**
+
+**File ownership**: `game_world.gd` (the one live speed constant), `stage_data.gd` (per-stage key, after #120's hunk), `depth_util.gd` (read-only). Explicitly NOT `enemy_jet_2d.gd`, NOT `depth_to_scale()`. No ports used — all analysis offline against cached video and the real source.
+
+**Headline finding: a single global speed constant cannot be correct.** The arcade's own apparent ground speed differs by regime — stage 1 >=3.063 px/frame (floor), stage 8 1.9433 (certified) — so cruise is at least 1.58x canyon. After #120 lands, our inter-stage flow ratio is fixed by geometry alone (`span = SCREEN_H - horizon_y` grows 2.40x on a canyon horizon), which makes OUR canyon 2.4x faster than cruise while the arcade's is at most 0.63x. **The relationship is backwards, so world speed must become a per-stage datum exactly as #120 is making the horizon one.** A global raise to fix stage 1 would make canyon stages badly too fast.
+
+**Corrected a misreading risk in the issue framing**: #127's certified 0.9672 compares **our stage 1 against arcade stage 8** — it demonstrates the tool certifies when content qualifies, NOT that we match the arcade's canyon. We have no measurement of our own canyon regime at all. Said so explicitly so nobody builds on it as a parity claim.
+
+**Where speed lives (full audit)**: `GROUND_SCROLL_SPEED = 1.4` (`game_world.gd:39`) is the ONLY live world-speed constant. Enemy `speed` (per-type table) is a separate rate — out of scope. Two other scroll constants are DEAD: `game_environment_2d.gd` SCROLL_SPEED (test/legacy scenes only) and `stage/ground_scroll.gd` (the superseded 3D `main.tscn`). Told the developer not to touch them.
+
+**Analytic model so the multiplier is computed, not tuned**: the shader's `world_d = d - world_scroll` means every ground feature's depth advances at exactly `GROUND_SCROLL_SPEED`/s, and `y = horizon + d^2*span*0.95` gives `dy/dt = 2*d*span*0.95*v`. So apparent flow is **exactly linear in v** and **also linear in span** — the second half is why #120 must land first.
+
+**AC 2 as written is not achievable, established three independent ways** — and I said so rather than specifying something unverifiable:
+1. #127's whole-window gate: arcade stage-1 fails at +43.3%.
+2. **My per-band sweep**: re-ran the gate on stage-1 restricted to four depth bands — **every band fails** (far +27%, mid +34%, near +45%, ground +50%). There is no slower band to retreat to.
+3. **Sparse-landmark tracking** (#121's technique, which works on stage-8 bushes): fails on stage-1 ocean — I measured wave-row spacing at 0.4-1.7 pp against a 0.25s descent up to 6.7 pp, so row correspondence is ambiguous by 4x+.
+Worse, raising our speed pushes OUR side above the knee too (~1.60% of width/frame vs a ~1.0-1.15% knee), so the comparison would become floor-against-floor.
+
+**Proposed achievable alternative**: capture our side at **120fps** (#114's `--fps`), where per-frame displacement halves to ~0.80% width and certifies, then compare in **% of frame width per second** — a frame-rate-independent unit — against the arcade's 60fps floor. That gives a **bound-closure** result, and the spec requires it be reported as exactly that: "no longer demonstrably too slow", never "parity". The [0.9, 1.1] language moves to the regime that genuinely certifies — our stage 8 vs arcade stage 8, once #120 gives us a canyon geometry.
+
+**Known-answer control, pre-declared**: double `v` to 2.8 and require measured flow to be 2.00x +/- 0.10; on a miss, STOP rather than widen the tolerance, because a miss means we have crossed the knee and every multiplier derived from the metric is invalid. The control doubles as the way to locate the knee on our own content.
+
+**#122 interaction checked, not assumed**: its amplitudes are **screen-relative** (x 120/75 px, y 97/61 px, peak 268 px/s describe where the JET sits on screen). The jet's position is input/demo-driven and never reads world speed — **no coupling in either direction**.
+
+**#121 is the binding constraint and the second independent route to the same conclusion**: its verified x1.45-1.69 growth rate was measured on **arcade stage 8**, and `GroundFeatures2D` advances on the same `world_scroll` — so a global raise breaks it. Cruise target and canyon target, one constant, cannot both hold.
+
+**Survivability**: stated and bounded, not fixed. The spec changes ground scroll ONLY; collision pressure comes from the enemy speed table and spawn interval, neither touched — so the change is **survivability-neutral by construction**, which is the reason enemy speed is excluded. Flagged that any future "raise enemy speed for coherence" issue inherits the 3-deaths-in-15s problem and must not land before #103/#86.
+
+**Improvement Insights**:
+- **reference-facts.md**: add "the arcade's apparent ground speed is REGIME-dependent — cruise >=1.58x canyon (stage 1 >=3.063 px/frame vs stage 8 1.9433)". Two issues (#121, #139) have now independently tripped over the assumption of one global speed.
+- **reference-facts.md**: add that #127's 0.9672 is our-stage-1 vs arcade-stage-8, not a canyon parity claim. It reads like a parity result and will be cited as one.
+- **architect.md / criteria.md**: when an AC names a numeric target against a reference measurement, the spec must state whether that reference value is a POINT or a BOUND, and an AC may not demand two-sided parity against a bound. #139's AC 2 asked for [0.9,1.1] against a floor, which is unsatisfiable in principle, and only became visible by tracing the measurement's semantics.
+- **workflow**: three of my last four specs found that the issue's stated target was not measurable as written (#113 aliasing, #128 rule-17 units, #139 bound-vs-point). Worth a TL checklist item when filing: "is the target a measured point estimate, a bound, or an assumption?" — cheap at filing time, expensive at gate time.
+
+---
+### [2026-09-25 19:45] — judge — #121 amendment 2 + #135 amendment (scoped re-gates)
+**Gate type**: per-agent (architect) x2, scoped
+**Verdicts**: #121 PASS 9/10 · #135 PASS 9/10 (threshold 9). judge-fail cleared on both.
+**Gated**: #121 = 5834027246 (14:25:03Z) · #135 = 5834043438 (14:26:10Z). Freshness re-check run immediately before posting.
+**Scope**: per TL's recorded decision, #121 was NOT evaluated for lacking an automated gate (that reduction is decided). Gated only: operator fix correctly stated, margins honest, judging procedure unambiguous.
+
+**#121 PASS — my operator finding was a real bug, and their diagnosis went further than mine.** I framed it as an unstated parameter; the actual cause is that computing the background on the CROPPED band meant nearly every window was dominated by edge-replicated padding, AND the padding differed between sides because bands differ in height (28/40/94 rows) — so the operator was partly measuring band geometry.
+- **Corrected operator reimplemented from the amendment text alone and reproduces EXACTLY on every discriminator-relevant value**: n>=8%W (1/0/0/4 — all four match), max width (8.33/7.29/6.12/22.59 — all four match), foreground area (37.43, 37.83, 38.54 — match to 2dp). Raw n>=1 counts differ 4-10 (lattice phase / component edges), touching no conclusion. That is the test of whether a procedure is correctly stated: it passes.
+- **Their retraction is complete and goes past my finding.** With the corrected operator, arcade stage-2 frame a-02 reads max 6.12%W with ZERO large objects — BELOW our minimum. So the overlap doesn't just exist, on stage 2 it inverts. They also caught a confound I missed: band heights 28/40/94 mean taller bands hold more components regardless of content; normalising to /10k band px makes EVERY measure overlap, invalidating the one discriminator I had accepted. My run agrees: ours 18.23-20.57 /10k px vs stage 2's 31.76 and stage 17's 5.58; foreground area ours 37.4-37.8% vs stage 2's 38.54%.
+- 12 tried-and-failed metrics published so nobody repeats the effort (same discipline as #120's abandoned-estimator list). The mean|grad| lead (ours 0.1206-0.1339 vs arcade 0.0242-0.1073 — our ground is HARSHER, not blurrier) correctly routed to #135/#42 rather than smuggled in as a gate here.
+- Judging procedure: executable as written. The two inputs AC 0(a) doesn't enumerate (frames per side) are fixed by rules I'm bound by independently (criteria rule 7 for arcade-side identity; the mandatory judge procedure for ours). Recommended naming the counts anyway — arcade frame-to-frame variance within stage 17 alone runs max width 11.52-22.59%W — but not a gap.
+- §5 earns the pass: they state plainly that #121 no longer has an automated whole-frame gate and refuse to hide it behind an eleventh proxy. That makes the TL's accepted reduction reviewable on visible information.
+
+**#135 PASS — cleanest reproduction of this entire issue series.** AC 6's distribution reproduced to the DIGIT: all 12 per-frame values identical (28.45 30.56 24.08 17.64 10.20 6.16 8.03 4.11 2.28 2.71 5.98 10.02) and all five statistics (median 9.02, p10 2.85, p90 28.01, min 2.28, max 30.56, spread 13.4x). Publishing metric+tolerance is what made that one run instead of a negotiation.
+- **AC 6 rewrite covers my gap and adds a guard I did not ask for**: median <=14 over >=12 frames, PLUS p90 <=34, PLUS the full distribution mandatory with "a median quoted without its spread is rejected". The p90 clause closes a hole my own recommendation would have left — a build can hit the median while swinging open/closed frame to frame, and only p90 catches "only occasionally a canyon".
+- **Wall-detector control reproduces in substance**: I re-ran it on burst-c-03 with independently hand-picked regions — left wall 77.3%, right wall 78.9%, olive field 1.5%, sky 0.0% vs their 85.7/95.4/0.0/0.0. Absolute fractions differ (my crops include edge field/sky) but the claimed property — ~78% on wall vs 0-1.5% non-wall, ~50x separation, no intermediate cases — holds decisively. Detector demonstrably in regime on stage 17.
+- Stage 8 explicitly BARRED from being quoted until the same three-region control is re-run there. Closes my gap 1 durably: "per-biome stats are now a checklist item, not a courtesy."
+- 81-vs-71% reconciled correctly: two different column definitions §1.2 never stated (union of component spans >4%W vs >=10%H per column). Stricter 71% made normative BECAUSE it is stated exactly and needs no component step — reproducibility as the basis for choosing, not preference. §4.2 and AC 5 restated against it.
+- Unprompted self-correction in §4: all §1.2 figures excluded HUD rectangles and rows below 86%H without saying so (now stated exactly), plus a RETRACTED artifact published — an earlier clip at 12%H produced "0% of masses above the horizon", corrected to 52.6%.
+- Nit (same as #124's): control crop rectangles unpublished, so it re-runs to the same conclusion but not the same numbers.
+
+**Improvement Insights**:
+- **architect.md**: add "publish the crop/region rectangles with any control" — raised now on both #124 and #135. A control whose regions are unstated re-runs to the conclusion but not the numbers, which is half a control.
+- **criteria.md**: #135's AC 6 is the model for any AC over a high-variance quantity — median + a tail bound + mandatory published spread. Worth generalising: an AC on a quantity whose reference spread exceeds ~3x needs a tail bound, not just a central bound.
+- **workflow**: two gates in a row, the architect's fix was better than my prescribed remedy (#121's band-geometry diagnosis and /10k-px normalisation; #135's p90 clause). Step 16 (state gaps as reproductions to satisfy, not patches) is measurably working — keep it.
+- **judge.md**: worth recording that reimplementing a spec's operator FROM ITS TEXT ALONE is the sharpest test of "is this procedure correctly stated". It settled #121 in one run where three gates of argument had not.
+
+---
+### [2026-09-26 02:45] — senior-developer — #138
+**Task**: Wire `main_theme.ogg` into gameplay — looping, on a music bus, gameplay-only, surviving respawn.
+**Result**: COMPLETED — after fixing two blockers that made the feature impossible as specified
+**Files changed**: `scripts/autoload/audio_manager.gd`, `assets/audio/music/main_theme.wav` + `.import` (new), `assets/audio/music/main_theme.ogg.import` (new), `tests/test_music_theme.gd` (new). Untouched: `main_theme.ogg`, `generate_theme.py`, `game_state.gd`, `title_screen.gd`, `game_world.gd`, `stage_data.gd`, player scripts.
+
+**Two blockers found before any note could play**:
+1. **The committed `main_theme.ogg` is FLAC-in-Ogg, not Vorbis.** Godot's `oggvorbisstr` importer rejects it outright. Confirmed three ways (`file`, `ffprobe codec_name=flac`, header bytes `OggS...fLaC`). Cause is environmental: `generate_theme.py` documents `ffmpeg -q:a 6`, but this machine's ffmpeg has **no libvorbis encoder**, so that command silently falls back to FLAC for a `.ogg` container. Recipe right, toolchain didn't honour it.
+2. **All audio was muted project-wide** — `audio_manager.gd:100` muted the Master bus unconditionally in `_ready()`. Nothing had ever been audible. Wiring the theme without removing that ships a silent feature that passes every test.
+
+**Technical decisions**:
+- **Lossless WAV instead of re-encoding to Vorbis.** The only Vorbis encoder here is ffmpeg's experimental one; the alternatives were a system install or a new Python dep, and dependency installs get proposed, not performed. WAV is also the better fit: sample-exact gapless looping with zero encoder delay, where Vorbis carries padding that must be compensated at the loop point. The `.ogg` stays as the lossless master.
+- **Verified the import enum empirically — and it mattered.** `edit/loop_mode` index 1 is **Disabled**, not Forward; setting 1 produced a stream reporting `loop_mode=0`, caught only by loading the resource back and printing its properties. Forward is 2. Also forced `compress/mode=0` (PCM) over the importer's default QOA, which is lossy.
+- **Checked the seam rather than trusting "seamless"**: wrap-point step 6490 vs 99th-percentile in-track step 22125 — the wrap is quieter than ordinary programme material.
+- **−12 dB music bus** against the existing −6 dB SFX: the continuous bed sits 6 dB under the transients so weapon/explosion cues stay on top. One constant to change.
+- **Phase-polled, not signal-driven**: `GameState.phase` is a plain var with no setter or signal, and adding one means editing `game_state.gd`, which this task does not own.
+- **Respawn survival is by construction**, not a special case: `lose_life()` never changes `phase`, so the player stays in PLAYING and `play()` is never re-called.
+- **Stops the title chip-tune when the theme starts** — `title_screen.gd` starts it and nothing ever stopped it, so both would have played over each other.
+- **Mute became opt-out** (`-- --mute-audio`) rather than mandatory.
+
+**A regression I introduced, caught by my own runner**: referencing the `GameState` autoload by bare name inside `audio_manager.gd` compiles at runtime but broke `tests/test_audio_manager.gd`, which instantiates that script directly before the autoload bootstrap — turning its 221 assertions into a silent no-op (#118's exact mechanism). `run_all.sh` flagged it as `COMPILE ERROR (counts above are not trustworthy)` instead of passing it green. Fixed at the source: runtime `/root/GameState` lookup plus mirrored phase constants, with a test asserting the mirror against the real enum via the script constant map.
+
+**Testing**: `tests/test_music_theme.gd` **27 passed, 0 failed**; `tests/run_all.sh` **1055 passed, 13 failed** (known legacy set). The respawn assertion originally compared positions within a single frame — both ~0.003s, so a restart was indistinguishable from no restart and it would have passed on a broken implementation; it now seeks 12s in first. Captures verified: `game-movie` 180 frames at exactly 60fps, `game-video` 30 frames at measured 10.151fps, neither affected by the new autoload work. Also confirmed live via the bridge: real gameplay reached with `/root/AudioManager/ThemePlayer` present and no audio errors.
+
+**Improvement Insights**:
+- **[CLAUDE.md]**: record that this machine's ffmpeg has **no libvorbis encoder** and silently falls back to FLAC when asked for `.ogg`. It has already cost one unusable committed asset and would cost the next one too. Any audio asset should be checked with `ffprobe` for `codec_name=vorbis` before committing.
+- **[CLAUDE.md]**: Godot import enums are not guessable — `edit/loop_mode` index 1 is Disabled, 2 is Forward, because index 0 is "Detect From WAV". Load the imported resource and print its properties rather than trusting the index.
+- **[workflow]**: two of this session's bugs (here and #118) came from an autoload being referenced by bare name in a script that something loads directly. Worth a standing rule: autoload scripts should resolve other autoloads at runtime, never name them at compile time, or they cannot be unit-tested in isolation.
+- **[criteria.md]**: "audio works" needs an audibility check distinct from "the player reports playing" — the Master bus was muted for this project's entire history and every test would still have passed.
+
+---
+### [2026-09-26 00:50] — architect — #120 (tie-break), #121, #122 (sweep cross-posts)
+**Task**: State AC 7's unstated argmax tie-break (#120 impl gate finding a) and sweep all my specs for the same pattern.
+**Result**: COMPLETED — amendment on #120 with an auditable sweep; cross-posts on #121 and #122 for the items found there.
+
+**Key decisions**:
+- **AC 7's estimator A had no tie-break, and both readings are defensible**: first-maximum gives 5.21%H, last-maximum 63.84%H, from the same sentence. Specified **last maximum** (lowest split row among ties) — corroborated by the gate's independent cruise measurement (63.84 vs my control's 63.69 and the known 62.50), whereas first-maximum returns 5.21%H on a cruise stage, obviously wrong.
+- **Added a refusal rule**: refuse when max score < 0.8 (existing sep gate) OR when the tied set spans >10% of the band. A plateau that wide means the objective does not localise a boundary.
+- **Diagnosed WHY my control missed it**: all ten frames I measured have exactly one maximum — no plateau. Synthetic analysis shows plateaus arise only in degenerate inputs (nothing textured / everything textured) where max score is 0.00 and the sep gate already refuses. So my control never reached the ambiguous region. **A passing control does not mean an objective is well-defined; it means the control did not reach the ambiguity.** That is the transferable lesson and I put it in the amendment.
+- **Swept all four specs and found four MORE instances**, listed in an auditable table: #121 AC 5's dominant-hue-bin argmax (ties realistic over 18 bins); #121's unstated percentile method (p75 of [1,2,3,4] is 3.25 linear vs 3.0 nearest — at n~40 features that shifts a p90 by a whole feature width); #122's modal-background argmax over a quantised RGB histogram; #122's "largest connected component" argmax, where a tie changes the reported centroid. Each got a stated tie-break and, where relevant, a degenerate-input refusal rule.
+- **Checked and found CLEAN** (recorded so the sweep is auditable, not just its hits): #121's localmedian uses 121 samples — odd, so unique; #121 AC 0's max-width is a max over values where ties return the same number; #120's tilt formula and ACs 1-5/8-10; #135's wall detector; #122's per-regime sd bands and amplitude arithmetic.
+- **Found two gaps the sweep surfaced that were not argmax at all**: #120 AC 6/6b had no rule for "no row ever drops below 2.0%", and #135's ACF half-life silently returns the window length when the ACF never falls below 0.5 — which actually happened during my own #135 measurement. Both now have explicit refusal rules.
+
+**Spec posted to**: #120 comment 5834127039, #121 comment 5834135061, #122 comment 5834135432
+
+**Improvement Insights**:
+- [architect.md]: proposed a rule beside AC 10 — any objective resolved by argmax/argmin/first-crossing must state (a) the tie-break, (b) the scan direction, and (c) what is returned when the objective is degenerate or never crosses, **and the control must include an input that reaches that region**, or it has not tested the definition. All five instances in this sweep share that exact shape.
+- [workflow]: this sweep was cheap (~15 min) and found four defects across three specs that were already gate-PASSED. A one-time sweep of a whole spec batch for a newly-identified defect class is a much better use of time than catching them one at a time at successive gates.
+
 ### [2026-09-26 02:00] — TL — Retrospective: qa #127 FAIL / #136 PASS; #142 filed
 
 **Agent TLDR**: verbatim in its entry below. #127: metric computation reproduced independently (4/10 windows, own-seed calibration sweep, certified run — two byte-exact); FAIL on one production-artifact leak: bare "px" evades the "px/frame" regex in the shipped stage-1 refusal report — self-contradictory two lines apart. #136: PASS incl. natural-stagger stress; adversarial forced-cursor probe found residual TOCTOU (~50% under worst case, fails LOUD) → #142 (low, non-blocking). Tree noise correctly isolated: test_music_theme transient (another agent's edit); test_audio_manager persistent #118-class compile error → heads-up sent to dev-113-116 (its own in-flight #138 file).
