@@ -76,6 +76,9 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Detect by modelling SHAPE (template correlation, line fits), not by colour-threshold pixel counts** — pixel counting produced two confident wrong answers in one session (#128 edge guard, #129 presence test); when a metric disagrees with the eye, the eye wins and the metric gets replaced.
    - **A known-answer control validates only the axis it varies — include a case where the WRONG answer is asymmetric** (#122: a centred-jet control passed while the detector tracked symmetric terrain; an off-centre-by-known-offset case would have failed it).
    - **A spec deriving a bound from a full-period statistic must state the minimum capture length for convergence** — #122's AC 1 said >=28s; the straight-regime sd needs ~45s+, costing a capture cycle to discover.
+   - **State a windowed operator's SUPPORT relative to its analysis region** — a 41x41 window on a 28-row band measures mostly edge padding, i.e. band geometry, not content (#121 amendment 2).
+   - **When comparing counts between sources, normalize by analysis area** — raw counts over 28- vs 94-row bands were never comparable; normalization dissolved a claimed separation (#121).
+   - **Before proposing any numeric bar, run it against the REFERENCE frames and confirm they pass** — a bar the arcade fails can never be right; would have caught all three #121 misses.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

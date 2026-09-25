@@ -1,5 +1,42 @@
 # Session Log
 
+### [2026-09-26 00:50] — TL — Retrospective: architect-comp #121/#135 amendments — AC 0 reduction ACCEPTED
+
+**Agent TLDR**: verbatim in its entry below. #121: the judge's operator bug confirmed (window computed on the cropped band = measuring edge padding = band geometry); with the fix + area normalization, the architect's OWN separation claims died — 12 metrics, no discriminator; AC 0 made judgement-binding with published context (a threshold on a non-discriminating measure fakes a guarantee). Flagged the reduction openly rather than burying it. mean-|grad| lead preserved (harsher, not blurrier). #135: wall-detector control supplied (85.7/95.4/0.0/0.0% on hand-verified regions — genuinely in regime), stage-8 re-control required before quoting; own 81-vs-71% discrepancy reconciled (unstated column definitions); AC 6 median+p90 with mandatory spread.
+
+**TL decision**: reduction ACCEPTED — RULE ZERO gets its second worked example; the eye gates the ground, measurements inform.
+
+**Retrospective — applied**: architect.md ×3 (operator support vs region; area normalization; reference-passes-the-bar-first); criteria.md RULE ZERO second example; reference-facts (no-discriminator fact + grad lead). #140 → dev-sky-115 (HIGH). Re-gates queued for first free judge. APPLIED.
+
+
+---
+### [2026-09-25 19:05] — judge — #120 developer implementation
+**Gate type**: per-agent (developer)
+**Verdict**: PASS
+**Score**: 9/10 (threshold 9). No judge-fail.
+**Gated**: newest comment 5833942273 (14:19:18Z). All work read-only on the shared tree; negative control + stage captures ran in an isolated scratchpad copy so no in-flight agent edits were touched.
+
+**Verified independently (not accepted on report)**:
+- **stage_data.gd additive-only PROVEN mechanically**: stripped the new key from all 23 new dict lines and diffed vs HEAD — 0 stages changed beyond the key, non-dict non-comment lines identical (8=8), key order preserved, every sky_*/ground_* byte-identical. Values 8=0.13, 17=0.07, 21 others=0.625. AC2 verified. Safe to land as the early commit for #124's rebase.
+- **AC4 negative control REPLICATED EXACTLY**: baseline 10 passed/0 failed; with the set_shader_parameter("horizon_y",...) line deleted, 9 passed/1 failed — matches the dev's 9/10. The #2.5 latent bug I confirmed at the spec gate is genuinely fixed.
+- **AC6/AC6b re-measured with my own classifier (seed=stage sky_top, sum|dRGB|, tol 60, first row <2.0%) — BIT-IDENTICAL to the dev**: stage 8 = 15.48%H (theirs 15.48), stage 17 = 6.25%H (theirs 6.25). Inside bands 10.2-18.1 and 5.6-12.7. Ground plane 87.0% / 93.0% >= 82%.
+- **Runtime wiring confirmed live**: preview harness log on port 9585 prints horizon_fraction 0.625/0.13/0.07/0.625/0.625 per stage. Frames identified by rendered sky colour, not capture order (3.9s interval drifted one stage against the 4.0s cycle).
+- **Cruise regression: DIRECT pre/post comparison.** Re-ran the exact sky-boundary method I used on the PRE-#120 build at cycle 1 against the new stage-1 capture: cycle-1 pre-change 62.8-62.9%H vs now 62.95%H — within 0.1 pp. Stage 6 likewise at 0.625. AC1's algebraic invariance is visible in rendered output, not only in a unit test.
+- **Suite**: I ran run_all.sh myself — 1028 passed / 13 failed (jet_mesh_builder, known), "Suite clean." Dev reported 1025; difference is other agents' tests landing mid-flight = expected tree noise, not a discrepancy.
+- Code matches spec §2.1-§2.5; remaining HORIZON_Y refs confined to the two demo scenes §2.6 excludes plus the orphaned game_environment_2d.gd. AC3 arithmetic checks (87.36, 642.77).
+
+**HAZE-BLEND EXPLANATION: SOUND, NOT A DODGE — and it makes a checkable prediction.** Shader haze is `smoothstep(0.0, 0.06, UV.y)` at ground_terrain_2d.gdshader:490, and UV.y spans the GROUND SPAN not the frame, so the haze band's absolute width scales with ground coverage: canyon 35.1/37.5px (5.22/5.58 pp of frame) vs cruise 15.1px (2.25 pp). Predicts larger positive offset on canyon than cruise, every offset bounded by its band. Observed: stage 8 +2.48 pp (band 5.22), cruise +0.60/+1.04 (band 2.25) — all inside, all scaling correctly. The case that would have broken it — stage 17's NEGATIVE offset (-0.75 pp) — is explained by the same mechanism reversed: stage 17 is the one canyon with a GRADIENT sky (sky_top sage -> sky_horizon cream), so the seed stops matching before the geometric horizon. Flat-sky stages (1/6/8) all positive, gradient stage negative. Coherent.
+
+**Findings, neither blocking**:
+- (a) **AC7's estimator A has an UNSPECIFIED TIE-BREAK.** Implementing "split maximising (textured below - textured above)" literally I get 5.21%H sep 1.00, NOT 63.84%H. On a flat-fill sky the objective PLATEAUS across the whole sky band (every split above the horizon scores 243-0 identically), so the answer depends entirely on first-vs-last maximum. The dev's 63.84% is the sensible reading and is corroborated by my independent 62.95% cruise measurement, so the implementation is fine — but the number cannot be reproduced from its published description, which is exactly what #120's OWN AC10 exists to prevent. Inherited from the spec, not introduced by the developer.
+- (b) AC6 requires >=20 frames; 5 were used (3 for AC6b, 4 for AC7). On a static preview frames are genuinely identical so no measured value changes, and the dev DISCLOSED it rather than padding with duplicates — right call. Noting it because >=20 was written for a moving horizon.
+
+**Improvement Insights**:
+- **spec/criteria (#120 amendment needed)**: estimator A must state its tie-break, or AC7 must use a different estimator. A plateaued objective with an unstated tie-break is the same failure class as the unpublished classifier that caused #120's own rework — the rule got written (AC10) but the AC that predates it was never brought into compliance. Sweep the other ACs for the same pattern.
+- **judge.md / workflow**: running the negative control and the stage captures in an rsync'd scratchpad copy let me mutate freely with zero risk to six concurrent agents' uncommitted work. Worth making this the documented pattern for any gate that needs a destructive test on a shared tree — it cost one rsync.
+- **developer.md**: when a capture harness cycles stages on a timer, identify frames by rendered content (sky colour, caption) rather than capture order. My 3.9s-vs-4.0s interval drifted a full stage and would have silently mislabelled every measurement.
+- **criteria.md**: the haze-offset finding generalises — a row-coverage horizon cut is biased by the renderer's own horizon blend, by up to the blend width (2.2 pp cruise, 5.2-5.6 pp canyon). Worth recording next to the tilt-bias formula already in reference-facts.md so the two systematic biases on this metric sit together.
+
 ### [2026-09-26 00:25] — TL — Retrospective: dev-sky-115 #122 — 7/9 ACs, in QA; #140/#141 filed
 
 **Agent TLDR**: verbatim in its entry below. AC 1 passes all six bands (whole/cruise/straight x/y within ~0.4pp of arcade); falsification check demonstrably fails at weight 1.0 (12.45 vs 2.50pp — permanent unit test via _demo_position_at). AC 6 blocked honestly (CaptureInput time base — 3rd silent time-base incident → #141); AC 8 not attempted, stated plainly. Detector contamination found (2535 ground vs 174 jet pixels; symmetric-ground blind spot in the control → #140, HIGH). Self-caught a railed phase fit via residuals.
