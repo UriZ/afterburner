@@ -1,5 +1,60 @@
 # Session Log
 
+### [2026-09-26 04:30] — TL — Retrospective: vqa-123 #122 — PASS; combined jet commit 5c49a3e; #112/#92/#122 closed
+
+**Agent TLDR**: verbatim in its entry below. All 8 AC1 statistics in-band on an independent 140-frame capture with pipeline cross-validated against the rig's printed ground truth; falsification formula reimplemented in plain Python — identical 12.45/2.50 to the shipped GDScript test; AC3 input-wins verified LIVE (hold Right mid-demo → drives off-frame → stays parked, demo cleared permanently); #112 aspect byte-identical + #92 alpha 1.000 on the combined diff (no regression); AC6/AC8 confirmed honestly scoped with tracked follow-ups.
+
+**Retrospective — applied**: CLAUDE.md (harnesses print ground truth per frame; capture_invincible as the standard live-verification tool). Combined commit 5c49a3e; three issues closed. This also un-gates the #128 §G jet-bank follow-up once #128 core lands. APPLIED.
+
+
+---
+### [2026-09-26 04:15] — senior-developer — #127 (QA FAIL fix), #138 heads-up
+**Task**: Fix the unit-string leak QA found in #127's refusal report; harden the guard; confirm #138's `test_audio_manager.gd` state.
+**Result**: COMPLETED
+**Files changed**: `.claude/skills/motion-metrics/{motion_metrics.py,selftest.sh,SKILL.md}`; regenerated `.reference-cache/metrics/speed-127/` and `speed-127-qualifying/`
+
+**The defect**: the refusal section printed `30fps-arm p95 is 5.53 px against an estimator ceiling of 7.68 px` two lines above the claim that no such figure appears. QA is right; it shipped.
+
+**Two independent gaps, and the second is the real lesson**:
+1. The guard matched only the token `px/frame`, so a displacement written as bare `px` walked through.
+2. **The leaking branch was never rendered by any test.** The diagnostic has two arms — estimator saturation and content aliasing — printing different sentences. My synthetic fast-pan fixture *saturates*, so every run rendered the saturation arm, which happens to carry no numbers. The aliasing arm, which carried the leak, only appears on real decorrelating footage. I had tested one branch of a two-branch diagnostic and read green as covering both.
+
+**Fixes**:
+- Refusal diagnostic is now qualitative — still names the cause, carries no magnitudes.
+- Guard enumerates phrasings: `px/frame`, decimal + bare `px`, `pixels per frame`, `pixels/frame`, `px/frame: <n>`, `per-frame ... <decimal>`, `displacement ... <decimal>`, both ratio forms. The discriminator making bare `px` safe to ban is the **decimal** — legitimate geometry in the report is integer (`180x96 px`, `1568 px total width`), and a legitimate-text fixture must produce zero matches so the hardening is not paid for with false positives.
+- **Test 16**: greps every `report.md` the suite generates (15 this run), not a hand-picked pair; qualifying reports identified by their own `## Speed (quantitative)` heading, and the converse asserted too.
+- **Test 17**: renders both refusal branches directly through the report writer rather than hunting for footage that produces each, checking each for leaks AND for still naming its cause.
+
+**Negative control**: the exact shipped leak line scores **0** against the old guard and **1** against the new one — tests 16/17 fail on the pre-fix output by construction.
+
+**Testing**: `selftest.sh` **87 passed, 0 failed** (was 79). `tests/run_all.sh` **1055 passed, 13 failed** (known legacy set). `speed-127/report.md` regenerated with 0 guard matches and its diagnosis intact; `speed-127-qualifying/` still reports its certified 0.9672, so the inverted direction did not regress. **No measurement changed** — stage-1 stays gate-FAIL at 0.7164 and the ≤61% bound stands.
+
+**#138 heads-up resolved**: `test_audio_manager.gd` is **221 passed, 0 failed** now. QA saw the window while my in-flight edit referenced the `GameState` autoload by bare name inside `audio_manager.gd`; I found and fixed that before posting #138 (runtime `/root/GameState` lookup + mirrored constants). The file uses `_init()` + runtime `load()`, which is fine now that the loaded script names no autoload at compile time — no change needed to a file I don't own.
+
+**Improvement Insights**:
+- **[criteria.md]**: the new production-artifact rule is right, and it needs a companion — **any diagnostic with branches needs every branch rendered by a test**. A fixture set naturally reaches only some branches, and the unreached one is where the defect lives. Calling the rendering function directly with synthetic state is cheaper and more complete than hunting for inputs that trigger each arm.
+- **[criteria.md]**: when hardening a guard, require a *legitimate-text* fixture alongside the leak fixture. Broadening a pattern until it catches the known leak is easy; proving it still ignores `cell size: 180x96 px` is what keeps it from being reverted the first time it false-positives.
+- **[workflow]**: this is the second #127 defect of the form "the assertion tested what I imagined the output looks like". Both were caught by someone grepping the real artifact. Worth stating that a guard's authority comes from being run against shipped output, not fixtures.
+
+---
+### [2026-09-26 04:20] — visual-qa — #122
+**Task**: Independently verify #122 (two-regime demo flight) — last gate before the combined #112+#92+#122 commit.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #122 (PASS)
+**New bugs filed**: none
+
+**TLDR sent to TL**:
+GitHub issue(s): #122
+I found 0 bugs: the two-regime demo flight is correct and independently verified, and #112/#92 show no regression on the current combined diff.
+Key findings: (1) AC1's six-band statistics reproduced on my own 140-frame capture of the dev's isolated rig (`tests/demo_flight_preview.gd`, port 9630) using my own crop-then-centroid pixel analysis, cross-validated against the rig's own printed ground-truth position (mean offset -0.5px x / sd 2.5, stable +14.4px y offset / sd 2.3 — confirms the pixel pipeline tracks real physics, not noise), and segmented by regime using the rig's printed demo clock rather than a fitted phase. All 8 measured quantities (whole/cruise/straight cx+cy sd, mean|cx-50|, frac>5pp) landed inside their bands and closely tracked both the arcade targets and the developer's own reported numbers. (2) Reimplemented the falsification check from the spec's formula in plain Python (no Godot) — forced constant-amplitude sd=12.45pp (breaches the 4.5 bound), two-regime sd=2.50pp (passes) — then ran the actual GDScript test and got the identical 12.45/2.50. (3) AC3 (input wins) verified live in real gameplay, not just the unit test: injected a `hold Right` via the MCP bridge mid-demo, watched the jet drive hard right off-frame, then confirmed across 4 more frames over ~4s with no further input that it stayed parked near the edge rather than resuming the wide demo sinusoid — demo_flight cleared permanently, as specified. (4) Regression-checked #112 (isolated aspect measurement byte-identical: 3.546) and #92 (alpha=1.000 on 6 fresh frames from this session) on the current combined diff — clean. (5) Confirmed AC6/AC8 are honestly scoped as blocked/not-attempted: AC6 has a specific verified root cause (CaptureInput assumes 60fps, live rig measured 142fps) and a dedicated tracked follow-up (#141) whose AC3 explicitly commits to posting the result back to #122; AC8 is plainly stated as not attempted. Neither is a silently-dropped gap. (6) `run_all.sh` clean and stable across two runs: 1055 passed, 13 known pre-existing failures.
+
+## Improvement Insights
+- **workflow**: When a harness prints internal ground-truth state per frame (as `demo_flight_preview.gd` does with `_demo_t`/`position`/regime weight), capturing that alongside each screenshot gives a precision segmentation/cross-validation method that beats fitting a phase from pixel data alone after the fact — worth calling out as the preferred pattern in future harness-writing guidance, since the developer's own gameplay-capture attempt at this same measurement needed a post-hoc phase fit and got a degenerate result on the first try.
+- **workflow**: `set_capture_invincible` (from #112) was essential for cleanly testing AC3's input-wins behavior in live gameplay without death interrupting the sequence — worth documenting as the standard tool for any live-capture verification that isn't itself about death/respawn.
+
+**Retrospective**: no CLAUDE.md/criteria.md changes applied — existing guidance and the #140 contamination warning were sufficient and correctly followed.
+
+---
 ### [2026-09-26 04:00] — TL — Retrospective: architect-113 #129 amendment — impl ready, queued for first free dev
 
 **Agent TLDR**: verbatim in its entry below. Both own errors root-caused to one mistake (publishing the search window as the measurement): life icons re-measured 94.2-96.0%H with a NEW <=2.5%H height cap (band alone can't reject a tall icon starting high); high_score justification corrected (write-only state kept deliberately, alternative stated); AC 6 gains ±2%H for all 16 elements (missile silhouettes are TALL — flat ticks now fail); AC 5 restructured — binding half is a location-independent source grep on hud_canvas.gd (the only play-HUD renderer), pixel check demoted to cross-check.
