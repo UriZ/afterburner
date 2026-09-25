@@ -1,5 +1,15 @@
 # Session Log
 
+### [2026-09-25 14:35] — TL — Retrospective: visual-qa #123 — PASS; committed 7a7c4ef; page updated
+
+**Agent TLDR**: verbatim in the vqa entry below; findings comment 5830451196. Key: fully independent verification — own ffmpeg frame extraction at exact timestamps, own HUD digit reads (8 stages matched dev's map, several exact hex), score continuity bracketing (482610/487210 around cited 485420), live capture confirms #009FFF, glow shape matches rule 6 on all 5 glow stages, deleted bug-encoding tests confirmed gone, ground_a/b/c byte-identical (caveat real). 790/13-KNOWN suite.
+
+**Retrospective — applied**:
+- Committed 7a7c4ef (sky correspondence). Page updated: resolved panel with verified stage-1 before/after/arcade image; post-mortem kept for record; main game clip replaced with fresh true-speed blue-sky capture (12.105fps measured).
+- vqa insights (preview-harness timing via precomputed offsets; macOS bash 3.2 no declare -A) — noted as minor workflow lore; harness-timing note added to game-capture SKILL.md pattern section next session if it recurs; no doc change now (single occurrence, agent-local).
+- vqa's meta-point recorded: the "frames are UNLABELLED" note + amended rule 7 were sufficient instructions for independent reproduction — the process fix worked on first use.
+
+
 ---
 ### [2026-09-25 12:55] — visual-qa — #123
 **Task**: Independently verify #123 (stage-correspondence sky fix) — extract own frames, do not trust the dev's stage map, verify our game's rendering, verify test claims.
