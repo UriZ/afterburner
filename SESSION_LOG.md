@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-26 12:40] — TL — Retrospective: #131 addendum — clear for implementation
+
+**Agent TLDR**: verbatim in its entry below. The pinned-sum note framed as a usable rule ("the split is free, the sum is not") with verified alternatives; identified as the same defect class one level down (constants described as free while arithmetic binds them); all three #131 defects share one root — intent stated about constants without computing what they produce.
+
+**Retrospective — applied**: architect.md (free-constants vs AC arithmetic; reachable-set habit). #131 impl-queued. Both architects standing by for cycle-2 prep. APPLIED.
+
+
 ### [2026-09-26 12:10] — TL — Retrospective: architect-comp #137 amendment — at re-check
 
 **Agent TLDR**: verbatim in its entry below. Withdrew its own §1.2 V-row after finding the deeper defect (bright-sky inversion PLUS a self-selecting mask — ΔRGB term ejects fading pixels; survivors always look unfaded); conclusion honestly narrowed to one verified leg (radius collapse); new AC 3 = fill fraction (mask-unbiasable) with an explicit not-validated-against-fading-build caveat, AC 4 binding; AC 5's minpx=25 reproduces 16→29 exactly; saturation converted to proof (span pinned 4/14 frames while area varies 61%).
