@@ -17,10 +17,20 @@ const HS := 171.0          # half-span in px; full span 342 px = 35.6% of 960
 const ANCHOR_Y := 28.0     # local origin offset so on-screen placement is unchanged
 const OUTLINE_W := 2.0     # thin silhouette definition line, not a decal border
 
+## Airframe value ramp, measured off the verified refuel-stage frame at t=557s
+## in ab2-longplay.mp4 (stage 13 — identity proven per stage_data.gd's header).
+## Sampling the body region there returns a clean greyscale ladder at
+## V = 0.98 / 0.90 / 0.82 / 0.75, plus near-black nacelles at V ~ 0.33.
+##
+## #112 cycle-1: the previous ramp spanned a WIDER range than this and the jet
+## still read as "a flat 2-tone skeletal dart" — because ~90% of the body area
+## was painted V0_HILITE and the other stops only appeared in hairline panel
+## lines. The gradient has to be applied across the body's area, not stored in
+## constants. V4_DEEP and NACELLE_DARK below are what give the nacelles mass.
 const V0_HILITE := Color8(255, 250, 246)
-const V1_LIT := Color8(210, 200, 196)
-const V2_MID := Color8(173, 161, 157)
-const V3_SHADOW := Color8(150, 120, 120)  # warm-tinted grey (R > G=B), NOT brown — matches
+const V1_LIT := Color8(230, 224, 220)
+const V2_MID := Color8(206, 198, 194)
+const V3_SHADOW := Color8(168, 156, 152)  # warm-tinted grey (R > G=B), NOT brown — matches
 # the discrete in-game palette sampled from ab2-arcade-desert.png (native, uncompressed):
 # (255,255,255) hilite / (164,164,164) mid / (164,132,132) shadow. #112 feedback: our
 # airframe was reading beige because these tones carried a G>B cream cast (240,220,165
@@ -35,17 +45,79 @@ const NOZZLE_RIM := Color8(24, 19, 17)  # near-black housing — #112 round-6: t
 # dark/near-black with only a SMALL hot orange ember at the centre, not the reverse. The
 # round-4 note below (pure black read as a "car tire") was about a small housing with a
 # large core; this housing keeps its size but the core is now a minority of its area.
-const CANOPY_GLASS := Color8(58, 52, 108)  # dark blue-violet wedge — #112 round-5: reference
-# (burst-a-02/03, ref_jet.png) shows a small DARK purple-blue wedge nestled into the
-# fuselage spine, not a bright cyan bulb on a stick.
-const CANOPY_HI := Color8(100, 92, 165)
+const V4_DEEP := Color8(112, 100, 98)     # underside / nacelle-junction shadow
+const NACELLE_DARK := Color8(40, 35, 44)  # the heavy housing the nozzles sit inside
+
+## Canopy. Measured on ab2-arcade-reload-dorsal.jpg (astern, jet isolated on
+## black): a saturated violet-magenta patch #9d3aca, four pixels wide on a
+## 66px-wide jet = 0.12 half-span, and it is the TOPMOST part of the body —
+## nothing of the airframe projects above it. #112 cycle-1 had it at 0.036 HS,
+## which rendered as a dot nobody could see, and left the pale fuselage spine
+## above it reading as a projecting grey needle nose. Widened to 0.12 HS and
+## the spine above it removed entirely.
+const CANOPY_GLASS := Color8(92, 48, 116)
+const CANOPY_HI := Color8(150, 86, 186)
 
 const DEATH_DURATION := 1.0
 const INVINCIBILITY_DURATION := 2.0
 const FLASH_INTERVAL := 0.1
-const FLASH_MIN_ALPHA := 0.35  # #112 round-5: respawn flash now dims via modulate.a instead
-# of toggling full invisibility — a 50/50 fully-invisible blink measured only 79.2% frame
-# occupancy over 15s (below the 90% target). The jet is never literally absent mid-flash.
+## The respawn flash brightens the airframe instead of fading it (#92 / cycle-1
+## gap 7). Two earlier versions were both wrong in opposite directions: a 50/50
+## fully-invisible blink measured only 79.2% frame occupancy over 15s, and the
+## fix for that dimmed `modulate.a` to 0.35 — which made the jet SEE-THROUGH,
+## with ground and enemy sprites visible straight through the wings. AB2 never
+## renders the player translucent.
+##
+## `modulate` is kept at alpha 1.0 permanently and the flash is carried by RGB
+## gain above 1.0, which Godot applies as a multiply — so the jet stays fully
+## opaque in every frame of the flash and still reads as flashing.
+const FLASH_GAIN := 2.2
+const FLASH_MIN_ALPHA := 1.0  # retained name: the floor is now "always opaque"
+
+## Two-regime demo flight (#122 rework). The arcade's spread is situational,
+## not constant: cx sd 12.88 pp in open cruise, 2.59 pp in a canyon run, and the
+## combined 10.44 pp emerges from alternating between them - NOT from weaving at
+## a constant amplitude, which reproduces neither regime.
+##
+## The regimes differ in CENTRE as well as amplitude: in a canyon the arcade
+## player flies lower and straighter (cy 63.5 %H vs cruise 52.8 %H). That
+## between-regime offset contributes f(1-f)(dmu)^2 = 26.3 of the combined cy
+## variance, which the two regimes' internal spreads alone cannot account for
+## (they pool to sd 11.03 against a measured 11.99).
+@export var demo_flight: bool = false
+
+const DEMO_CRUISE_SECS := 9.0      # f = 9/14 = 0.643 cruise fraction
+const DEMO_STRAIGHT_SECS := 5.0    # matches the 11/17 cruise share of the reference sample
+const DEMO_BLEND_SECS := 1.0       # cross-fade; a hard switch reads as a teleport
+
+# Regime C - open cruise: wide lateral roaming, higher in frame
+const C_CX := 480.0
+## 360, not the measured 355. At 355 the cruise-y excursion bottoms out at 196,
+## one pixel OUTSIDE MOVE_MIN.y = 200, so the clamp would shave the peak and
+## silently depress the measured sd - the acceptance test would then be
+## measuring the clamp rather than the flight path. At 360 the low point is 201.
+## Re-check this if any amplitude changes.
+const C_CY := 360.0
+const C_AX1 := 148.0
+const C_AX2 := 92.0
+const C_AY1 := 98.0
+const C_AY2 := 61.0
+# Regime K - canyon/straight: nearly straight, lower in frame
+const K_CX := 480.0
+const K_CY := 427.0
+const K_AX1 := 30.0
+const K_AX2 := 18.0
+const K_AY1 := 68.0
+const K_AY2 := 42.0
+# Shared angular rates (incommensurate; ratios 2.275 and 2.096) so the path
+# never closes into a visible figure-eight.
+const W_X1 := 0.91
+const W_X2 := 2.07
+const P_X2 := 1.7
+const W_Y1 := 0.73
+const P_Y1 := 0.9
+const W_Y2 := 1.53
+const P_Y2 := 2.4
 
 @export var move_speed: float = 720.0
 @export var acceleration: float = 2200.0
@@ -62,12 +134,15 @@ var _flash_timer: float = 0.0
 var _flash_dim: bool = false    # alternates the respawn flash between full and dim alpha
 var _visible_flag: bool = true  # only for the permanent hide once all lives are exhausted
 var _is_respawn: bool = false   # flash only on respawn, not initial spawn
+var _demo_t: float = 0.0        # demo-flight clock; survives respawn (#122 risk 4)
 
 
 func _ready() -> void:
 	add_to_group("player")
 	position = RESPAWN_POSITION
 	_invincibility_timer = INVINCIBILITY_DURATION
+	if "--demo-flight" in OS.get_cmdline_user_args():
+		demo_flight = true
 
 
 func _process(delta: float) -> void:
@@ -78,6 +153,17 @@ func _process(delta: float) -> void:
 
 	if _is_invincible:
 		_process_invincibility(delta)
+
+	# Live input ALWAYS wins, and wins permanently for the run. A demo that
+	# fights the stick is a worse defect than a centred jet (#122 risk 1), so
+	# this is checked before the demo branch rather than blended with it.
+	if demo_flight and _input_enabled and _get_input_vector() != Vector2.ZERO:
+		demo_flight = false
+
+	if demo_flight and _input_enabled:
+		_process_demo_flight(delta)
+		queue_redraw()
+		return
 
 	if _input_enabled:
 		var input: Vector2 = _get_input_vector()
@@ -92,6 +178,61 @@ func _draw() -> void:
 	if not _visible_flag:
 		return
 	_draw_player(Vector2.ZERO, _bank_angle)
+
+
+# --- Demo flight (#122) ---
+
+## Regime weight: 1.0 = full cruise, 0.0 = full straight, smoothstep across the
+## blend. A hard switch between regimes reads as a teleport.
+func _demo_regime_weight(t: float) -> float:
+	var period: float = DEMO_CRUISE_SECS + DEMO_STRAIGHT_SECS
+	var p: float = fposmod(t, period)
+	if p < DEMO_CRUISE_SECS - DEMO_BLEND_SECS:
+		return 1.0
+	if p < DEMO_CRUISE_SECS:
+		return 1.0 - smoothstep(0.0, 1.0, (p - (DEMO_CRUISE_SECS - DEMO_BLEND_SECS)) / DEMO_BLEND_SECS)
+	if p < period - DEMO_BLEND_SECS:
+		return 0.0
+	return smoothstep(0.0, 1.0, (p - (period - DEMO_BLEND_SECS)) / DEMO_BLEND_SECS)
+
+
+## Demo-flight target position at time t. Both the centre and the amplitudes are
+## regime-dependent; lerping between two in-bounds envelopes stays in bounds, so
+## the blend cannot overshoot the movement clamps.
+func _demo_position(t: float) -> Vector2:
+	return _demo_position_at(t, _demo_regime_weight(t))
+
+
+## The path formula with the regime weight supplied explicitly. Split out so a
+## test can evaluate ONE pure regime over many full periods: the in-schedule
+## straight window is only 4s long while the slowest y component's period is
+## 8.6s, so measuring a regime's sd inside its own window measures the window,
+## not the amplitudes. It is also what AC 1's falsification check needs — force
+## w = 1.0 here and the straight-segment bound must fail, which is how we know
+## the bound can fail at all.
+func _demo_position_at(t: float, w: float) -> Vector2:
+	var cx: float = lerpf(K_CX, C_CX, w)
+	var cy: float = lerpf(K_CY, C_CY, w)
+	var ax1: float = lerpf(K_AX1, C_AX1, w)
+	var ax2: float = lerpf(K_AX2, C_AX2, w)
+	var ay1: float = lerpf(K_AY1, C_AY1, w)
+	var ay2: float = lerpf(K_AY2, C_AY2, w)
+	return Vector2(
+		cx + ax1 * sin(W_X1 * t) + ax2 * sin(W_X2 * t + P_X2),
+		cy + ay1 * sin(W_Y1 * t + P_Y1) + ay2 * sin(W_Y2 * t + P_Y2)
+	)
+
+
+## `_demo_t` keeps accumulating across a respawn so the path stays phase-
+## continuous rather than snapping back to the start of the cycle.
+func _process_demo_flight(delta: float) -> void:
+	var prev: Vector2 = position
+	_demo_t += delta
+	var target: Vector2 = _demo_position(_demo_t)
+	position.x = clampf(target.x, MOVE_MIN.x, MOVE_MAX.x)
+	position.y = clampf(target.y, MOVE_MIN.y, MOVE_MAX.y)
+	_velocity = (position - prev) / maxf(delta, 0.0001)
+	_update_banking(clampf(_velocity.x / move_speed, -1.0, 1.0), delta)
 
 
 # --- Input & movement ---
@@ -191,7 +332,7 @@ func _respawn() -> void:
 	_flash_timer = 0.0
 	_flash_dim = false
 	_visible_flag = true
-	modulate.a = 1.0
+	_set_flash(false)
 
 
 func _process_invincibility(delta: float) -> void:
@@ -201,11 +342,18 @@ func _process_invincibility(delta: float) -> void:
 		if _flash_timer <= 0.0:
 			_flash_timer = FLASH_INTERVAL
 			_flash_dim = not _flash_dim
-		modulate.a = FLASH_MIN_ALPHA if _flash_dim else 1.0
+		_set_flash(_flash_dim)
 	if _invincibility_timer <= 0.0:
 		_is_invincible = false
 		_is_respawn = false
-		modulate.a = 1.0
+		_set_flash(false)
+
+
+## Single owner of `modulate`, so no path can leave the jet part-transparent.
+## Alpha is pinned to 1.0 unconditionally; `lit` only raises RGB gain.
+func _set_flash(lit: bool) -> void:
+	var g: float = FLASH_GAIN if lit else 1.0
+	modulate = Color(g, g, g, 1.0)
 
 
 func _game_over() -> void:
@@ -252,161 +400,219 @@ func _draw_player(pos: Vector2, bank: float) -> void:
 	var rad: float = deg_to_rad(bank)
 	var origin: Vector2 = pos + Vector2(0.0, ANCHOR_Y)
 
-	# --- Wings (drawn first: single straight-swept blade, the dominant surface) ---
-	# Leading and trailing edges are each a single straight segment root-to-tip
-	# (no intermediate bend point) — the reference shows one continuous blade,
-	# not a kinked "W". #112 feedback: the previous 6-point silhouette bent at
-	# x=0.700, reading as a gull-wing kink.
-	var wing_r := [Vector2(0.090, -0.355), Vector2(1.000, -0.125), Vector2(0.965, -0.095), Vector2(0.100, -0.250)]
-	var wing_le_r := [Vector2(0.090, -0.355), Vector2(1.000, -0.125), Vector2(0.995, -0.108), Vector2(0.098, -0.333)]
-	var wing_te_r := [Vector2(0.100, -0.283), Vector2(0.955, -0.118), Vector2(0.965, -0.095), Vector2(0.100, -0.250)]
-	_draw_wing(origin, rad, _mirror(wing_r), _mirror(wing_le_r), _mirror(wing_te_r))
-	_draw_wing(origin, rad, wing_r, wing_le_r, wing_te_r)
+	# Draw order is back-to-front: surfaces that the body overlaps go down first,
+	# so their roots disappear under the fuselage instead of butting against it.
+	_draw_wings(origin, rad)
+	_draw_tailplanes(origin, rad)
+	_draw_fins(origin, rad)
+	_draw_body(origin, rad)
+	_draw_nacelles(origin, rad)
+	_draw_canopy(origin, rad)
 
-	# --- Tail fins: a triangular blade rising from the nacelle shoulder, wide
-	# at the base and tapering to a single point tip — NOT a constant-width
-	# stick. #112 round-7 feedback: the round-6 fin was a near-parallel-edged
-	# quad (root width 0.042, tip width 0.025 — barely tapered), reading as a
-	# "straight constant-width stick crossing the wings". burst-c-03 shows a
-	# clearly wedge-shaped fin: wide where it meets the nacelle shoulder,
-	# narrowing continuously to a sharp point. Rebuilt as a true triangle (base
-	# width 0.115, tip is a single coincident point) rooted at the new, smaller
-	# fuselage shoulder (0.100, -0.170) and reaching out toward the nozzle's
-	# inner edge (nozzle center 0.315 - radius 0.095 = 0.220) without crossing
-	# into it. Tip kept at y=-0.530, still below the canopy apex (-0.590) so
-	# the canopy remains the tallest feature and the envelope is unchanged.
-	var fin_r := [Vector2(0.115, -0.150), Vector2(0.230, -0.160), Vector2(0.400, -0.530)]
-	var fin_hi_r := [Vector2(0.230, -0.160), Vector2(0.400, -0.530), Vector2(0.385, -0.522), Vector2(0.205, -0.155)]
-	_draw_fin(origin, rad, _mirror(fin_r), _mirror(fin_hi_r))
-	_draw_fin(origin, rad, fin_r, fin_hi_r)
 
-	# --- Tailplanes ---
-	# Tucked to a small stub at the tail-cone/nozzle shoulder (y > 0, well
-	# below the wing's -0.355..-0.095 band and far short of its span). #112
-	# feedback: the previous tailplane nearly matched the wing's span and sat
-	# in the same vertical band, so the two surfaces read as a double-banded
-	# biplane. The reference shows no separate tailplane blade at all in this
-	# near head-on view — it's a small nub hugging the tail cone, not a second
-	# wing.
-	var tail_r := [Vector2(0.140, 0.005), Vector2(0.400, 0.040), Vector2(0.385, 0.072), Vector2(0.125, 0.045)]
-	var tail_le_r := [Vector2(0.140, 0.005), Vector2(0.400, 0.040), Vector2(0.395, 0.026), Vector2(0.138, -0.008)]
-	_draw_tailplane(origin, rad, _mirror(tail_r), _mirror(tail_le_r))
-	_draw_tailplane(origin, rad, tail_r, tail_le_r)
-
-	# --- Fuselage body: symmetric closed polygon, right half authored top-to-bottom ---
-	# #112 round-7 feedback: the round-6 body (max half-width 0.295*HS, bottom
-	# point at y=0.048) was "a large near-uniform flat WHITE wedge... widening
-	# downward into a belly that hangs BELOW the nozzles" — burst-c-03/c-11 both
-	# show the opposite: a slim spine that NARROWS as it descends, tapering to a
-	# thin tailcone tucked BETWEEN the nozzle nacelles, never reaching their
-	# bottom edge (nozzle disc bottom is at y=0.055; the old point-7 at y=0.048
-	# sat almost flush with it, reading as "hanging below"). Max half-width cut
-	# from 0.290 to 0.100 (measured against burst-c-11: spine width is ~0.6x a
-	# single nozzle's diameter, not 1.5x), and the bottom point pulled up to
-	# y=-0.015 — well clear of the nozzle bottom, roughly level with the nozzle
-	# centers. This also fixes round-7 finding #4 (wing/fuselage seam): the old
-	# 0.290-wide nacelle plate cut a hard rectangular step across the inner 30%
-	# of the wing's span; at 0.100 wide the fuselage no longer reaches the wing
-	# root band at all (wing root sits at x=0.090-0.100, y=-0.355..-0.250; the
-	# fuselage there is only 0.045-0.055 wide), so there's nothing left to blend.
-	var fuselage_half := [
-		Vector2(0.030, -0.530),  # neck top — flush with the (now smaller) canopy base
-		Vector2(0.055, -0.300),  # slender neck, slight widen
-		Vector2(0.100, -0.170),  # shoulder — max width, well inside the wing root and nozzle inner edge
-		Vector2(0.090, -0.110),  # nacelle wall, pulling back in already
-		Vector2(0.055, -0.050),  # waist, narrowing toward the tailcone
-		Vector2(0.000, -0.015),  # tailcone tip — above nozzle center (-0.040), far above nozzle bottom (0.055)
+## Wings: a thin, near-horizontal blade at the nozzle line.
+##
+## Structure read off ab2-arcade-reload-dorsal.jpg, which shows the jet astern
+## and isolated on black. Scanning it row by row, the wing occupies a band only
+## ~0.08 HS thick running the full span, centred within 0.06 HS of the nozzle
+## line — and the whole span from wingtip through nacelle to wingtip is one
+## unbroken run of airframe pixels.
+##
+## #112 cycle-1 had the root at y=-0.355 and the tip at -0.125, so the wing
+## climbed 0.23 HS from tip to root and attached high on the spine, well above
+## the nacelles. That is what turned the nacelles into "disconnected floating"
+## discs: nothing structural ran between them and the wing.
+func _draw_wings(origin: Vector2, rad: float) -> void:
+	# Chord ~0.09 HS at the root tapering to ~0.035 at the tip. The reference
+	# wing is a thin layered band, not a slab: a first pass here used a uniform
+	# 0.125-HS chord and read as a plank.
+	var wing_r := [
+		Vector2(0.150, -0.120), Vector2(1.000, -0.068),
+		Vector2(1.000, -0.033), Vector2(0.150, -0.030),
 	]
-	var fuselage: Array = _symmetric_poly(fuselage_half)
-	_draw_hs_poly(origin, rad, fuselage, V0_HILITE)
-	_stroke_hs_poly(origin, rad, fuselage, OUTLINE, OUTLINE_W)
+	# Leading-edge highlight and trailing-edge shadow: thin slivers, so the
+	# blade reads as a lit surface with thickness rather than a flat cutout.
+	var wing_le_r := [
+		Vector2(0.150, -0.120), Vector2(1.000, -0.068),
+		Vector2(1.000, -0.058), Vector2(0.150, -0.105),
+	]
+	var wing_te_r := [
+		Vector2(0.150, -0.042), Vector2(1.000, -0.041),
+		Vector2(1.000, -0.033), Vector2(0.150, -0.030),
+	]
+	for side in [-1.0, 1.0]:
+		var sil: Array = wing_r if side > 0.0 else _mirror(wing_r)
+		_draw_hs_poly(origin, rad, sil, V2_MID)
+		_draw_hs_poly(origin, rad, wing_le_r if side > 0.0 else _mirror(wing_le_r), V0_HILITE)
+		_draw_hs_poly(origin, rad, wing_te_r if side > 0.0 else _mirror(wing_te_r), V4_DEEP)
+		_stroke_hs_poly(origin, rad, sil, OUTLINE, OUTLINE_W)
 
-	# Panel lines — thin engraved strokes following the spine's contour, not
-	# filled bars. #112 round-7: endpoints pulled in to match the narrower spine.
-	_draw_hs_line(origin, rad, Vector2(0.0, -0.500), Vector2(0.0, -0.170), V2_MID, 1.5)
-	for sx in [-0.020, 0.020]:
-		_draw_hs_line(origin, rad, Vector2(sx, -0.460), Vector2(sx, -0.180), V1_LIT, 1.0)
-	for sx in [-0.045, 0.045]:
-		_draw_hs_line(origin, rad, Vector2(sx, -0.100), Vector2(sx, -0.050), V2_MID, 1.2)
 
-	# (a) Lower-fuselage tone — traces the nacelle wall down to the tailcone tip
-	_draw_hs_poly(origin, rad, [
-		Vector2(-0.090, -0.110), Vector2(0.090, -0.110), Vector2(0.055, -0.050),
-		Vector2(0.000, -0.015), Vector2(-0.055, -0.050),
-	], V1_LIT)
+## Tailplane stubs below and behind the nozzles. The reference shows only small
+## nubs here in this near-astern view, not a second full-span blade.
+func _draw_tailplanes(origin: Vector2, rad: float) -> void:
+	var tail_r := [
+		Vector2(0.175, 0.045), Vector2(0.430, 0.062),
+		Vector2(0.415, 0.098), Vector2(0.165, 0.086),
+	]
+	for side in [-1.0, 1.0]:
+		var sil: Array = tail_r if side > 0.0 else _mirror(tail_r)
+		_draw_hs_poly(origin, rad, sil, V3_SHADOW)
+		_stroke_hs_poly(origin, rad, sil, OUTLINE, OUTLINE_W)
 
-	# (b) Nacelle outer-wall shading, both sides — small shadow quad at the shoulder
-	var nacelle_r := [Vector2(0.075, -0.165), Vector2(0.100, -0.170), Vector2(0.090, -0.110), Vector2(0.070, -0.110)]
-	_draw_hs_poly(origin, rad, _mirror(nacelle_r), V3_SHADOW)
-	_draw_hs_poly(origin, rad, nacelle_r, V3_SHADOW)
 
-	# (c) Aft-deck shadow bar — repositioned to sit just above the tailcone tip
-	_draw_hs_poly(origin, rad, [
-		Vector2(-0.030, -0.045), Vector2(0.030, -0.045), Vector2(0.030, -0.025), Vector2(-0.030, -0.025),
-	], V3_SHADOW)
+## Twin fins rising from the nacelle tops, canted outward — the tips sit further
+## from the centreline than the roots. Reference rows put the fin at |x| ~ 0.27
+## where it leaves the nacelle and |x| ~ 0.34 at the tip, ~0.09 HS thick, topping
+## out at y=-0.455.
+##
+## The fins are the tallest features on the aircraft, but they are separated from
+## the centreline, so they cannot read as a nose. The canopy stays the topmost
+## thing on the BODY, which is the check that matters for the astern read.
+func _draw_fins(origin: Vector2, rad: float) -> void:
+	# Roots run down to y=-0.085, INSIDE the nacelle housing (top edge -0.108),
+	# so the fin emerges from the engine mass instead of hovering above it. The
+	# housing is drawn after the fins and covers the overlap.
+	# Thickness ~0.055 HS. The reference's fin is 2-3px on a 66px-wide jet, and
+	# it is a MID tone, not a highlight — a first pass here used 0.084 HS filled
+	# with V2_MID plus a V0_HILITE edge, which made the fins the brightest thing
+	# on the aircraft and pulled the eye off the fuselage.
+	var fin_r := [
+		Vector2(0.262, -0.085), Vector2(0.317, -0.085),
+		Vector2(0.356, -0.455), Vector2(0.320, -0.455),
+	]
+	var fin_le_r := [
+		Vector2(0.317, -0.085), Vector2(0.356, -0.455),
+		Vector2(0.345, -0.455), Vector2(0.303, -0.085),
+	]
+	for side in [-1.0, 1.0]:
+		var sil: Array = fin_r if side > 0.0 else _mirror(fin_r)
+		_draw_hs_poly(origin, rad, sil, V3_SHADOW)
+		_draw_hs_poly(origin, rad, fin_le_r if side > 0.0 else _mirror(fin_le_r), V1_LIT)
+		_stroke_hs_poly(origin, rad, sil, OUTLINE, OUTLINE_W)
 
-	# (d) Glove chevrons — darkest marks on the airframe, tucked inside the
-	# (now much smaller) shoulder, well clear of the nozzle discs.
-	var chevron_r := [Vector2(0.040, -0.150), Vector2(0.068, -0.144), Vector2(0.072, -0.128), Vector2(0.045, -0.132)]
-	_draw_hs_poly(origin, rad, _mirror(chevron_r), BLACK)
-	_draw_hs_poly(origin, rad, chevron_r, BLACK)
 
-	# --- Canopy: a tiny dot, not a "prominent navy nub on a spike". #112 round-7
-	# feedback: the round-5 canopy (width 0.080*HS at its widest) still read as
-	# a nub. burst-c-11 shows it as barely more than a dot on the spine. Width
-	# cut to 0.036*HS (55% narrower). The apex y (-0.590) is UNCHANGED — Rule
-	# Zero: the gate's own envelope measurement (35.0%W/17.0%H/2.95) passed at
-	# this apex height, and the canopy is the tallest feature that sets it, so
-	# shrinking height would silently break the envelope the gate said to leave
-	# alone. Only width/bulk was cut, matching "shrink further" without moving
-	# the ceiling.
+## The fuselage: ONE closed silhouette that runs from the canopy base out through
+## both nacelles, so the nozzles are embedded in body mass rather than floating
+## beside it.
+##
+## Half-widths are taken from the dorsal reference's row scan: ~0.09 HS just
+## under the canopy, ~0.22 by the wing root, and ~0.42 at the outer nacelle wall,
+## with the tailcone closing at the centreline below the nozzle line. #112
+## cycle-1 capped the body at 0.100 HS and stopped above the nozzles entirely,
+## which is the "no fuselage mass" finding.
+##
+## Shading is applied as AREA, not as panel lines: a bright central spine, mid
+## flanks either side, and a deep shadow across the belly and the nacelle
+## junction. The previous version stored a value ramp in constants but painted
+## almost the whole body V0_HILITE, so it measured flat.
+func _draw_body(origin: Vector2, rad: float) -> void:
+	# Straight runs between few points, not a smooth curve: the reference body is
+	# angular — flat shoulder, flat nacelle top, flat outer wall. A rounded
+	# outline is what made the first pass read as an egg.
+	var body_half := [
+		Vector2(0.068, -0.244),  # neck, directly under the canopy base
+		Vector2(0.135, -0.196),  # shoulder, single straight run outward
+		Vector2(0.255, -0.150),  # glove, spreading toward the nacelle
+		Vector2(0.400, -0.122),  # nacelle top, outer corner
+		Vector2(0.425, -0.030),  # outer nacelle wall
+		Vector2(0.405, 0.040),
+		Vector2(0.300, 0.072),   # nacelle underside
+		Vector2(0.190, 0.058),
+		Vector2(0.120, 0.082),
+		Vector2(0.000, 0.098),   # tailcone tip on the centreline
+	]
+	var body: Array = _symmetric_poly(body_half)
+	_draw_hs_poly(origin, rad, body, V2_MID)
+
+	# Mid-tone flanks over the base fill, leaving the spine to be lit separately.
+	_draw_hs_poly(origin, rad, _symmetric_poly([
+		Vector2(0.055, -0.240), Vector2(0.140, -0.180), Vector2(0.205, -0.150),
+		Vector2(0.205, -0.020), Vector2(0.120, 0.040), Vector2(0.000, 0.062),
+	]), V1_LIT)
+
+	# Central lit spine. Deliberately a NARROW straight-sided wedge, not a broad
+	# rounded one: the first pass at this used a 0.18-HS-wide rounded panel and
+	# the body read as a white egg with a cap on it. The reference's lit area is
+	# a slim strip down the spine with the shoulders left in mid-tone.
+	_draw_hs_poly(origin, rad, _symmetric_poly([
+		Vector2(0.030, -0.232), Vector2(0.052, -0.170), Vector2(0.058, -0.070),
+		Vector2(0.040, 0.000), Vector2(0.000, 0.034),
+	]), V0_HILITE)
+
+	# Windscreen shadow: a dark band directly beneath the canopy. Without it the
+	# canopy sits on an unbroken pale dome and reads as stuck on rather than set
+	# into the airframe.
+	_draw_hs_poly(origin, rad, _symmetric_poly([
+		Vector2(0.075, -0.232), Vector2(0.105, -0.208), Vector2(0.100, -0.188),
+		Vector2(0.000, -0.196),
+	]), V3_SHADOW)
+
+	# Belly shadow: the underside turns away from the light, which is what stops
+	# the body reading as a flat cutout at the bottom edge.
+	_draw_hs_poly(origin, rad, _symmetric_poly([
+		Vector2(0.200, 0.020), Vector2(0.120, 0.082), Vector2(0.000, 0.098),
+	]), V4_DEEP)
+
+	# Nacelle-junction shadow, both sides: the crease where the nacelle meets the
+	# fuselage. Sells the nacelles as attached volumes rather than stuck-on discs.
+	var crease_r := [
+		Vector2(0.215, -0.145), Vector2(0.255, -0.140),
+		Vector2(0.250, 0.050), Vector2(0.205, 0.040),
+	]
+	_draw_hs_poly(origin, rad, _mirror(crease_r), V4_DEEP)
+	_draw_hs_poly(origin, rad, crease_r, V4_DEEP)
+
+	_stroke_hs_poly(origin, rad, body, OUTLINE, OUTLINE_W)
+
+
+## Nacelle housings and the nozzles embedded in them.
+##
+## The reference shows each nozzle as a hot disc sunk into a near-black housing
+## that extends above and below it — the dark mass is taller than the disc, which
+## is what makes the engine read as buried in structure. Nozzle centres at
+## |x| = 0.303 with a hot core of ~0.06 HS radius, both measured off the dorsal
+## reference's pixel map.
+func _draw_nacelles(origin: Vector2, rad: float) -> void:
+	for x_n in [-0.303, 0.303]:
+		var housing := [
+			Vector2(x_n - 0.115, -0.108), Vector2(x_n + 0.115, -0.108),
+			Vector2(x_n + 0.122, 0.030), Vector2(x_n + 0.070, 0.066),
+			Vector2(x_n - 0.070, 0.066), Vector2(x_n - 0.122, 0.030),
+		]
+		_draw_hs_poly(origin, rad, housing, NACELLE_DARK)
+		_stroke_hs_poly(origin, rad, housing, OUTLINE, OUTLINE_W)
+		# Lip highlight along the top of the housing — catches the light and
+		# separates the housing from the fuselage behind it.
+		_draw_hs_poly(origin, rad, [
+			Vector2(x_n - 0.108, -0.108), Vector2(x_n + 0.108, -0.108),
+			Vector2(x_n + 0.100, -0.088), Vector2(x_n - 0.100, -0.088),
+		], V3_SHADOW)
+		# Hot core, three concentric stops.
+		var c := Vector2(x_n, -0.018) * HS
+		_draw_rotated_circle(origin, rad, c, 0.072 * HS, Color8(120, 42, 10))
+		_draw_rotated_circle(origin, rad, c, 0.058 * HS, Color8(212, 96, 20))
+		_draw_rotated_circle(origin, rad, c, 0.040 * HS, Color8(250, 160, 48))
+		_draw_rotated_circle(origin, rad, c, 0.022 * HS, Color8(255, 226, 150))
+
+
+## Canopy: the topmost element of the airframe. Nothing is drawn above it on the
+## centreline — that is the whole point of the #112 cycle-1 fix, since the pale
+## spine that used to sit above it was reading as a projecting grey needle nose
+## from an astern view where no nose should be visible at all.
+func _draw_canopy(origin: Vector2, rad: float) -> void:
 	var canopy := [
-		Vector2(-0.015, -0.530), Vector2(-0.018, -0.545), Vector2(-0.008, -0.575),
-		Vector2(0.000, -0.590), Vector2(0.008, -0.575), Vector2(0.018, -0.545), Vector2(0.015, -0.530),
+		Vector2(-0.060, -0.244), Vector2(-0.052, -0.286),
+		Vector2(-0.026, -0.308), Vector2(0.026, -0.308),
+		Vector2(0.052, -0.286), Vector2(0.060, -0.244),
 	]
 	_draw_hs_poly(origin, rad, canopy, CANOPY_GLASS)
+	# Glazing highlight on the port quarter, so the canopy reads as glass.
 	_draw_hs_poly(origin, rad, [
-		Vector2(-0.010, -0.568), Vector2(0.000, -0.582), Vector2(0.010, -0.568),
-		Vector2(0.006, -0.548), Vector2(-0.006, -0.548),
+		Vector2(-0.040, -0.258), Vector2(-0.034, -0.288),
+		Vector2(-0.008, -0.302), Vector2(-0.004, -0.262),
 	], CANOPY_HI)
 	_stroke_hs_poly(origin, rad, canopy, OUTLINE, OUTLINE_W)
-
-	# --- Nozzles: thin dark rim, hot orange core filling most of the disc — the
-	# brightest thing on the aircraft. #112 round-7 feedback: round-6 over-corrected
-	# — the housing measured as "two tyres with dim hubcaps" (core only ~35% of the
-	# disc and dim). Re-measured burst-c-03/c-11 directly: the core fills ~55-60% of
-	# the disc radius, not 24-47%. Outer glow radius raised 0.045->0.057*HS (60% of
-	# the 0.095*HS housing radius) and all three layers brightened. Housing
-	# size/position unchanged (0.095*HS @ x=+-0.315) — only the dark/hot balance
-	# and brightness shifted back toward the hot end.
-	for x_n in [-0.315, 0.315]:
-		var housing: Vector2 = Vector2(x_n, -0.040) * HS
-		_draw_rotated_circle(origin, rad, housing, 0.095 * HS, NOZZLE_RIM)
-		var glow: Vector2 = Vector2(x_n, -0.015) * HS
-		_draw_rotated_circle(origin, rad, glow, 0.057 * HS, Color8(190, 75, 15))
-		_draw_rotated_circle(origin, rad, glow, 0.041 * HS, Color8(245, 135, 30))
-		_draw_rotated_circle(origin, rad, glow, 0.029 * HS, Color8(255, 205, 110))
-
-
-func _draw_tailplane(origin: Vector2, rad: float, silhouette: Array, le_strip: Array) -> void:
-	_draw_hs_poly(origin, rad, silhouette, V2_MID)
-	_draw_hs_poly(origin, rad, le_strip, V0_HILITE)
-	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
-
-
-func _draw_wing(origin: Vector2, rad: float, silhouette: Array, le_band: Array, te_band: Array) -> void:
-	_draw_hs_poly(origin, rad, silhouette, V2_MID)
-	_draw_hs_poly(origin, rad, le_band, V0_HILITE)
-	_draw_hs_poly(origin, rad, te_band, V3_SHADOW)
-	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
-
-
-## A slim white blade, not a filled slab: silhouette in V1_LIT with a V0_HILITE
-## leading-edge sliver, no shadow fill. #112 round-5.
-func _draw_fin(origin: Vector2, rad: float, silhouette: Array, leading_edge: Array) -> void:
-	_draw_hs_poly(origin, rad, silhouette, V1_LIT)
-	_draw_hs_poly(origin, rad, leading_edge, V0_HILITE)
-	_stroke_hs_poly(origin, rad, silhouette, OUTLINE, OUTLINE_W)
 
 
 ## Mirrors a right-side part to its left-side counterpart: negate x, reverse the
@@ -445,18 +651,6 @@ func _draw_hs_poly(origin: Vector2, rad: float, pts: Array, color: Color) -> voi
 
 func _stroke_hs_poly(origin: Vector2, rad: float, pts: Array, color: Color, width: float) -> void:
 	_stroke_rotated_poly(origin, rad, _scale(pts, HS), color, width)
-
-
-## Draws a single open segment (panel line), unlike _stroke_hs_poly which
-## always closes the loop. #112 round-5: panel lines are thin strokes, not
-## filled quads.
-func _draw_hs_line(origin: Vector2, rad: float, p0: Vector2, p1: Vector2, color: Color, width: float) -> void:
-	var cs: float = cos(rad)
-	var sn: float = sin(rad)
-	var pts: PackedVector2Array = PackedVector2Array()
-	for p in [p0 * HS, p1 * HS]:
-		pts.append(Vector2(origin.x + p.x * cs - p.y * sn, origin.y + p.x * sn + p.y * cs))
-	draw_polyline(pts, color, width, false)
 
 
 func _draw_rotated_poly(center: Vector2, angle: float, local_pts: Array, color: Color) -> void:
