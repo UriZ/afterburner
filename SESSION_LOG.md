@@ -1,5 +1,65 @@
 # Session Log
 
+---
+### [2026-09-25 12:55] — visual-qa — #123
+**Task**: Independently verify #123 (stage-correspondence sky fix) — extract own frames, do not trust the dev's stage map, verify our game's rendering, verify test claims.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #123 (PASS)
+**New bugs filed**: none
+
+**TLDR sent to TL**:
+GitHub issue(s): #123
+I found 0 bugs: the sky-correspondence fix is correct and independently verified.
+Key findings: (1) Extracted 9 frames myself with ffmpeg from `.reference-cache/video/ab2-longplay.mp4` at exact timestamps and read HUD stage digits + score continuity + sky pixel colors by hand — every one (stages 1, 2, 3, 6, 9, 14, 17, 20) matched the developer's claimed stage identity and measured color, several to within 1-3 RGB units or exact hex match. (2) Confirmed live: our game's stage 1 sky renders `#009FFF` on a fresh capture (port 9580), matching the verified arcade stage 1 exactly — not just matching in source. (3) Used `tests/sky_stage_preview.gd` to inspect 8 stages directly; flat stages are pixel-flat, glow stages (2/14/17/20/22) show a tight gradient confined to the last ~15-20% of sky height with a hard horizon — matches criteria.md rule 6. (4) `test_sky_gradient.gd` 8/8; full suite 790 passed / 13 known-failing (`test_jet_mesh_builder.gd`, pre-existing, unrelated). Confirmed by grep that the two bug-encoding tests (`test_glow_stages_shift_hue_toward_yellow`, `test_all_stages_bright_enough_to_read_as_sky`) are actually deleted, and the replacement checks glow status in both directions against the exact 5-stage list claimed. (5) `git diff HEAD -- scripts/stage/stage_data.gd` confirms ground_a/b/c are byte-identical for all 23 stages — the "ground not fixed" caveat is real, not a hedge. Cross-checked my own captures against the dev's posted evidence images (`stage1_before_after_verified.png`, `hud_stage_numbers_1.png`) — no discrepancies.
+
+## Improvement Insights
+- **CLAUDE.md / criteria.md**: No changes needed — the "frames are UNLABELLED" note in CLAUDE.md and rule 7 in criteria.md gave exactly the right instructions to reproduce the dev's methodology independently rather than trusting it. This is the first #123-lineage gate where the verifier extracted their own ffmpeg frames instead of reusing supplied evidence; worth keeping this pattern (own-extraction, not just re-deriving from provided crops) as the default expectation for any future "prior gate trusted the wrong thing" bug.
+- **workflow**: `tests/sky_stage_preview.gd`'s single-pass-then-exit behavior (23 stages × 4s, then the SceneTree quits) makes log-polling loops for screenshot timing unreliable if there's any delay between launch and poll start — the run can finish before the loop's first useful iteration. Pre-computing sleep offsets from launch time (used here) is more robust than polling the stdout log for the current stage.
+- **workflow**: macOS's default `/bin/bash` (3.2) doesn't support `declare -A`; scripts intended to run under the Bash tool's default shell should avoid associative arrays or explicitly invoke `bash -c` (this cost one wasted 120s timeout mid-task).
+
+**Retrospective**: no CLAUDE.md/criteria.md changes applied — existing guidance was sufficient and correctly followed.
+
+---
+
+### [2026-09-25 14:10] — TL — Retrospective: judge gate #114 spec — PASS 9/10, 4 corrections to developer
+
+**Judge TLDR**: verbatim in judge's entry below; verdict 5830382177. Key: reproduced 9/11 findings (headless SIGABRT exit 134 exact; --quit-after exact; F+1 offset exact via isolated project). CRITICAL catch: project.godot InputMap binds physical_keycode ONLY (keycode:0 everywhere) — spec's constructed events would be gameplay-inert and its own test (is_key_pressed) passes falsely. Two claims didn't reproduce: console under-report (900→"900" for judge; prescription stands regardless) and the 66-100% realtime band (judge measured 150% — strengthens the conclusion, invalidates the band). Sidecar: interval_*/pacing_slip change meaning under movie-writer → omit those fields for source:"movie-writer" (missing diagnostic honest, zeroed one isn't). §10 scope discipline praised.
+
+**Retrospective — applied**:
+- architect.md: positive findings must be exercised through the product's actual path. APPLIED.
+- judge.md: re-run numeric claims when a measured table drives design. APPLIED.
+- CLAUDE.md: physical_keycode-only InputMap trap. APPLIED.
+- Developer prompt for #114 carries the 4 corrections; #125 dispatched to a parallel developer (no file overlap).
+
+
+### [2026-09-25 03:40] — judge — #114 (architect spec, MovieWriter 60fps capture)
+
+**Gate type**: per-agent (architect)
+**Verdict**: PASS with four required corrections, all mechanical
+**Score**: 9/10 (threshold 9)
+**Key gaps**:
+1. **project.godot binds every action to physical_keycode ONLY (keycode: 0 on every event in the map)** — I read all of them. §3.2/§3.4 only say keys are "resolved with OS.find_keycode_from_string()" and never require setting physical_keycode on the constructed InputEventKey. The obvious implementation produces a timeline that is completely INERT for gameplay (is_action_pressed never fires). The bridge gets it right and sets both fields; the spec never says so. Worse, §9 test 4 wouldn't catch it — it asserts "observed at F+1" without naming the API, and my own probe using is_key_pressed passed with keycode alone. Silent-failure mode of exactly the class the spec's own --port/--mcp-port anecdote warns about.
+2. §9 test 4 must assert through a real project action, not a raw key check.
+3. **Finding 6 did not reproduce**: ran the exact cited case — a 900-frame capture printed "900 frames at 60 FPS", a 120-frame one printed "120 frames", both agreeing with ffprobe. The quoted "900-frame file printed 750 frames" does not hold on this build. The derived prescription (verify with ffprobe, never parse stdout) is right regardless; restate its rationale and withdraw or re-substantiate the finding.
+4. §4.3's "reuses #116's schema unchanged" is not quite true: interval_mean_s/stdev/max and pacing_slip change from wall-clock statistics to game-time constants, which per #116's own rule ("bump if an existing key changes meaning") warrants a bump — or better, omit them for source:"movie-writer", since #113's consumer reads only measured_fps (verified: resolve_true_fps doesn't even inspect schema). interval_stdev_s: 0.0 and pacing_slip: false are false statements about a run that measured 150% of real time. Also finding 8's "66-100% of real-time" range is wrong — I measured 150%.
+
+**Verified by execution** (9 of 11 findings checked, two exactly):
+- headless --write-movie: exit 134 (SIGABRT) + 332-byte stub — same number the spec quotes
+- windowed works; mjpeg 960x672 r_frame_rate=60/1
+- --quit-after exact at BOTH 120 and 900 (durations 2.000000 / 15.000000); also confirmed header nb_frames agrees with counted nb_read_frames, so §4.2 step 5's check is sound
+- **F+1 input offset confirmed by fixture**: built an isolated Godot project, injected on frame 3, is_key_pressed FALSE same frame, observed frame 4, offset exactly 1
+- §5 randomize() claim confirmed by reading game_manager_2d.gd — comment records it was added while investigating #103 because "three 'separate' zero-input trials were bit-for-bit identical". Do-not-remove recommendation is correct.
+- bridge key vocabulary confirmed at the cited lines (OS.find_keycode_from_string, Input.parse_input_event, both keycode AND physical_keycode set)
+
+**Honest assessment**: deep, genuinely prototyped spec. §10 is exemplary scope discipline — it does the full reference-side investigation (yt-dlp format list, exact selector change, size cost, aspect check) and then refuses to implement it, naming the scope-creep failure that sank #113's first spec. The design survives all four corrections; none is architectural.
+
+**Improvement Insights**:
+- architect.md: the --port/--mcp-port anecdote should become a standing rule — a negative finding needs a positive control, and a positive finding needs to be exercised through the path the product uses. This spec applied the first half and was caught by the second.
+- criteria.md: when a spec's measured-claims table drives design, the judge should re-run the claims carrying specific numbers. Two of three numeric claims held exactly here and one did not.
+- CLAUDE.md: add a line that project.godot's InputMap binds physical_keycode only. It has now cost one spec an omission and would silently break any future input-injection tooling.
+
+---
+
 ### [2026-09-25 14:00] — TL — Retrospective: qa #118 confirm — PASS; committed e5ff275
 
 **Agent TLDR**: verbatim in the QA entry below. Key: independent verification with QA's OWN stub binary (not the dev's) across 5 canned output shapes — masking case correctly flagged; full suite 790/13-KNOWN matches; both rewritten defects verified against actual game code (whole collision-layer scheme cross-checked: player=1, bullets=2, enemies=4, enemy-bullets=8, consistent); exit-code guard verified empirically in a scratch project outside the repo. 0 bugs.

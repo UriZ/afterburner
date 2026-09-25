@@ -26,9 +26,10 @@ extends SceneTree
 const GameWorld := preload("res://scripts/game/game_world.gd")
 const StageData := preload("res://scripts/stage/stage_data.gd")
 
-# One stage per distinct sky biome, so a single run covers the whole palette.
-const STAGES_TO_SHOW := [1, 5, 6, 7, 9, 11, 13, 15, 16, 19]
-const CYCLE_SECONDS := 5.0
+# All 23, so a single run can be diffed against the verified arcade frames
+# stage by stage (#123). Drop to a subset when iterating on one biome.
+const STAGES_TO_SHOW := [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+const CYCLE_SECONDS := 4.0
 
 var _world: Node2D
 var _label: Label

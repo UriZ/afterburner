@@ -3,54 +3,81 @@ extends RefCounted
 ## Stage definitions for After Burner's 23 stages.
 ## Each stage defines ground/sky colors, enemy difficulty, and whether it's a bonus stage.
 
-## Color values are hue-preserved from the original palette but re-graded in HSV
-## (#108): ground_a/sky_horizon target S~0.8 V~0.9, ground_b S~0.85 V~0.55.
-## AB2's arcade frames are vivid and bright even in shadow and at night — a
-## literal near-black "night" reads as washed-out on our renderer's measured
-## saturation/value, not moody, so hue carries the "night" identity instead
-## of darkness. See #108 for the measured targets.
+## ============================================================================
+## SKY COLOURS — every value below is tied to a VERIFIED arcade stage (#123)
+## ============================================================================
 ##
-## sky_top/sky_horizon are now taken directly from the reference rather than
-## derived from ground_a (#115). Method: median colour of the sky band in all
-## 50 frames of assets/reference/motion/ab2-longplay, plus fine per-scanline
-## column scans through the horizon on one frame per biome. Two findings
-## overturned the previous rule that "sky_top and sky_horizon share the same
-## hue":
+## Read this before changing any sky_top/sky_horizon value.
 ##
-## 1. Whether a stage has a horizon glow AT ALL is per-biome, not universal.
-##    Snow (burst-b-08) holds #b7d3d6 and blue day (stage-12) holds #0092f7
-##    pixel-identical from the top of frame right down to the ground. Those
-##    stages get sky_top == sky_horizon here, and _draw_sky() renders them as a
-##    single flat fill. Desert (burst-a-02) and the olive/green stage
-##    (burst-c-02) do glow, over the final ~20% of sky height only.
+## #115 re-derived these from reference frames and matched stage 1 to
+## `burst-a-02` to within 1/255 — and was wrong anyway, because nobody had
+## established WHICH arcade stage burst-a-02 shows. It is stage 2. Our stage 1
+## therefore shipped with stage 2's orange desert sky, which is what the user
+## saw and reported as "the sky is brown". The measurements were fine; the
+## correspondence between frame and stage was never established. A pixel-perfect
+## match to an unidentified frame proves nothing.
 ##
-## 2. Where a glow exists it is a HUE shift at constant saturation, not a
-##    brightness ramp: desert runs 29deg -> 52deg (#e67100 -> #f0d100) with
-##    S pinned at 1.00 and V only 0.90 -> 0.98. The previous data gave every
-##    stage's sky_top and sky_horizon the same hue and differed them by ~0.05 V,
-##    so the glow was invisible and the whole sky sat at the horizon's gold hue
-##    (stage 1 was H=37 S=0.93 end to end). Against a gold/tan desert ground
-##    that left nothing separating sky from ground — the literal complaint on
-##    #115. sky_top is the deep base hue; sky_horizon is the glow.
+## So: the extracted frames in assets/reference/motion/ab2-longplay/ carry NO
+## stage labels and must not be used as a per-stage anchor on their own. Values
+## here come from .reference-cache/video/ab2-longplay.mp4 at timestamps whose
+## stage identity was read directly off the HUD.
 ##
-## Measured per-biome sky, HSV, for anyone re-grading these:
-##   desert    (29, 1.00, 0.90) -> (52, 1.00, 0.98)
-##   sunset    (16, 1.00, 0.86) -> (40, 1.00, 0.98)
-##   volcanic  (10, 1.00, 0.82) -> (38, 1.00, 0.98)
-##   forest   (121, 0.22, 0.83) -> (46, 0.15, 0.98)
-##   blue day (202, 1.00, 0.96)    flat
-##   teal sea (169, 1.00, 0.70)    flat
-##   snow/ice (185, 0.15, 0.84)    flat
-##   night    (240, 0.34, 0.42)    flat
-##   yellow    (51, 1.00, 0.97)    flat
-## Stage-to-stage variation is a few degrees of hue / a few points of V around
-## those anchors, so neighbouring stages in the same biome stay distinguishable.
+## HOW THE MAPPING WAS ESTABLISHED (repeat this if you re-derive anything):
+##   1. Sampled the video every 4s and cropped the HUD stage-number field at
+##      x=376..414, y=426..450, scaled 5x nearest-neighbour.
+##      `ffmpeg -ss T -i .reference-cache/video/ab2-longplay.mp4 -frames:v 1 out.png`
+##   2. Read the digits directly. Attract mode runs to ~84s; the run starts at
+##      the carrier launch ~88s with SCORE 0.
+##   3. Cross-checked the three burst sets by score continuity: burst-a reads
+##      SCORE 485420, and the video shows 4853xx-489310 at t=148-152 (stage 2).
+##      burst-c reads ~7.74M, matching t=705-709 (stage 17). burst-b's snow sky
+##      #b7d3d6 matches stage 9's measured #b5cfd7 and no other stage.
 ##
-## Mountain (7, 8) GROUND stays desaturated slate-grey (S~0.15-0.20) — an
-## earlier pass had turned achromatic rock blue to hit a flat saturation floor
-## that no longer applies; rock reads as grey, not a vivid color, so it should
-## measure grey. Their SKY is the pale snow-haze anchor above, which the
-## reference's snowy mountain frames (burst-b-*) measure at S=0.14-0.15.
+## VERIFIED STAGE SPANS (seconds into ab2-longplay.mp4):
+##    1: 88-120    2: 124-156    3: 160-196    4: 200-240    5: 244-256
+##    6: 260-304   7: 308-340    8: 344-372    9: 376-424   10: 428-468
+##   11: 472-508  12: 512-548   13: 552-568   14: 572-608   15: 612-652
+##   16: 656-692  17: 696-724   18: 728-764   19: 768-808   20: 812-852
+##   21: 856-892  22: 896-932   23: 936-952
+##
+## Sky colour per stage = modal colour of the band y=55..150 across 5 frames
+## spread inside the stage's span. AB2's sky is a flat fill, so the mode is an
+## exact hit, not an average: on most stages it accounts for 50-80% of the band.
+##
+## HORIZON GLOW is per stage and was measured, not inferred, by scanning the
+## longest unbroken sky column in each stage's frames from y=60 down to the
+## terrain break. Only stages 2, 14, 17, 20 and 22 show a measurable change;
+## every other stage holds ONE colour from the top of frame to the horizon and
+## gets sky_top == sky_horizon, which _draw_sky() renders as a single flat fill.
+## Do not assume a biome implies a glow — #115 generalised "desert and green
+## glow" from two frames and applied it to eleven stages.
+##
+## The glows do not share a direction, which is why no rule should be inferred
+## from one of them: stage 2 shifts +23deg of hue toward gold (#e67100 ->
+## #f0d100), stage 14 shifts -14deg toward orange, stage 17 desaturates to cream
+## (#a4d3a5 -> #fbf2d5), stage 20 brightens (+0.12 V) at near-constant hue, and
+## stage 22 lightens deep blue toward cyan.
+##
+## LOW-CONFIDENCE VALUES, flagged honestly: stages 5 and 13 are the refuel /
+## runway stages, where terrain fills the frame to the top and only a few rows
+## of sky are ever visible; their pale values come from that thin band and carry
+## much weaker evidence than the rest. Stage 8 is a canyon — its cream #faecb0
+## was confirmed by direct pixel reads at t=357 rather than by the column scan,
+## which kept landing on canyon wall.
+##
+## Stage 3's sky really is near-black; an earlier note here claimed a literal
+## near-black night "reads as washed-out" and mandated hue-carries-night
+## instead. That was an assumption, and the measurement (80% of the sky band at
+## #030303) contradicts it.
+##
+## GROUND colours are NOT yet verified against stage identity — they still carry
+## the biome labels from #42/#108, which were assigned the same unverified way
+## the skies were. The audit found real mismatches: the arcade's stage 1 is a
+## coastal run over blue sea and green headland, but ours is labelled and
+## coloured as desert. Fixing that means re-deriving ground_a/b/c against the
+## verified spans above, which is a different subsystem (#42's terrain shader)
+## and is deliberately left out of #123 rather than changed silently. Treat
+## every "Stage N: <biome>" label below as unverified until that happens.
 ##
 ## ground_c: a third ground color for the terrain shader's material-cluster
 ## blend (see ground_terrain_2d.gdshader). Round-5 gate (#42) zeroed this out
@@ -65,58 +92,58 @@ extends RefCounted
 ## actually needs >=3 hue clusters per band to pass "shape regularity",
 ## so a no-op ground_c on desert/sunset would silently cap it at 2.
 ##
-## The ocean-family stages (6, 15, 23) split into two distinct reference skies
-## rather than sharing one (#115): stage-08/stage-12 measure a vivid mid-blue
-## #00a2f5 / #0092f7 (H~202-205, S=1.00) and stage-03 measures a deeper cyan-
-## teal #00b292 (H=169, S=1.00, V=0.70). 6 and 23 take the blue, 15 takes the
-## teal — ground_a/b for these stages are untouched, only the sky.
+## Note the blues are NOT interchangeable, so do not "tidy" them into one
+## shared constant: the verified stages measure five genuinely different blues —
+## 6 is a deep #0045ff, 22 a deeper #000cff, 1/12/23 a mid #009fff, 7/19 a
+## slightly greener #0089fb, and 21 a cyan #00c1f9. An earlier pass collapsed
+## the ocean stages onto a single hue on the strength of one unidentified frame.
 const STAGES := [
-	# Stage 1: Desert - warm sand vs dark brown, olive scrub accent restored (#42 round-6 gate; After Burner II opens over desert)
-	{ "ground_a": Color(0.900, 0.632, 0.180), "ground_b": Color(0.550, 0.345, 0.083), "ground_c": Color(0.550, 0.550, 0.100), "sky_top": Color(0.900, 0.435, 0.000), "sky_horizon": Color(0.980, 0.849, 0.000), "spawn_interval": 1.5, "enemies_per_wave": 3, "is_bonus": false },
-	# Stage 2: Desert - richer orange sand vs dark sienna, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.597, 0.180), "ground_b": Color(0.550, 0.316, 0.083), "ground_c": Color(0.540, 0.520, 0.095), "sky_top": Color(0.900, 0.390, 0.000), "sky_horizon": Color(0.980, 0.817, 0.000), "spawn_interval": 1.3, "enemies_per_wave": 3, "is_bonus": false },
-	# Stage 3: Desert - bright tan vs dark brown, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.660, 0.180), "ground_b": Color(0.550, 0.316, 0.083), "ground_c": Color(0.580, 0.600, 0.120), "sky_top": Color(0.910, 0.485, 0.000), "sky_horizon": Color(0.980, 0.882, 0.000), "spawn_interval": 1.2, "enemies_per_wave": 4, "is_bonus": false },
-	# Stage 4: Desert - reddish sand vs dark brown, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.540, 0.180), "ground_b": Color(0.550, 0.238, 0.083), "ground_c": Color(0.520, 0.480, 0.090), "sky_top": Color(0.890, 0.326, 0.000), "sky_horizon": Color(0.970, 0.776, 0.000), "spawn_interval": 1.3, "enemies_per_wave": 3, "is_bonus": false },
-	# Stage 5: Forest - bright green vs dark green, dark soil accent
-	{ "ground_a": Color(0.340, 0.900, 0.180), "ground_b": Color(0.083, 0.550, 0.083), "ground_c": Color(0.350, 0.260, 0.100), "sky_top": Color(0.647, 0.830, 0.650), "sky_horizon": Color(0.980, 0.946, 0.833), "spawn_interval": 1.1, "enemies_per_wave": 4, "is_bonus": false },
-	# Stage 6: BONUS - Ocean flyover, white foam/whitecap accent; sky recoloured to vivid cyan (#42 round-6 gate finding #8)
-	{ "ground_a": Color(0.180, 0.540, 0.900), "ground_b": Color(0.083, 0.181, 0.550), "ground_c": Color(0.850, 0.900, 0.950), "sky_top": Color(0.000, 0.608, 0.960), "sky_horizon": Color(0.000, 0.608, 0.960), "spawn_interval": 1.5, "enemies_per_wave": 2, "is_bonus": true },
-	# Stage 7: Mountain - slate-grey rock, low saturation, pale snow-fleck accent (rock reads as grey, not a vivid color)
-	{ "ground_a": Color(0.590, 0.666, 0.720), "ground_b": Color(0.320, 0.367, 0.400), "ground_c": Color(0.830, 0.860, 0.890), "sky_top": Color(0.714, 0.827, 0.840), "sky_horizon": Color(0.714, 0.827, 0.840), "spawn_interval": 0.7, "enemies_per_wave": 5, "is_bonus": false },
-	# Stage 8: Mountain - slate-grey rock, low saturation, pale snow-fleck accent (rock reads as grey, not a vivid color)
-	{ "ground_a": Color(0.590, 0.677, 0.720), "ground_b": Color(0.320, 0.373, 0.400), "ground_c": Color(0.830, 0.870, 0.890), "sky_top": Color(0.714, 0.827, 0.850), "sky_horizon": Color(0.714, 0.827, 0.850), "spawn_interval": 0.65, "enemies_per_wave": 5, "is_bonus": false },
-	# Stage 9: Sunset - bright orange vs dark red-brown, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.540, 0.180), "ground_b": Color(0.550, 0.164, 0.083), "ground_c": Color(0.550, 0.450, 0.100), "sky_top": Color(0.860, 0.229, 0.000), "sky_horizon": Color(0.980, 0.653, 0.000), "spawn_interval": 0.6, "enemies_per_wave": 5, "is_bonus": false },
-	# Stage 10: Sunset - deep orange vs dark maroon, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.526, 0.180), "ground_b": Color(0.550, 0.160, 0.083), "ground_c": Color(0.550, 0.400, 0.100), "sky_top": Color(0.840, 0.168, 0.000), "sky_horizon": Color(0.980, 0.588, 0.000), "spawn_interval": 0.55, "enemies_per_wave": 6, "is_bonus": false },
-	# Stage 11: Night - vivid purple vs deep violet, brighter violet fleck accent (hue carries "night", not near-black darkness)
-	{ "ground_a": Color(0.420, 0.180, 0.900), "ground_b": Color(0.238, 0.083, 0.550), "ground_c": Color(0.600, 0.300, 0.850), "sky_top": Color(0.277, 0.277, 0.420), "sky_horizon": Color(0.277, 0.277, 0.420), "spawn_interval": 0.5, "enemies_per_wave": 6, "is_bonus": false },
-	# Stage 12: BONUS - Night city lights, warm window-light accent
-	{ "ground_a": Color(0.420, 0.180, 0.900), "ground_b": Color(0.199, 0.083, 0.550), "ground_c": Color(0.950, 0.850, 0.300), "sky_top": Color(0.355, 0.343, 0.520), "sky_horizon": Color(0.355, 0.343, 0.520), "spawn_interval": 1.2, "enemies_per_wave": 2, "is_bonus": true },
-	# Stage 13: Arctic - white vs medium blue, pale ice-crack accent
-	{ "ground_a": Color(0.180, 0.450, 0.900), "ground_b": Color(0.083, 0.270, 0.550), "ground_c": Color(0.620, 0.780, 0.950), "sky_top": Color(0.714, 0.832, 0.840), "sky_horizon": Color(0.714, 0.832, 0.840), "spawn_interval": 0.5, "enemies_per_wave": 6, "is_bonus": false },
-	# Stage 14: Arctic - bright ice vs deep blue, pale ice-crack accent
-	{ "ground_a": Color(0.180, 0.480, 0.900), "ground_b": Color(0.083, 0.238, 0.550), "ground_c": Color(0.620, 0.800, 0.950), "sky_top": Color(0.740, 0.844, 0.860), "sky_horizon": Color(0.740, 0.844, 0.860), "spawn_interval": 0.45, "enemies_per_wave": 6, "is_bonus": false },
-	# Stage 15: Ocean - bright cyan vs dark teal, white foam accent; sky recoloured to vivid cyan (#42 round-6 gate finding #8)
-	{ "ground_a": Color(0.180, 0.746, 0.900), "ground_b": Color(0.083, 0.355, 0.550), "ground_c": Color(0.850, 0.950, 0.950), "sky_top": Color(0.000, 0.700, 0.572), "sky_horizon": Color(0.000, 0.700, 0.572), "spawn_interval": 0.4, "enemies_per_wave": 7, "is_bonus": false },
-	# Stage 16: Desert - bright white sand vs dark amber, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.792, 0.180), "ground_b": Color(0.550, 0.342, 0.083), "ground_c": Color(0.600, 0.620, 0.120), "sky_top": Color(0.970, 0.825, 0.000), "sky_horizon": Color(0.970, 0.825, 0.000), "spawn_interval": 0.4, "enemies_per_wave": 7, "is_bonus": false },
-	# Stage 17: Forest - bright lime vs very dark green, dark soil accent
-	{ "ground_a": Color(0.396, 0.900, 0.180), "ground_b": Color(0.083, 0.550, 0.083), "ground_c": Color(0.300, 0.280, 0.080), "sky_top": Color(0.633, 0.820, 0.623), "sky_horizon": Color(0.980, 0.949, 0.823), "spawn_interval": 0.35, "enemies_per_wave": 7, "is_bonus": false },
-	# Stage 18: BONUS - Sunset paradise, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.612, 0.180), "ground_b": Color(0.550, 0.183, 0.083), "ground_c": Color(0.550, 0.420, 0.120), "sky_top": Color(0.880, 0.293, 0.000), "sky_horizon": Color(0.980, 0.719, 0.000), "spawn_interval": 1.0, "enemies_per_wave": 2, "is_bonus": true },
-	# Stage 19: Volcanic - bright red-brown vs dark char, glowing ember accent
-	{ "ground_a": Color(0.900, 0.402, 0.180), "ground_b": Color(0.550, 0.238, 0.083), "ground_c": Color(0.950, 0.350, 0.050), "sky_top": Color(0.820, 0.137, 0.000), "sky_horizon": Color(0.980, 0.621, 0.000), "spawn_interval": 0.35, "enemies_per_wave": 7, "is_bonus": false },
-	# Stage 20: Night - vivid blue-purple vs deep violet, brighter violet fleck accent (hue carries "night", not near-black darkness)
-	{ "ground_a": Color(0.420, 0.180, 0.900), "ground_b": Color(0.316, 0.083, 0.550), "ground_c": Color(0.550, 0.280, 0.800), "sky_top": Color(0.256, 0.266, 0.400), "sky_horizon": Color(0.256, 0.266, 0.400), "spawn_interval": 0.3, "enemies_per_wave": 8, "is_bonus": false },
-	# Stage 21: Arctic - blizzard white vs steel blue, pale ice-crack accent
-	{ "ground_a": Color(0.180, 0.468, 0.900), "ground_b": Color(0.083, 0.238, 0.550), "ground_c": Color(0.620, 0.780, 0.950), "sky_top": Color(0.757, 0.859, 0.870), "sky_horizon": Color(0.757, 0.859, 0.870), "spawn_interval": 0.3, "enemies_per_wave": 8, "is_bonus": false },
-	# Stage 22: Sunset - bright orange vs dark red-brown, olive scrub accent restored (#42 round-6 gate)
-	{ "ground_a": Color(0.900, 0.450, 0.180), "ground_b": Color(0.550, 0.149, 0.083), "ground_c": Color(0.550, 0.380, 0.100), "sky_top": Color(0.850, 0.198, 0.000), "sky_horizon": Color(0.980, 0.621, 0.000), "spawn_interval": 0.28, "enemies_per_wave": 8, "is_bonus": false },
-	# Stage 23: Final - bright ocean blue vs near-black deep, white foam accent; sky recoloured to vivid cyan (#42 round-6 gate finding #8)
-	{ "ground_a": Color(0.180, 0.540, 0.900), "ground_b": Color(0.083, 0.210, 0.550), "ground_c": Color(0.850, 0.900, 0.980), "sky_top": Color(0.000, 0.566, 0.970), "sky_horizon": Color(0.000, 0.566, 0.970), "spawn_interval": 0.25, "enemies_per_wave": 9, "is_bonus": false },
+	# Stage 1 — VERIFIED arcade coast: blue sea + green headland, flat blue sky #009fff (t=88-120)
+	{ "ground_a": Color(0.900, 0.632, 0.180), "ground_b": Color(0.550, 0.345, 0.083), "ground_c": Color(0.550, 0.550, 0.100), "sky_top": Color(0.000, 0.624, 1.000), "sky_horizon": Color(0.000, 0.624, 1.000), "spawn_interval": 1.5, "enemies_per_wave": 3, "is_bonus": false },
+	# Stage 2 — VERIFIED arcade desert/autumn scrub, orange sky #e67100 glowing to gold #f0d100 at the horizon (t=124-156; this is burst-a)
+	{ "ground_a": Color(0.900, 0.597, 0.180), "ground_b": Color(0.550, 0.316, 0.083), "ground_c": Color(0.540, 0.520, 0.095), "sky_top": Color(0.902, 0.443, 0.000), "sky_horizon": Color(0.941, 0.820, 0.000), "spawn_interval": 1.3, "enemies_per_wave": 3, "is_bonus": false },
+	# Stage 3 — VERIFIED arcade night, near-black sky #000005 (t=160-196)
+	{ "ground_a": Color(0.900, 0.660, 0.180), "ground_b": Color(0.550, 0.316, 0.083), "ground_c": Color(0.580, 0.600, 0.120), "sky_top": Color(0.000, 0.000, 0.020), "sky_horizon": Color(0.000, 0.000, 0.020), "spawn_interval": 1.2, "enemies_per_wave": 4, "is_bonus": false },
+	# Stage 4 — VERIFIED arcade green forest under a flat teal sky #009f93 (t=200-240)
+	{ "ground_a": Color(0.900, 0.540, 0.180), "ground_b": Color(0.550, 0.238, 0.083), "ground_c": Color(0.520, 0.480, 0.090), "sky_top": Color(0.000, 0.624, 0.576), "sky_horizon": Color(0.000, 0.624, 0.576), "spawn_interval": 1.3, "enemies_per_wave": 3, "is_bonus": false },
+	# Stage 5 — VERIFIED arcade refuel runway, autumn trees; only a thin pale band of sky visible #f8e2d6 (t=244-256, LOW CONFIDENCE)
+	{ "ground_a": Color(0.340, 0.900, 0.180), "ground_b": Color(0.083, 0.550, 0.083), "ground_c": Color(0.350, 0.260, 0.100), "sky_top": Color(0.973, 0.886, 0.839), "sky_horizon": Color(0.973, 0.886, 0.839), "spawn_interval": 1.1, "enemies_per_wave": 4, "is_bonus": false },
+	# Stage 6 — VERIFIED arcade clouds over sea, flat deep blue #0045ff (t=260-304)
+	{ "ground_a": Color(0.180, 0.540, 0.900), "ground_b": Color(0.083, 0.181, 0.550), "ground_c": Color(0.850, 0.900, 0.950), "sky_top": Color(0.000, 0.271, 1.000), "sky_horizon": Color(0.000, 0.271, 1.000), "spawn_interval": 1.5, "enemies_per_wave": 2, "is_bonus": true },
+	# Stage 7 — VERIFIED arcade green terrain, flat blue #0089fb (t=308-340)
+	{ "ground_a": Color(0.590, 0.666, 0.720), "ground_b": Color(0.320, 0.367, 0.400), "ground_c": Color(0.830, 0.860, 0.890), "sky_top": Color(0.000, 0.537, 0.984), "sky_horizon": Color(0.000, 0.537, 0.984), "spawn_interval": 0.7, "enemies_per_wave": 5, "is_bonus": false },
+	# Stage 8 — VERIFIED arcade canyon, flat cream #faecb0 (t=344-372; sky read directly at t=357, column scan kept hitting canyon wall)
+	{ "ground_a": Color(0.590, 0.677, 0.720), "ground_b": Color(0.320, 0.373, 0.400), "ground_c": Color(0.830, 0.870, 0.890), "sky_top": Color(0.980, 0.925, 0.690), "sky_horizon": Color(0.980, 0.925, 0.690), "spawn_interval": 0.65, "enemies_per_wave": 5, "is_bonus": false },
+	# Stage 9 — VERIFIED arcade snow/arctic, flat pale blue-grey #b5cfd7 (t=376-424; this is burst-b)
+	{ "ground_a": Color(0.900, 0.540, 0.180), "ground_b": Color(0.550, 0.164, 0.083), "ground_c": Color(0.550, 0.450, 0.100), "sky_top": Color(0.710, 0.812, 0.843), "sky_horizon": Color(0.710, 0.812, 0.843), "spawn_interval": 0.6, "enemies_per_wave": 5, "is_bonus": false },
+	# Stage 10 — VERIFIED arcade dry scrub, flat pale cream #f6f1d5 (t=428-468)
+	{ "ground_a": Color(0.900, 0.526, 0.180), "ground_b": Color(0.550, 0.160, 0.083), "ground_c": Color(0.550, 0.400, 0.100), "sky_top": Color(0.965, 0.945, 0.835), "sky_horizon": Color(0.965, 0.945, 0.835), "spawn_interval": 0.55, "enemies_per_wave": 6, "is_bonus": false },
+	# Stage 11 — VERIFIED arcade night, flat dark slate #3f3f63 (t=472-508)
+	{ "ground_a": Color(0.420, 0.180, 0.900), "ground_b": Color(0.238, 0.083, 0.550), "ground_c": Color(0.600, 0.300, 0.850), "sky_top": Color(0.247, 0.247, 0.388), "sky_horizon": Color(0.247, 0.247, 0.388), "spawn_interval": 0.5, "enemies_per_wave": 6, "is_bonus": false },
+	# Stage 12 — VERIFIED arcade green terrain, flat blue #0097fa (t=512-548)
+	{ "ground_a": Color(0.420, 0.180, 0.900), "ground_b": Color(0.199, 0.083, 0.550), "ground_c": Color(0.950, 0.850, 0.300), "sky_top": Color(0.000, 0.592, 0.980), "sky_horizon": Color(0.000, 0.592, 0.980), "spawn_interval": 1.2, "enemies_per_wave": 2, "is_bonus": true },
+	# Stage 13 — VERIFIED arcade refuel runway, palm trees; thin sage band #9fc9a5, same sky as stage 17 (t=555-566, LOW CONFIDENCE)
+	{ "ground_a": Color(0.180, 0.450, 0.900), "ground_b": Color(0.083, 0.270, 0.550), "ground_c": Color(0.620, 0.780, 0.950), "sky_top": Color(0.624, 0.788, 0.647), "sky_horizon": Color(0.624, 0.788, 0.647), "spawn_interval": 0.5, "enemies_per_wave": 6, "is_bonus": false },
+	# Stage 14 — VERIFIED arcade flat gold #ffc600 shifting to orange #fd9008 at the horizon (t=572-608)
+	{ "ground_a": Color(0.180, 0.480, 0.900), "ground_b": Color(0.083, 0.238, 0.550), "ground_c": Color(0.620, 0.800, 0.950), "sky_top": Color(1.000, 0.776, 0.000), "sky_horizon": Color(0.992, 0.565, 0.031), "spawn_interval": 0.45, "enemies_per_wave": 6, "is_bonus": false },
+	# Stage 15 — VERIFIED arcade dry grass, flat pale lavender #a4a4d4 (t=612-652)
+	{ "ground_a": Color(0.180, 0.746, 0.900), "ground_b": Color(0.083, 0.355, 0.550), "ground_c": Color(0.850, 0.950, 0.950), "sky_top": Color(0.643, 0.643, 0.831), "sky_horizon": Color(0.643, 0.643, 0.831), "spawn_interval": 0.4, "enemies_per_wave": 7, "is_bonus": false },
+	# Stage 16 — VERIFIED arcade city, flat pale lavender #a9a8fd (t=656-692)
+	{ "ground_a": Color(0.900, 0.792, 0.180), "ground_b": Color(0.550, 0.342, 0.083), "ground_c": Color(0.600, 0.620, 0.120), "sky_top": Color(0.663, 0.659, 0.992), "sky_horizon": Color(0.663, 0.659, 0.992), "spawn_interval": 0.4, "enemies_per_wave": 7, "is_bonus": false },
+	# Stage 17 — VERIFIED arcade olive field with dark rock walls, sage #a4d3a5 desaturating to cream #fbf2d5 (t=696-724; this is burst-c)
+	{ "ground_a": Color(0.396, 0.900, 0.180), "ground_b": Color(0.083, 0.550, 0.083), "ground_c": Color(0.300, 0.280, 0.080), "sky_top": Color(0.643, 0.827, 0.647), "sky_horizon": Color(0.984, 0.949, 0.835), "spawn_interval": 0.35, "enemies_per_wave": 7, "is_bonus": false },
+	# Stage 18 — VERIFIED arcade hazy, flat pale grey #c3c2b3 (t=728-764)
+	{ "ground_a": Color(0.900, 0.612, 0.180), "ground_b": Color(0.550, 0.183, 0.083), "ground_c": Color(0.550, 0.420, 0.120), "sky_top": Color(0.765, 0.761, 0.702), "sky_horizon": Color(0.765, 0.761, 0.702), "spawn_interval": 1.0, "enemies_per_wave": 2, "is_bonus": true },
+	# Stage 19 — VERIFIED arcade autumn forest, flat blue #0089fb (t=768-808)
+	{ "ground_a": Color(0.900, 0.402, 0.180), "ground_b": Color(0.550, 0.238, 0.083), "ground_c": Color(0.950, 0.350, 0.050), "sky_top": Color(0.000, 0.537, 0.984), "sky_horizon": Color(0.000, 0.537, 0.984), "spawn_interval": 0.35, "enemies_per_wave": 7, "is_bonus": false },
+	# Stage 20 — VERIFIED arcade flat grey-violet #797a9c brightening to #9a98bb at the horizon (t=812-852)
+	{ "ground_a": Color(0.420, 0.180, 0.900), "ground_b": Color(0.316, 0.083, 0.550), "ground_c": Color(0.550, 0.280, 0.800), "sky_top": Color(0.475, 0.478, 0.612), "sky_horizon": Color(0.604, 0.596, 0.733), "spawn_interval": 0.3, "enemies_per_wave": 8, "is_bonus": false },
+	# Stage 21 — VERIFIED arcade coast, flat cyan #00c1f9 (t=856-892)
+	{ "ground_a": Color(0.180, 0.468, 0.900), "ground_b": Color(0.083, 0.238, 0.550), "ground_c": Color(0.620, 0.780, 0.950), "sky_top": Color(0.000, 0.757, 0.976), "sky_horizon": Color(0.000, 0.757, 0.976), "spawn_interval": 0.3, "enemies_per_wave": 8, "is_bonus": false },
+	# Stage 22 — VERIFIED arcade green terrain, deep blue #000cff lightening toward cyan #006cf2 (t=896-932)
+	{ "ground_a": Color(0.900, 0.450, 0.180), "ground_b": Color(0.550, 0.149, 0.083), "ground_c": Color(0.550, 0.380, 0.100), "sky_top": Color(0.000, 0.047, 1.000), "sky_horizon": Color(0.000, 0.424, 0.949), "spawn_interval": 0.28, "enemies_per_wave": 8, "is_bonus": false },
+	# Stage 23 — VERIFIED arcade ocean + carrier, flat blue #009eff (t=936-952)
+	{ "ground_a": Color(0.180, 0.540, 0.900), "ground_b": Color(0.083, 0.210, 0.550), "ground_c": Color(0.850, 0.900, 0.980), "sky_top": Color(0.000, 0.620, 1.000), "sky_horizon": Color(0.000, 0.620, 1.000), "spawn_interval": 0.25, "enemies_per_wave": 9, "is_bonus": false },
 ]
 
 
