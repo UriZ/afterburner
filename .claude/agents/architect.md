@@ -56,6 +56,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **A METHOD carried between issues needs its own re-validation, not just its output** — #123's modal estimator worked because skies are flat fills (mode share 97.8%); it fails on dithered grounds (mode share 5.7%) and 'do what #123 did' was a dead end (#124).
    - **Any claim about the SCENE TREE must be verified against the .tscn AND every runtime add_child before a design rests on it** — #128's implementation half was built on a diagram a source comment contradicted in plain words (same error class as #122's nonexistent attract-flight).
    - **A detector shipped for developer+judge to share must be RUN end-to-end on the frames the ACs will use, with its reject rate reported** — #128's §8 detector, implemented literally, rejected nearly every frame above 30° roll (missing edge guard).
+   - **When a measurement tool is reused on a different stage/biome, re-report its operating stats there** (coverage, reject rate) — a stage-1-validated flat-fill detector found <0.3% coverage on a canyon sky and its numbers shipped with stage-1 confidence (#128 re-gate).
+   - **Check acceptance criteria for what they DON'T cover, not just what they assert** — #128's suite would have gone green on a build where only the ground rolls: the passing AC tested the one element that already worked, and the collision AC passed vacuously.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
