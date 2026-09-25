@@ -1,5 +1,45 @@
 # Session Log
 
+### [2026-09-26 12:10] — TL — Retrospective: architect-comp #137 amendment — at re-check
+
+**Agent TLDR**: verbatim in its entry below. Withdrew its own §1.2 V-row after finding the deeper defect (bright-sky inversion PLUS a self-selecting mask — ΔRGB term ejects fading pixels; survivors always look unfaded); conclusion honestly narrowed to one verified leg (radius collapse); new AC 3 = fill fraction (mask-unbiasable) with an explicit not-validated-against-fading-build caveat, AC 4 binding; AC 5's minpx=25 reproduces 16→29 exactly; saturation converted to proof (span pinned 4/14 frames while area varies 61%).
+
+**Retrospective — applied**: architect.md ('X moves toward Y' generalized — sign errors read as confirmation; self-selecting-mask check as a distinct failure class); reference-facts (self-selecting masks + fill-fraction pattern). Re-check → judge-cycle-1. APPLIED.
+
+
+### [2026-09-26 07:05] — architect — #131 (addendum, post-PASS)
+**Task**: Add the one clarification from #131's PASS 10/10 — the oscillation constants' SUM is pinned by AC 1a though the confidence note calls them freely tunable.
+**Result**: COMPLETED. https://github.com/UriZ/afterburner/issues/131#issuecomment-5838548235 — **#131 goes to the implementation queue.**
+
+**Recomputed and confirmed exactly**: `ceiling = 0.12 x 8.3 x (BASE+AMOUNT) = 0.9960 x S` rad, and AC 1a's 57 +/- 2 deg band = 0.9599-1.0297 rad, so **S must lie in [0.9638, 1.0339] — about +/-3.4% around 1.00**. The specified 0.55+0.45 sits exactly at 1.00. A retune to 0.50+0.40 gives 51.36 deg and **fails AC 1a with nothing in the diff pointing at the cause**, because the developer would believe they were adjusting a purely cosmetic constant.
+
+**Framed it as a usable rule rather than just a warning**: the SPLIT is free (it sets how deeply an enemy rolls out of its turn — floor `BASE-AMOUNT`, peak `BASE+AMOUNT`), the SUM must stay at 1.00, and if a different sum is needed, `BANK_DRIFT_SCALE` must compensate so the product still lands on the measured 57 deg ceiling. Verified the useful cases: 0.60+0.40, 0.65+0.35 and 0.50+0.50 all preserve the ceiling at 57.07 deg while changing the roll's shape. `BANK_OSC_RATE` is genuinely free — it appears nowhere in the ceiling.
+
+**This is the same defect class amendment 1 fixed**, one level down: a constant described as free while an arithmetic relation quietly binds it. The first instance made a lever inert; this one would have made a cosmetic tweak fail a ceiling criterion. Both were invisible until someone computed the relation.
+
+**Improvement Insights**:
+- **architect.md**: when a spec declares a constant "free to tune", check whether it appears in any acceptance criterion's arithmetic — if it does, publish the range that keeps the AC satisfied. Twice on the same issue a constant was described as free when it was not; the failure is silent both times because tuning a visual constant does not look like it needs arithmetic.
+- **workflow**: the three defects found on #131 (inert lever, unreachable ceiling, pinned sum) are one root cause — **the spec stated intent about constants without ever computing what the constants can produce**. The generalisable habit is to compute the reachable set for every constant a spec touches, not just the one being changed.
+
+---
+### [2026-09-26 04:10] — architect — #137 (AC fixes)
+**Task**: Fix #137's two AC defects (FAIL 8/10); substance was verified two independent ways at the gate.
+**Result**: COMPLETED — amendment posted, judge-fail cleared, ready for the scoped re-check.
+
+**Key decisions**:
+- **Withdrew a row of my own signature table — the defect goes deeper than the AC.** §1.2 cited "mean V held and rising" as contradicting an alpha fade, reasoning a fade drags V toward the background. On stage 2 that is INVERTED: the desert sky is #e67100 = **V 0.902**, HIGHER than the fire's 0.852, so a fade would RAISE mean V — exactly what I measured and cited as evidence against fading.
+- **Second, independent reason the V row cannot work**: my own mask's `sum|dRGB from sky| > 60` term EJECTS pixels as they fade, so the surviving population always looks unfaded. Any colour/V statistic on survivors is self-selecting. The judge caught this; it invalidates V-based measurement under this mask regardless of background.
+- **The conclusion still stands** — the arcade shrinks fireballs — but on one leg instead of two: the radius collapse (x0.155, independently reproduced at 0.150-0.179 under a different radius definition) with area falling 6x while fill holds.
+- **Found a measure the mask cannot eject**: FILL FRACTION (area / bbox area). Measured through explosion B's decay it holds at 0.25-0.46, median 0.34, with no downward trend while area falls 22x — the mass retreats from its boundary rather than hollowing out. Made AC 3 that, and **stated plainly that the bar is NOT validated against a fading build** (our current build's fade is the thing being removed; no 30fps capture of it exists), so AC 4 binds and AC 3 corroborates. Chose the verdict's offered option rather than shipping an untested bar as binding.
+- **AC 5's missing parameter, with the irony noted**: §1 stated the mask in full citing the AC 10 rule, then omitted the one parameter the piece metric consumes. Unfiltered the count runs BACKWARDS (133 -> 114, ratio 0.86). Measured the full filter sweep; **minpx=25 reproduces my published 16 -> 29 exactly** (1.81x), any filter >=10px preserves direction. Stated it.
+- **Adopted the judge's saturation evidence** — explosion A's span reads exactly 100.00 %W in 4/14 consecutive frames while area varies 61%. A dimension that cannot move while the thing it measures changes size by more than half is clipped, not measured. That turns the A-exclusion from a judgement into a proof and makes AC 6 self-justifying.
+
+**Spec posted to**: #137 comment 5838538463
+
+**Improvement Insights**:
+- [architect.md]: the new "state the background value for toward-background claims" rule is exactly right, and the generalisation is broader — **any claim of the form "X moves toward Y" needs Y's measured value stated**, because the direction of the effect depends on it and a sign error reads as confirmation.
+- [architect.md]: add a self-check for **self-selecting masks** — if a mask's own terms would eject the pixels whose change you are trying to measure, no statistic on the survivors can detect it. That is a different failure from contamination and neither the control-run nor the plausibility rules catch it.
+
 ### [2026-09-26 11:40] — TL — Retrospective: #131 re-gate PASS 10/10 — impl-ready
 
 **Judge TLDR**: verbatim in its entry below. All figures recomputed exact (binding analysis, per-formation ranges to the decimal, live constants read); multiplicative fix verified (0.00° at zero drift every phase vs ±20.05° additive); AC 1a's decisive property: the ORIGINAL spec's configuration computes 54.43° and FAILS it — the criterion catches the defect it was written in response to; two-sided (over-scaling also fails). One-sentence note routed (BASE+AMOUNT sum pinned ±3.5% by 1a). Judge names the session pattern: an amendment finding a second defect while fixing the first is the signature of re-deriving rather than patching.
