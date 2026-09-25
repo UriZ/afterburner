@@ -103,3 +103,5 @@ When evaluating visual work, ALWAYS use this skill instead of a single screensho
 3. Capture with capture.sh WITHOUT `--start-game` against the same `--port`
 
 The harness's usage header governs its own controls (e.g. stage cycling).
+
+**Under heavy concurrent load** (4+ Godot instances), a first `--start-game` launch can occasionally produce a black screen or non-monotonic stage state — retry once with a clean restart before diagnosing a rendering regression.

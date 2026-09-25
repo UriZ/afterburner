@@ -1,5 +1,53 @@
 # Session Log
 
+### [2026-09-25 23:40] — TL — Retrospective: vqa-sky-115 #130+#134 — PASS 0 bugs; committed 5070df9; issues closed
+
+**Agent TLDR**: verbatim in its entry below. Freeze-time harness verification at both peak sizes (incl. MAX_BASE_RADIUS worst case); analytical claims spot-checked against git show HEAD (54.3px chord matches the cited 54); overlapping puffs occlude cleanly; live pass independently reproduced the vulcan tracer glow the dev had originally mistaken for the halo — folded into #133's scope. Suite-total drift (995→1028) correctly attributed to concurrent test additions, not regressions.
+
+**Retrospective — applied**: visual-qa.md (freeze-time harness default for short-lived VFX + units sanity note); qa.md (per-file failure counts only, grand totals drift); game-capture SKILL.md (retry note under load). Committed 5070df9; #130/#134 closed. APPLIED.
+
+
+### [2026-09-25 22:10] — architect — #129
+**Task**: HUD parity spec — restore the fixed top-right scope box, remove the non-AB2 `HI` readout, match emblems/bar/missiles/lives to the reference.
+**Result**: COMPLETED. Spec posted: https://github.com/UriZ/afterburner/issues/129#issuecomment-5833992855 — relabelled to `bug,developer`.
+
+**File ownership** (verified against the actual tree per the scene-tree rule): `scripts/ui/hud_canvas.gd` (all drawing), `scripts/ui/hud.gd` (no change needed), `scripts/ui/block_font.gd` (only if glyphs needed), `scenes/hud/hud.tscn` (no change — `CanvasLayer` already correct). **`scripts/ui/reticle_2d.gd` explicitly DO-NOT-TOUCH.** No `game_world.gd`.
+
+**Measurement technique — median composite.** The play field changes every frame and the HUD does not, so the per-pixel median over 25 proven stage-1 frames (t=94-118, every frame HUD-verified `STAGE 1`) renders the HUD crisply and smears the world. Every geometry number came off that composite. Reference 686x480 and our viewport 960x672 are both exactly 10:7, so %W/%H map directly.
+**Two techniques that failed, published so nobody retries them**: (a) temporal-std / exact-equality masking yields only 2.1-3.0% "static" pixels — AV1 compression fluctuates even constant HUD pixels, worst on high-contrast glyph edges; (b) counting "white" pixels to test scope-box presence returned **11/25 with a min of 1**, which is simply wrong.
+
+**The scope box is present in 25/25 frames** — established by template correlation against the median's bracket patches (±3px search): 24/25 correlate >=0.5 on all four corners, median 0.85. The lone outlier t=118 I inspected directly: **a white cloud fills the right of frame and the brackets are drawn ON TOP of it**, clearly visible. The correlation dropped because the background turned white, not because the box vanished. A metric disagreeing with the eye needed the eye to adjudicate.
+
+**Hard case answered (TL asked explicitly)**: the arcade HUD is **never occluded or recoloured**. Verified on the two worst cases in the set — t=118 (cloud bank behind the box) and t=110 (world rolled ~64°, rocky terrain behind it). It always composites last at constant colour. Our `CanvasLayer` gives this for free; the spec says to add no blending or z-order work.
+
+**Measured layout** (uncertainty +/-0.3%W / +/-0.4%H = one source pixel): fixed scope box **77.3-87.6%W x 10.4-21.7%H**, four 17x17px L-brackets (2.5x3.5%), ~2px white stroke; SCORE emblem 5.2-22.2%W; score digits 32.7-44.3%W; HIT emblem 50.4-59.5%W; hit digits 63.1-66.5%W; SPEED 5.2-13.1%W; bar `0 .... [gold] 2 ... 3` spanning 17.5-39.7%W with gold fill 25.7-30.3%W; STAGE 42.6-51.3%W; stage digit 58.0-59.0%W; **missiles in TWO sizes at two pitches** (large ~2.5%W pitch from 63.4%W, small ticks ~1.1%W pitch from 70.3%W — not one uniform row); life jet icons 6.0-9.6%W at 94.2-97.9%H. **No `HI` field anywhere on the play screen.**
+
+**Colours** given as core (modal) colour plus measured centroid +/- per-channel sd, with the explicit note that the sd is wide because anti-aliased glyph edges blend into the background — so **the acceptance test compares the core colour inside each glyph, not the mean**. Tolerance +/-24 per channel (~2x the tightest sd, comfortably inside the gap between any two targets).
+
+**Rule 14's two bracket elements kept separate.** Confirmed `reticle_2d.gd` is the MOVING in-field lock bracket (tracks `locked_enemy`, L-shaped `BRACKET_ARM` corners, lock-flash pulse, and an existing comment that the box is never hidden from a #49 round-5 fix). The fixed top-right box is a different element and belongs to the HUD `CanvasLayer`. Spec says leave the reticle alone and adds the fixed box only — the conflation rule 14 exists to prevent. AC 4 requires BOTH visible simultaneously at different screen positions.
+
+**Scope-creep guard**: `_draw_hi_score()` and `HI_DIGIT_PX` are deleted, but `hud.gd`'s `high_score` STATE is kept — high score still feeds the title and game-over screens; only the play-screen readout is un-AB2. Deleting the state would break those screens.
+
+**Negative-space AC**: "no `HI` on the play screen" is phrased as *absence of glyph pixels in 68-100%W x 0-8%H* plus a grep, because absence is the only form that catches a readout nobody remembered to delete. AC 3 carries a negative control (gate the box on `locked_enemy`, confirm the test fails).
+
+**Improvement Insights**:
+- **reference-facts.md**: add the median-composite technique — "to measure a screen-fixed overlay, take the per-pixel median over N frames of varying content; it isolates the overlay where variance thresholds fail on compressed footage". It turned an intractable measurement into a clean one in a single step, and the two failed alternatives are worth recording beside it.
+- **reference-facts.md**: add "the arcade HUD always composites last — never occluded, dimmed or recoloured by world content (verified over a cloud bank and at 64° roll)". Cheap to state, and it pre-empts anyone adding blending work that the reference does not have.
+- **criteria.md (rule 14)**: the rule names the fixed box and the moving brackets but does not give the fixed box's position. Now that it is measured (77.3-87.6%W x 10.4-21.7%H), citing it in the rule would make the criterion checkable without re-deriving it — the same reason the roll rule got degrees.
+- **workflow**: this is the second time a pixel-counting presence test has produced a confident wrong answer (11/25 here; the #128 edge guard before it). Both were fixed by a method that models the *shape* of what is being detected — template correlation, line fit — rather than counting pixels that pass a colour threshold. Worth stating as a measurement default.
+
+---
+### [2026-09-25 23:45] — visual-qa — #130, #134
+**Task**: Verify explosion fixes — #130 (death fireball facets/rings/slab) and #134 (kill-puff halo + hard circle) — against criteria.md rule 12 as amended.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #130 (PASS), #134 (PASS)
+**New bugs filed**: none — one known-unrelated finding noted on #134 (vulcan_bullet_2d.gd's own alpha-blended tracer glow, same rule-12a pattern, different file, not filed as a new bug per the "flag, don't gate on out-of-scope" convention)
+**Improvement Insights**:
+- workflow: gameplay-timing-based capture cannot reliably land a screenshot on a ~0.4s fire-phase peak or a specific kill-puff dissolve frame, especially under concurrent multi-agent system load (observed capture round-trips stretching to many seconds vs. a nominal few hundred ms). Building a small throwaway harness that instantiates the effect scene directly, freezes `_lifetime` via `set_process(false)`, and steps through fixed values (the same technique the developer used) is far more reliable than live-play capture for isolating a specific effect phase. Worth naming this pattern explicitly in visual-qa.md as the default approach for verifying short-lived VFX, rather than defaulting to live gameplay capture.
+- workflow: my first pass at the harness had a units bug (set raw `_lifetime` seconds where I meant a normalized phase fraction), which silently produced a near-fully-faded frame mislabeled "peak" — caught only by noticing the image looked wrong relative to its own label, not by any automated check. When building this kind of harness, compute and sanity-check the derived `_lifetime` against the phase's own timing formula in a comment before trusting the label.
+- workflow: also hit a live-gameplay black-screen/non-monotonic-stage-number glitch on first game launch under heavy concurrent load (4 Godot instances). A clean restart fixed it immediately and it never recurred — logged as a one-off startup timing artifact, not a rendering regression, but worth a one-line note in game-capture's skill doc that `--start-game` under heavy concurrent load may occasionally need a retry.
+- criteria.md / run_all.sh: the developer's cited "995 passed" was accurate when written but the shared branch had grown to 1028 passed by the time I re-ran the suite minutes later, purely from other agents' concurrent uncommitted test additions. Worth noting in the judge/QA guidance that suite totals on a shared branch are expected to drift upward between an implementer's report and QA's re-run, and that this is not itself evidence of a regression — only per-file failure counts are.
+
 ### [2026-09-25 23:20] — TL — Retrospective: dev-125 #120 impl — at judge gate
 
 **Agent TLDR**: verbatim in its entry below. All 9 ACs verified with classifiers stated per AC10; stage_data diff additive-only (programmatically verified), ready as the first commit for #124's rebase; latent shader-uniform bug fixed WITH a negative control (delete push → test fails → restore → passes); preview harness extended additively (now pushes horizon); AC6's ~2.5pp offset explained as the shader's own horizon haze (flagged as expected behavior for future ACs, not a discrepancy).

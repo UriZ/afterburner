@@ -37,8 +37,9 @@ Use the `/qa-screenshot` skill:
 2. **Read source files** relevant to the issue(s) you're verifying
 3. **Read each screenshot** using the Read tool
 4. **Cross-reference** screenshots with source code to identify bugs
-5. **Cross-check your OWN captures against the developer's posted evidence images** (not just their report text) — cheap insurance against a pass resting on stale or cherry-picked screenshots
-6. **Write the bug report**
+5. **For short-lived VFX (fireballs, puffs, flashes): default to a throwaway freeze-time harness** — instantiate the effect scene, freeze its lifetime, step through fixed phase values, capture via the bridge; live-gameplay timing can't reliably land on a ~0.1-0.4s phase, especially under concurrent load (#130/#134 QA). Sanity-check frozen values against the phase's own timing formula — a units slip silently mislabels a faded frame as 'peak'.
+6. **Cross-check your OWN captures against the developer's posted evidence images** (not just their report text) — cheap insurance against a pass resting on stale or cherry-picked screenshots
+7. **Write the bug report**
 
 ## What to Look For
 
