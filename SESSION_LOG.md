@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-26 11:10] — TL — Retrospective: architect-comp #132/#133 amendments — impl-ready
+
+**Agent TLDR**: verbatim in its entry below. #133's guard rephrased to ARITY not value (the variable-alpha real code would have passed its own guard; fixture now mandates the exact variable form — third literal-vs-variable blindness in one batch). #132's HUD rect extended to cover the #129 scope box (phantom bank on the canonical cloudless frame killed; 76%→69% occupancy restated on own set for internal consistency); height/width bias separated (direct vs selection — opposite treatments); white-jet ambiguity adopted as load-bearing text; #133 background figure reconciled to the honest 0.0118 (still 15x separation).
+
+**Retrospective — applied**: architect.md (fixtures reproduce the exact form of the code removed); reference-facts (truncation bias asymmetry). Window-excludes + flat-sky-caveat: already applied. #132/#133 queue for developers (all busy); architect-comp proceeds to #137 amendment. APPLIED.
+
+
 ### [2026-09-26 10:40] — TL — Retrospective: dev-113-116 #129 HUD impl — in visual QA
 
 **Agent TLDR**: verbatim in its entry below. All 11 ACs pass (16/16 positions ±2%, colours dmax 0, box 72/72 with a genuine can-fail negative control — gated off → 0/10 → restored byte-identical). THREE self-caught defects: the window-as-result failure committed one message after reading the warning (own <window-clipped> flag caught a 3-vs-4 icon miscount); BlockFont square-pixel trap rendering the stage digit invisible at 1px/cell; a false colour mismatch from h264 chroma bleed (lossless re-measure exact). Design calls: gold speed pip is a MOVING band not a prefix fill; structural rule-14 tests (indentation + no-locked_enemy grep) as the cheapest proof no conditional crept in.
