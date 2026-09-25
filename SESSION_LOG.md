@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-25 18:55] — TL — Retrospective: qa #114 — PASS; committed bd818e7; #114 closed; #127 dispatched
+
+**Agent TLDR**: verbatim in qa-113-116's entry below. All 6 items verified fresh (720 frames exact at 60/1; same-frame events; past-end warning reaches REAL stderr; seeds bit-identical, unseeded diverges — with a documented near-miss: <~5s captures leave too little gameplay for divergence visibility; diffs exactly minimal; two concurrent movie captures clean). Off-checklist catch #4 of the session: next_port()'s cursor discarded by $() subshells — 3 calls return the same port; masked by sequential execution; filed #136 Medium.
+
+**Retrospective — applied**: CLAUDE.md subshell-state-loss note beside the pattern pointer. SKILL.md seed caveat folded into #136 fix. qa.md off-checklist rule: already standing. #114 committed (bd818e7) + closed. #127+#136 → dev-113-116 (the speed-metric payoff — first real measurement lands on #127/#126 and the page). ownership.md updated.
+
+
 ### [2026-09-25 18:40] — TL — Retrospective: judge gate #128 — FAIL 5/10 (scene-tree premise false)
 
 **Judge TLDR**: verbatim in its entry below; verdict 5830967432. Measurement half verified to <1° (peak 67.49 vs 67.9; rigid rotation confirmed; centre scatter matches; rule-17-in-degrees vindicated — judge states its own cycle-1 %W unit was a bad target). Decisive gap: GameWorld's only child is the ground terrain; enemies/bullets/projectiles are Main2D children (source comment says so in plain words) — rotating GameWorld rolls ground under upright enemies; §4 inverted; site list has one wrong + one missing entry; banked-collision AC vacuous. Shipped §8 detector missing an edge guard (rejects nearly all frames >30° as written). §5/#120 boundary survives the rework cleanly.

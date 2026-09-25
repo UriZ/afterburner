@@ -14,13 +14,14 @@ Judge insight (#120-#122 gate): ownership must live in a repo file, not issue pr
 |---|---|---|---|
 | #112+#92 jet | dev-sky-115 | jet draw path (claimed functions in game_world.gd / player script — see its SESSION_LOG claim) | 9510 |
 | #130+#134 explosions | dev-125 | scripts/effects/ | 9515 |
-| #114 QA | qa-113-116 | read-only | 9620+ |
+| #127+#136 speed metric | dev-113-116 | motion-metrics skill + game-movie selftest/SKILL.md | 9640+ |
+| #112+#92 jet QA | vqa-123 | read-only | 9630 |
 | #120/#121/#122 spec rework, then #124 spec, then #135 | architect-comp | read-only (specs) | 9575+ |
 | #128 spec | architect-113 | read-only (specs); scratch prototypes only | 9570+ |
 | judge gates | judge-113-arch / judge-cycle-1 | read-only | 9600+ / 9595 |
 
 ## Unassigned queue
-#129 (HUD), #131 (enemies), #132 (clouds), #133 (trails), #127 (speed metric — after #114 commits; candidate: dev-113-116), #126 (cycle tracker).
+#129 (HUD), #131 (enemies), #132 (clouds), #133 (trails), #126 (cycle tracker).
 
 ## Shared-file registry (check before assigning)
 - `game_world.gd`: #120 (horizon/projection, `_draw_sky()`), #128 (roll — after #120), #121 (appends one new function — disjoint), dev-sky-115 (jet draw functions — claimed)
