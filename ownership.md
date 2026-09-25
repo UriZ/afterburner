@@ -9,6 +9,7 @@ Judge insight (#120-#122 gate): ownership must live in a repo file, not issue pr
 - **#128 SPLIT** (TL decision, per architect): world-roll core (depth_util.gd, game_world.gd, ground_terrain_2d.gdshader) lands as #128; the jet-bank coupling (§3 — deletes `_update_banking()`/`MAX_BANK_ANGLE` in player_jet_2d.gd) is a small FOLLOW-UP after dev-sky-115's #112/#92 diff lands — never merged blind against the open 400-line silhouette rebuild.
 - **#120's `stage_data.gd` hunk lands as its own early commit**; #124 (palette re-grade) rebases onto it.
 - **#135** (biome structure) after #124 + #120.
+- **#132 (clouds) lands after #128** (clouds must inherit world roll; a level cloud over a rolled horizon is worse than none) — and #128/#124's detectors re-validate on cloud-bearing frames before quoting numbers again.
 
 ## Pending combined commit
 - #112+#92 (jet rebuild + opacity): QA-PASSED, but player_jet_2d.gd also carries in-progress #122 work (same owner dev-sky-115) — commits together when #122 completes+passes QA.

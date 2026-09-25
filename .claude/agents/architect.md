@@ -86,6 +86,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **An AC naming a containing REGION needs a companion constraint on the element's own SIZE** — containment can't reject something wrong in a dimension the region doesn't bound (a 1.5x-too-tall icon inside the band; a relocated readout outside the slot — #129).
    - **When comparing measurements from sources at different resolutions, state the normalisation basis INLINE** — #139's correct multiplier read as 7% wrong to anyone checking without opening the tool source (both clips resample to a 192-px work width).
    - **An ANALYTIC known answer beats a measured one** — #139's control derives its expected value from the shader's own coordinate recovery rather than calibration; pre-declared tolerance, stop-on-miss, and doubles as a knee-finder.
+   - **When adding a new visual element, name every existing detector whose assumptions it violates** — #132's clouds break the #128 roll detector (boundary at a cloud edge) AND the #124 variance gate (a cloud-filled crop passes as sky); both must re-validate on cloud-bearing frames before their numbers are quoted again.
+   - **Sanity-check every measurement against where the thing can PHYSICALLY be** — nearly free, complementary to controls: a 'cloud bank' at 48-55%H spanning 100%W is the horizon haze band, caught only because the numbers were absurd (#132).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
