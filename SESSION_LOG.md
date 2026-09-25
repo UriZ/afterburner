@@ -1,5 +1,101 @@
 # Session Log
 
+### [2026-09-25 17:25] — TL — Retrospective: architect-113 #128 spec — posted; rule 17 corrected; gate next
+
+**Agent TLDR**: verbatim in its entry below; spec 5830841450 + line-ref correction. Key: colour-based sky mask tracks the COASTLINE on blue-sea stages — texture (local variance) is the discriminator; measured roll model from 42 fits (rigid rotation about screen centre, −6.2..+67.9°, sat 65-68°, 74.5°/s median rate, HUD fixed, smooth ramp as time-series control); design = rotate GameWorld Node2D (screen-fixed elements correct by construction) + screen_to_world() wraps on 4 collision sites (banked-collision drift is invisible in level screenshots — explicit weapons-while-banked AC); jet bank machinery exists but slews 6× too fast; BANK_FOLLOW honestly flagged as visually-tuned. Found rule 17's %W unit caps at HALF the arcade's roll.
+
+**TL decisions**: rule 17 restated in degrees (peak ≥50°, ref 68°, cruise ±5°). #128 SPLIT: world-roll core first; jet-bank coupling follow-up after #112/#92 lands (recorded in ownership.md — no blind merge against the open silhouette diff).
+
+**Retrospective — applied**: criteria.md rule 17 rewritten; architect.md ×3 (renderer-unit thresholds; content anchors not line numbers — 2nd occurrence; time-series coherence as negative-control variant); NEW reference-facts.md seeded with 13 verified facts specs must cite rather than re-derive. APPLIED.
+
+**Next**: judge gate on #128 spec → judge-cycle-1.
+
+
+### [2026-09-25 17:05] — TL — Retrospective: judge gates #120/#121/#122 — all FAIL narrowly (7/6/8)
+
+**Judge TLDR**: verbatim in judge-cycle-1's entry below; verdicts on each issue. Key: #120's both canyon horizons fail independent re-runs of the spec's own frames (in the same direction), two estimators shipped unreconciled — but the shader-uniform latent-bug catch is confirmed real; #121's hue-lockstep rule contradicts its own measurement method AND fails 2/3 of its own reference frames AND the b4bc658 rule-11 amendment (which paid for itself in one gate); #122 fails on one point (unconditional sinusoid vs its own two-regime measurement) with everything else reproducing exactly incl. the known-answer control (error −0.04pp). All three independent of #124. NEW collision flagged: #128 vs #120 in game_world projection/sky.
+
+**TL decisions**: #120 before #128 (binding, recorded); ownership matrix moved to repo file `ownership.md` (TL-maintained); architect-comp priority = rework 3 specs → #124 → #135; architect-113 told to design #128 against post-#120 state with the shader-uniform fact stated.
+
+**Retrospective — applied**: architect.md ×4 (both-estimators-published; risks-can't-override-interface; re-measure quoted criteria rules; >=5-frame spread for per-stage constants). tl.md: ownership.md is the registry, not issue prose. Judge feedback passed verbatim with its don't-rewrite framing endorsed.
+
+
+### [2026-09-25 17:30] — architect — #128
+**Task**: Spec world roll / banking — cycle-1 gap #2 and the judge's #1 recommended move.
+**Result**: COMPLETED. Spec posted, relabelled `architect` -> `developer`.
+**Spec posted to**: https://github.com/UriZ/afterburner/issues/128#issuecomment-5830841450
+
+**File-ownership map at time of writing** (per tl.md's new requirement):
+- `#128` (this, -> developer): `scripts/game/depth_util.gd` (adds roll state only), `scripts/game/game_world.gd` (transform + overdraw + coord-space wraps), `scripts/game/ground_terrain_2d.gd` (quad resize only), `scripts/player/player_jet_2d.gd` (bank derivation).
+- `#120` (architect-comp, `developer`): `depth_util.gd` `horizon_y`/`set_horizon_fraction`, per-stage horizon table, `game_world.gd` vertical extents, ground shader internals. **Overlaps #128 in `depth_util.gd` and `game_world.gd`** — merge boundary defined explicitly in spec §7; #120 should land FIRST.
+- `#123`/dev-sky-115: `stage_data.gd`, `game_world.gd` sky colours — untouched by me.
+- Ports: I used none (measurement was offline against cached video only; no game launched).
+
+**The measurement had to be fixed before anything could be spec'd**: stage 1's **sea and sky are both blue**, so a colour-tolerance sky mask tracks the COASTLINE, not the horizon. My first pass did exactly that and produced a confident, wrong tilt distribution. The discriminator is texture, not colour — measured at t=94: sky is **1 unique colour, std 0.00, local variance 0.00**; sea is 1621-4394 unique colours, std 37-94, local variance 352-386. Shipped the strict detector in the spec so the developer and judge use the same one.
+
+**Measured roll model** (42 clean fits, 10fps burst t=94-106, verified STAGE 1):
+- Boundary is a **straight line** — median residual 0.55-1.7px at 686px width. Rigid rotation, not shear, not per-scanline.
+- Roll range **-6.2 to +67.9 deg**; saturates/holds at 65-68.
+- Roll rate while actively rolling: **median 74.5 deg/s** (p25 47.4, p75 82.9, max 87.2).
+- **Rotation centre (0.51W, 0.49H)** = screen centre, perp-dist std 21.3px across +/-68 deg.
+- **HUD screen-fixed** at all roll angles — so it is a world-layer rotation, not a framebuffer rotation.
+- Known-answer control: consecutive 0.1s samples ramp 7.4->15.6->24.1->32.5->42.6->49.6->58.4->66.8 deg, smooth and monotonic at ~80 deg/s. A coastline cannot produce that sequence; this is what validates the whole measurement.
+
+**Key decisions**:
+- **Rotate the GameWorld Node2D about screen centre** rather than applying rotation inside `to_screen()`. The scene tree already partitions correctly — `PlayerJet2D`/`Reticle2D` are siblings and `HUD` is a `CanvasLayer`, so everything that must stay screen-fixed does so structurally, for free. AC2 is satisfied by construction. The alternative touches every draw site and fights #120 line-for-line.
+- **Flagged the cross-cutting gotcha the node-transform approach creates**: enemies/bullets now live in rotated space while the player does not, so all four player-vs-enemy comparison sites in `game_world.gd` need `screen_to_world()` wraps. A miss produces collisions that drift with bank — invisible in any level-flight screenshot, so I added an explicit "weapons still kill while banked" acceptance test.
+- **Found the jet's bank machinery already exists** (`MAX_BANK_ANGLE = 57`, `_draw_player` image-plane rotation) but slews at **460 deg/s — about 6x the arcade's 80 deg/s**. Spec derives bank from world roll instead, removing the duplicate slew; keeps the barrel-roll path, which drives `_bank_angle` directly and is a scripted manoeuvre, not input banking.
+
+**Correction flagged to criteria.md rule 17 (NOT edited — TL decision)**: the rule states tilt in **% of screen width**, 1.5-57.7. That unit is `tan(roll) x 100` — non-linear and unbounded (45 deg = 100%W, 68 deg = 246%W) — and its maximum, 57.7%W, is only **30 deg**, against a measured **67.9 deg**. A developer tuning to the rule as written ships a visibly flat build that nonetheless passes. Recommended restatement in degrees: ">= 50 deg peak during a held turn; reference reaches 68; level cruise within +/-5".
+
+**Honest confidence note**: `BANK_FOLLOW = 0.8` (jet bank as a fraction of world roll) is the weakest number in the spec. PCA-on-bright-grey segmentation gave 0.90/0.61/1.31 across three usable frames and also caught clouds, wave crests and the carrier deck. I spec'd it as a visually tuned constant with named comparison frames and explicitly told the developer NOT to try deriving it numerically from those frames.
+
+**Corroboration**: #120's spec independently records that its narrow-column horizon estimator failed by up to -43pp **because "AB2's horizon tilts with player bank"**. It hit this roll from the other side and worked around it; #128 is the fix. Cited in the spec as the merge-boundary rationale.
+
+**Improvement Insights**:
+- **criteria.md**: rule 17's %W unit is actively harmful (see above) — degrees, and raise the target. Highest-value single edit from this session.
+- **criteria.md / architect.md**: add "state visual-measurement thresholds in the units the renderer controls". %W came from measuring pixels; roll is what the code sets. Every conversion between the two is a chance to ship the wrong target.
+- **workflow**: two specs (#120, #128) independently rediscovered the same horizon-tilt fact, one as an obstacle and one as the feature. A short "measured facts about the reference" appendix — sky is a flat fill with zero local variance, horizon tilts with bank, stage number is continuously in the HUD — would stop the third agent re-deriving it. Suggest a `reference-facts.md` that specs cite rather than rebuild.
+- **architect.md**: the negative-control rule keeps earning out. Here the control was "does the angle sequence ramp smoothly?" — a coastline would give noise. Worth naming this pattern explicitly: when measuring a quantity over time, check the time series is physically coherent, not just that individual fits converge.
+
+---
+### [2026-09-25 14:05] — judge — #120, #121, #122 (architect gates)
+**Gate type**: per-agent (architect) x3
+**Verdict**: FAIL / FAIL / FAIL — #120 7/10, #121 6/10, #122 8/10 (threshold 9)
+**Key gaps**:
+- **#120**: both canyon horizon values fail re-run of the exact cited frames. Stage 8 t=360 — spec's row profile says coverage 16% at 12%H and 11% at 13%H; I measure 1.5% and 0.3% on the same frame, and the sub-2% cut over the spec's own 5-frame window lands at 10.2/10.2/11.9/6.2/10.2 %H (median 10.2, not 13). Stage 17 t=708 — spec says cut at 10-12%H; I measure 5.8%H, in-flight median ~6.8%, not 10. Spec also carries two unreconciled estimates for stage 8 (13 vs 11.5) two paragraphs apart. Within-stage variance unaddressed (stage 17 runs 5.4-15.0 %H in flight), which undercuts the per-stage-constant premise.
+- **#121**: §2.4's "no feature may introduce a hue outside ground_color_a's hue" + AC 5 (>=80% in one 20-deg bin) contradict the spec's OWN §1 segmentation, which separated clumps (H 18-50) from field (H 55-80) BY hue. Measured on the spec's own burst-c frames: single-bin max 0.574 / 0.895 / 0.690 — 2 of 3 reference frames fail the bar the spec imposes on us. Also now conflicts with criteria.md rule 11 as amended at b4bc658 ("being more uniform than the reference is also a FAIL"); ours already measures 99.4%. Secondary: §2.1's normative FIELD_LENGTH=1.0/FEATURE_COUNT=220 are silently superseded by risk 7, and §2.3's "exact lockstep" is unachievable because GROUND_SCROLL_WRAP=991 is PRIME (only FIELD_LENGTH=1.0 divides it). No whole-frame acceptance criterion, so nothing would catch "added 220 blobs, ground still reads uniform".
+- **#122**: §1.2 states "do not force constant weaving" (canyon cx sd 2.59 vs open 12.88); §2.1 specifies an unconditional sinusoid at a constant 10.42 — matching neither regime, only their aggregate. AC 1's band [8.0,13.5] would REJECT the faithful canyon behaviour the spec itself measured. Matters because #122's captures become the composition evidence for every later gate.
+**Claims re-verified that HELD**:
+- #120's latent shader bug is REAL — `ground_terrain_2d.gdshader:48-50` declares `uniform float horizon_y = 420.0` with a comment claiming GameWorld pushes it; `ground_terrain_2d.gd:54-59` pushes six params and none is horizon_y/screen_h/screen_w. Genuine non-obvious catch. `to_screen` algebraic-identity claim confirmed at depth_util.gd:29. #123 = 7a7c4ef confirmed committed, stage_data.gd clean, so the amendment's "no rebase dance" is right.
+- #122: EVERY code claim exact (RESPAWN_POSITION (480,380), MOVE_MIN/MAX, move_speed 720, MAX_BANK_ANGLE 57, ANCHOR_Y 28, _is_dying/_input_enabled, CaptureInput SCHEMA "capture-input/1" with key/key_down/key_up). "There is no attract flight" confirmed by grep — the issue's stated root cause really was wrong. Known-answer control REPRODUCED on my own cycle-1 idle capture: cx mean 49.96 %W, error -0.04 pp (spec claimed 49.83). Amplitude arithmetic checks out (only slip: peak |dx/dt| is 264.5, not 268).
+- #121: depth_to_scale = 0.03+3d^2 confirmed, so "the developer does not need a new scaling law" is correct. _ground_scroll/GROUND_SCROLL_SPEED=1.4 exist as assumed.
+**Independence from #124**: all three can proceed independently. #120 lands first and #124 rebases onto it (one-key append vs 69 colour values on the same 23 lines). #121 takes colours at runtime via set_palette() so a re-grade propagates with no code change in either order. #122 shares no file with anyone.
+**New collision flagged**: #128 (world roll) lands in game_world.gd and touches the same projection/sky code #120 owns. The three-way ownership matrix in the #124 comment predates #128 and does not cover it. Needs a sequencing decision before #120 and #128 both start.
+**Improvement Insights**:
+- **architect.md**: require that when two estimators are run for the same quantity, BOTH results are published and the spec says which wins and why. #120 carried 13 %H and 11.5 %H for stage 8 two paragraphs apart and shipped the higher one silently — if it had been forced to reconcile them it would have caught this itself.
+- **architect.md**: a spec's normative interface block must not be overridden by its own risks section. #121 declares FIELD_LENGTH=1.0/FEATURE_COUNT=220 in §2.1 and reverses both in §5.7; a developer implementing the interface as written ships a field that repeats every 0.71s.
+- **architect.md**: when a spec quotes a rule from criteria.md as an acceptance criterion, it must re-measure that rule against the verified reference stage in the same pass. #121 inherited the "89.2% one hue bin" figure that cycle 1 had already disproved, and 2 of its own 3 reference frames fail it.
+- **criteria.md**: rule 11's amendment at b4bc658 landed correctly and I used it here — it is what turned #121's AC 5 from "arguable" into a clear fail. Worth noting the amendment paid for itself within one gate.
+- **workflow**: the file-ownership matrix lives in a comment on #124 and is already stale — it predates #128. It should live in a file in the repo that the TL updates when an issue is created, not in issue prose.
+- **workflow**: all three specs derive numbers from single frames or short windows. A standing rule that any per-stage constant is derived from >=5 frames spread across the VERIFIED span, with the spread reported, would have caught #120's two bad values before the gate.
+
+### [2026-09-25 16:45] — TL — Retrospective: architect-comp #120-#122 specs + #124 disposition
+
+**Agent TLDR**: verbatim in its entry at [2026-09-25 15:20]. Key: continuous HUD stage number enables one-frame identity proof (corroborates #123 map independently); #120 measured horizons (canyon 9-14%H vs our fixed 62.5%; only stages 8+17 change) + latent shader bug found (horizon_y uniform never pushed — works by coincidence); #121 needs NO new scaling law (depth_to_scale predicts reference growth within 5-11%) — just features; #122's stated root cause WRONG (no attract-flight exists; evidence capture had zero input — cx sd 0.40) → demo-flight controller spec'd instead of control tuning; sky-exclusion mask honestly failed 3 pre-declared controls (94.7% vs 95.0 bar, not relaxed) with diagnosis + reusable constraint (never a horizontal split — horizon tilts); self-corrected a padded claim on #122.
+
+**TL decisions**: #124 narrowed to palette (criterion 3 rewritten); #135 filed for biome structure (ocean banding, canyon walls); sequencing #120-first-then-#124-rebases affirmed; architect-comp proceeding to #124 spec then #135.
+
+**Retrospective — applied**: criteria.md rule 8 per-biome qualification (pre-empts a false FAIL when #120 lands) + ground-rules consolidation TODO. architect.md: failed-method-with-controls is a valid deliverable (never relax a declared bar) + self-review process claims. tl.md: verify named subsystems exist and criteria are reachable before issue text binds. APPLIED.
+
+
+### [2026-09-25 16:25] — TL — Retrospective: qa #125 — PASS; committed 0c1cb89; #125+#118 closed
+
+**Agent TLDR**: verbatim in qa-117's entry below. All 5 checks verified independently (60fps cache exact; 30fps checksum stable incl. through an accidental --force that never reached download; real bash 3.2 clean; loud-failure names selector without touching caches; compare.sh integration; suite 790/13-KNOWN). Bonus: independently re-confirmed #118's fix → #118 closed with double verification on record.
+
+**Retrospective**: insight (never pipe test commands through exit-code-swallowing filters) — agent-local practice, noted; no doc change (single occurrence). #125 committed + closed. Speed-metric status: reference side DONE, game side (#114) in QA — #127 dispatches on its commit.
+
+
 ### [2026-09-25 16:10] — TL — Retrospective: judge gate #114 impl — PASS 10/10; QA dispatched
 
 **Judge TLDR**: verbatim in judge's entry below; verdict 5830706450. All 4 corrections verified by execution (keycode control reproduced; offset exactly 1 both directions through the ACTION system — first confirmation via the API the game uses; 120/480 frames exact; wall-time span now 60-150% across 6 points; sidecar keys absent w/ visible discrepancy). Game diffs exactly minimal. Port allocator proven under live contention (suite ran 44/44 while judge-cycle-1 held 9595 — the exact original collision). Bonus observation: strips show our sky nearly empty vs AB2's busy sky — tool doing its job.
@@ -209,6 +305,16 @@
 - **Amended #121 criterion 5** to avoid the unsolved mask entirely: measure the single-hue rule over the union of the node's own drawn feature footprints, not over a screen band. It is the exact population the rule is about and needs no classifier.
 - **Corrected #120's merge-point note**: #123 committed as 7a7c4ef during this task, so stage_data.gd is clean and no rebase dance is needed — branch at/after 7a7c4ef.
 - **Self-caught and corrected an overstatement in my own #122 spec**: it claimed "five automated jet detectors" were abandoned; the true count is one automated detector (53 pp fail) plus two rounds of hand-reading (2/12 and 2/6 readings verified). Posted the correction on #122. No derived number changes. The #120 spec's "four abandoned estimators" was re-verified and IS accurate.
+
+**Second follow-up — #124 spec (narrowed scope) + #121 rule-11 correction**:
+- **#124 spec posted, relabeled developer.** Scope is palette-only per TL decision; structure went to #135.
+- **Finding that changes #124**: our shader pins every cluster to ONE hue from color_a (#42 round-7), so ground_a/b/c is one hue at three value steps BY CONSTRUCTION. Arcade stage 1's ground band hue swings 100 degrees between frames (sea + cyan crests + green island); stage 7 swings 80 (land + water). So even the re-narrowed criterion 3 cannot be met — sea and island are two hues and the model holds one. Recommended: stage 1's palette = the SEA, island deferred to #135.
+- **#123's sky method does NOT transfer to grounds, and now I can say why.** Modal estimator on stage 1: SKY mode share 97.8% (flat fill, which is why #123 worked) vs GROUND mode share 5.7% (dithered/streaked). Injecting 10% sky flipped the ground mode outright. This is the actual reason the #123 dev's ground table was untrustworthy.
+- **Rule 17 quantified as a side effect**: sky reaches the near-ground band (76-85.5%H) on 69% of sampled frames. No screen region is reliably ground on a banked frame, so no fixed-region mask can work. Method had to become frame SELECTION, not masking.
+- **Five attempts; shipped honest limits, not a validation claim.** Final method (band + purity/occluder selector + hue/value quantiles) works on single-biome saturated stages (hue stable to 10-20 deg, V75 sd 0.016-0.079) and fails on 4 of 8 tested stages: mixed-biome (1, 7) and low-saturation (9 snow 0/90 accepted, 11 night). Expect ~half of 23 stages unmeasurable; spec requires those be left UNCHANGED and annotated, per the #123 precedent.
+- **Admitted a badly-specified control of my own**: I declared a +-8 degree hue bar against a 10-degree-binned estimator — unmeetable by construction. Corrected the control and said so; did NOT relax the V25 bar, which fails for a real reason (dark quantile tracks scene shadow content).
+- **Deliberately did NOT hand over my 4-stage value table.** My +-25 degree selection window merges stage 17's olive field with its tan scrub, so those numbers demonstrate stability, not a verified palette. Pasting them in would be the exact "looks measured but isn't" failure #124 exists to prevent.
+- **#121 criterion 5 corrected — it had become non-compliant.** criteria rule 11 was amended mid-task to ban baked hue-dominance literals (the old 89.2% did not reproduce: cycle-1 measured 72.0% and 53.6%, and our 99.4% would have passed while being MORE monochrome than the arcade). My ">=80% in one 20-degree bin" was exactly that banned construction, and I wrote it. Replaced with a two-sided gate-time comparison: dom_ours within +-12 pp of dom_ref, failing in BOTH directions.
 
 **Improvement Insights**:
 - **[architect.md]**: the rule says prototype tooling before speccing; it should add "budget for the control to FAIL — five of six estimators here died on theirs." The instruction currently reads as if one control run confirms a method. Naming the abandoned attempts in the spec is what stops the next agent rebuilding them.

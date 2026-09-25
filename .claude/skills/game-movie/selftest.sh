@@ -1,0 +1,274 @@
+#!/bin/bash
+# Validation suite for the game-movie skill (#114 §9).
+#
+# No framework, matching the other skills. Every capture opens a real window —
+# MovieWriter SIGABRTs under --headless — so expect windows to flash past.
+#
+# Ports are allocated from 9590 upward, skipping any already in use.
+
+set -uo pipefail
+
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJ_DIR="$(cd "$SKILL_DIR/../../.." && pwd)"
+GODOT="${GODOT:-/Applications/Godot.app/Contents/MacOS/Godot}"
+CAPTURE="bash $SKILL_DIR/capture-movie.sh"
+
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/game-movie-selftest.XXXXXX")"
+trap 'rm -rf "$TMP"' EXIT
+
+# Ports are ALLOCATED, not hard-coded. 9590+ is this suite's range, but other
+# agents run their own Godot instances and a collision would surface as a bogus
+# test failure (it did: an unrelated instance on 9595 made the inertness test
+# report exit 9). Never kill what we did not start — step over it instead.
+PORT_CURSOR=9590
+next_port() {
+  while [ "$PORT_CURSOR" -lt 9650 ]; do
+    if [ -z "$(lsof -i "tcp:$PORT_CURSOR" -sTCP:LISTEN -t 2>/dev/null)" ]; then
+      echo "$PORT_CURSOR"
+      PORT_CURSOR=$((PORT_CURSOR + 1))
+      return 0
+    fi
+    echo "  (port $PORT_CURSOR is in use by another process — skipping)" >&2
+    PORT_CURSOR=$((PORT_CURSOR + 1))
+  done
+  echo "ERROR: no free port in 9590-9650" >&2
+  exit 1
+}
+
+PASSED=0
+FAILED=0
+pass() { PASSED=$((PASSED + 1)); echo "  PASS: $1"; }
+fail() { FAILED=$((FAILED + 1)); echo "  FAIL: $1"; }
+expect() { if [ "$2" = "$3" ]; then pass "$1 ($3)"; else fail "$1 — expected '$3', got '$2'"; fi; }
+
+frames_of() {
+  ffprobe -v error -select_streams v:0 -count_frames \
+    -show_entries stream=nb_read_frames -of default=nw=1:nk=1 "$1" 2>/dev/null
+}
+rate_of() {
+  ffprobe -v error -select_streams v:0 \
+    -show_entries stream=r_frame_rate -of default=nw=1:nk=1 "$1" 2>/dev/null
+}
+
+echo "1. frame count is exact"
+# KNOWN-ANSWER CONTROL with a pre-stated abandonment tolerance: a 2-second
+# capture must contain EXACTLY 120 frames at EXACTLY 60/1. If this is off by one
+# frame, or the rate is anything but 60/1, stop and report — do not widen the
+# assertion. MovieWriter's entire value is exactness, and a tool that needs a
+# fudge factor has lost the property #113's speed metric depends on.
+P1=$(next_port); $CAPTURE --duration 2 --fps 60 --port "$P1" --output "$TMP/t1.mp4" >/dev/null 2>&1
+expect "2s at 60fps is exactly 120 frames" "$(frames_of "$TMP/t1.mp4")" "120"
+expect "container rate is exactly 60/1" "$(rate_of "$TMP/t1.mp4")" "60/1"
+
+echo
+echo "2. fps is not hard-coded"
+P2=$(next_port); $CAPTURE --duration 2 --fps 30 --port "$P2" --output "$TMP/t2.mp4" >/dev/null 2>&1
+expect "2s at 30fps is exactly 60 frames" "$(frames_of "$TMP/t2.mp4")" "60"
+expect "container rate is exactly 30/1" "$(rate_of "$TMP/t2.mp4")" "30/1"
+
+echo
+echo "3. sidecar"
+SIDE_OUT=$(python3 - "$TMP/t1.mp4.json" "$(frames_of "$TMP/t1.mp4")" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+probe_frames = int(sys.argv[2])
+checks = [
+    ("schema is game-video-capture/1", d.get("schema") == "game-video-capture/1"),
+    ("source is movie-writer", d.get("source") == "movie-writer"),
+    ("measured_fps equals --fps", d.get("measured_fps") == 60.0),
+    ("encoded_fps equals measured_fps", d.get("encoded_fps") == d.get("measured_fps")),
+    ("frames matches ffprobe", d.get("frames") == probe_frames),
+    ("wall_elapsed_s present for diagnostics", isinstance(d.get("wall_elapsed_s"), float)),
+]
+# Judge correction 4: these four carry WALL-CLOCK semantics in
+# game-video-capture/1. Emitting 0.0/false here would be a false statement about
+# a run whose real frame spacing was nothing of the sort, so they are omitted.
+for key in ("interval_mean_s", "interval_stdev_s", "interval_max_s", "pacing_slip"):
+    checks.append(("%s omitted, not zeroed" % key, key not in d))
+for name, ok in checks:
+    print("  %s: %s" % ("PASS" if ok else "FAIL", name))
+print("TALLY %d %d" % (sum(1 for _, o in checks if o), sum(1 for _, o in checks if not o)))
+PY
+)
+echo "$SIDE_OUT" | grep -v '^TALLY '
+PASSED=$((PASSED + $(echo "$SIDE_OUT" | grep '^TALLY ' | cut -d' ' -f2)))
+FAILED=$((FAILED + $(echo "$SIDE_OUT" | grep '^TALLY ' | cut -d' ' -f3)))
+
+echo
+echo "4. input offset is exactly one frame — THROUGH THE ACTION SYSTEM"
+# project.godot binds every action to physical_keycode with keycode: 0, so a
+# probe via Input.is_key_pressed() passes on an implementation that cannot drive
+# the game at all. This asserts through Input.is_action_pressed() on a real
+# action, and the control below proves the distinction is not hypothetical.
+cat > "$TMP/offset.json" <<'EOF'
+{"schema":"capture-input/1","events":[
+ {"frame":10,"action":"key_down","key":"Z"},
+ {"frame":20,"action":"key_up","key":"Z"},
+ {"frame":30,"action":"key","key":"Z"}]}
+EOF
+"$GODOT" --headless --path "$PROJ_DIR" --quit-after 34 -- --mcp-port "$(next_port)" \
+  --capture-input "$TMP/offset.json" --capture-probe fire_vulcan > "$TMP/probe.log" 2>&1
+probe_at() { grep "^PROBE $1 " "$TMP/probe.log" | awk '{print $3}'; }
+expect "key_down at F=10: action NOT yet pressed at frame 10" "$(probe_at 10)" "0"
+expect "key_down at F=10: action pressed from frame 11 (F+1)" "$(probe_at 11)" "1"
+expect "still held at frame 20" "$(probe_at 20)" "1"
+expect "key_up at F=20: released from frame 21 (F+1)" "$(probe_at 21)" "0"
+expect "tap at F=30: held on frame 31 only" "$(probe_at 31)" "1"
+expect "tap at F=30: released again by frame 32" "$(probe_at 32)" "0"
+
+# NEGATIVE CONTROL: an assertion that cannot fail is not an assertion. This
+# proves a keycode-only event is inert for actions while still reading as
+# pressed via the raw-key API — i.e. that probing the wrong way would go green
+# on a broken implementation.
+CONTROL=$("$GODOT" --headless --path "$PROJ_DIR" \
+  --script res://.claude/skills/game-movie/probes/keycode_only_control.gd 2>&1 \
+  | grep "^CONTROL" | head -1)
+expect "control: keycode-only event does NOT drive the action" \
+  "$(echo "$CONTROL" | grep -o 'keycode_only_action=[01]' | cut -d= -f2)" "0"
+expect "control: keycode-only event DOES fool is_key_pressed" \
+  "$(echo "$CONTROL" | grep -o 'keycode_only_rawkey=[01]' | cut -d= -f2)" "1"
+expect "control: setting both fields drives the action" \
+  "$(echo "$CONTROL" | grep -o 'both_action=[01]' | cut -d= -f2)" "1"
+
+echo
+echo "5. timeline validation rejects before launching Godot"
+check_reject() {
+  local label="$1" body="$2"
+  REJECT_PORT=$(next_port)
+  echo "$body" > "$TMP/bad.json"
+  rm -f "$TMP/bad.mp4"
+  $CAPTURE --duration 1 --port "$REJECT_PORT" --input-script "$TMP/bad.json" --output "$TMP/bad.mp4" >/dev/null 2>&1
+  local rc=$?
+  if [ "$rc" -eq 2 ] && [ ! -f "$TMP/bad.mp4" ] && [ -z "$(ls -d "${TMPDIR:-/tmp}"/game-movie-$REJECT_PORT.* 2>/dev/null)" ]; then
+    pass "$label rejected with exit 2, no capture started"
+  else
+    fail "$label — exit $rc, mp4 present=$([ -f "$TMP/bad.mp4" ] && echo yes || echo no)"
+  fi
+}
+check_reject "frame 0"        '{"schema":"capture-input/1","events":[{"frame":0,"action":"key","key":"Enter"}]}'
+check_reject "negative frame" '{"schema":"capture-input/1","events":[{"frame":-5,"action":"key","key":"Enter"}]}'
+check_reject "non-integer frame" '{"schema":"capture-input/1","events":[{"frame":1.5,"action":"key","key":"Enter"}]}'
+check_reject "unknown action" '{"schema":"capture-input/1","events":[{"frame":5,"action":"wiggle","key":"Enter"}]}'
+check_reject "unknown key"    '{"schema":"capture-input/1","events":[{"frame":5,"action":"key","key":"Nonsense"}]}'
+check_reject "wrong schema"   '{"schema":"capture-input/2","events":[]}'
+check_reject "malformed JSON" '{"schema":'
+
+echo
+echo "6. events past the end of the run are ignored with a warning"
+cat > "$TMP/far.json" <<'EOF'
+{"schema":"capture-input/1","events":[{"frame":99999,"action":"key","key":"Enter"}]}
+EOF
+$CAPTURE --duration 1 --fps 60 --port "$(next_port)" --input-script "$TMP/far.json" \
+  --output "$TMP/t6.mp4" > "$TMP/t6.log" 2>&1
+expect "out-of-range event still exits 0" "$?" "0"
+expect "and still produced its 60 frames" "$(frames_of "$TMP/t6.mp4")" "60"
+if grep -q "never fired" "$TMP/t6.log"; then
+  pass "warning names the events that never fired"
+else
+  fail "warning names the events that never fired"
+fi
+
+echo
+echo "7. same seed reproduces byte-identical output"
+# Divergence was measured at frame 125, so the window must run well past it.
+$CAPTURE --duration 5 --fps 60 --seed 4242 --port "$(next_port)" --output "$TMP/s1.mp4" >/dev/null 2>&1
+$CAPTURE --duration 5 --fps 60 --seed 4242 --port "$(next_port)" --output "$TMP/s2.mp4" >/dev/null 2>&1
+M1=$(md5 -q "$TMP/s1.mp4" 2>/dev/null || md5sum "$TMP/s1.mp4" | cut -d' ' -f1)
+M2=$(md5 -q "$TMP/s2.mp4" 2>/dev/null || md5sum "$TMP/s2.mp4" | cut -d' ' -f1)
+if [ "$M1" = "$M2" ]; then
+  pass "two --seed 4242 runs are byte-identical"
+else
+  fail "two --seed 4242 runs differ ($M1 vs $M2)"
+fi
+
+echo
+echo "8. no seed still diverges (proves the conditional is wired, not inverted)"
+$CAPTURE --duration 5 --fps 60 --port "$(next_port)" --output "$TMP/n1.mp4" >/dev/null 2>&1
+$CAPTURE --duration 5 --fps 60 --port "$(next_port)" --output "$TMP/n2.mp4" >/dev/null 2>&1
+N1=$(md5 -q "$TMP/n1.mp4" 2>/dev/null || md5sum "$TMP/n1.mp4" | cut -d' ' -f1)
+N2=$(md5 -q "$TMP/n2.mp4" 2>/dev/null || md5sum "$TMP/n2.mp4" | cut -d' ' -f1)
+if [ "$N1" != "$N2" ]; then
+  pass "two unseeded runs differ, so randomize() still governs normal play"
+else
+  fail "two unseeded runs are identical — the seed conditional may be inverted"
+fi
+# And a --seed that cannot take effect must be refused rather than honoured silently.
+if grep -q "CaptureInput.requested_seed" "$PROJ_DIR/scripts/game/game_manager_2d.gd"; then
+  pass "seed conditional present in game_manager_2d.gd"
+else
+  fail "seed conditional present in game_manager_2d.gd"
+fi
+
+echo
+echo "9. inert without --capture-input"
+# Exit status of an ordinary bounded run.
+INERT_PORT=$(next_port)
+"$GODOT" --headless --path "$PROJ_DIR" --quit-after 120 -- --mcp-port "$INERT_PORT" > "$TMP/inert.log" 2>&1
+expect "normal launch still exits 0" "$?" "0"
+
+# Bridge reachability needs a LIVE instance, so run one without --quit-after and
+# stop it ourselves. An earlier version used `--quit-after 120; sleep 3`, which
+# finishes headless in well under a second — the probe then answered only
+# because an unrelated agent's Godot happened to hold the port. A green that
+# came from someone else's process is the worst kind.
+PROBE_PORT=$(next_port)
+"$GODOT" --headless --path "$PROJ_DIR" -- --mcp-port "$PROBE_PORT" > "$TMP/inert-live.log" 2>&1 &
+LIVE_PID=$!
+for _ in $(seq 1 30); do
+  grep -q "Listening on 127.0.0.1:$PROBE_PORT" "$TMP/inert-live.log" 2>/dev/null && break
+  kill -0 "$LIVE_PID" 2>/dev/null || break
+  sleep 0.5
+done
+BRIDGE=$(echo '{"cmd":"get_runtime_tree"}' | nc -w 3 localhost "$PROBE_PORT" 2>/dev/null | head -c 20)
+kill "$LIVE_PID" 2>/dev/null
+wait "$LIVE_PID" 2>/dev/null
+if echo "$BRIDGE" | grep -q '"ok"'; then
+  pass "bridge still reachable with the autoload installed"
+else
+  fail "bridge still reachable with the autoload installed (got '$BRIDGE')"
+fi
+if grep -q "CaptureInput:" "$TMP/inert.log"; then
+  fail "autoload stays silent when not capturing"
+else
+  pass "autoload stays silent when not capturing"
+fi
+
+echo
+echo "10. intermediate AVI cleanup"
+CLEAN_PORT=$(next_port); $CAPTURE --duration 1 --port "$CLEAN_PORT" --output "$TMP/t10.mp4" >/dev/null 2>&1
+if [ -z "$(ls -d "${TMPDIR:-/tmp}"/game-movie-$CLEAN_PORT.* 2>/dev/null)" ]; then
+  pass "scratch AVI removed by default"
+else
+  fail "scratch AVI removed by default"
+  rm -rf "${TMPDIR:-/tmp}"/game-movie-$CLEAN_PORT.*
+fi
+KEPT=$($CAPTURE --duration 1 --port "$(next_port)" --keep-avi --output "$TMP/t10b.mp4" 2>&1 | grep "AVI kept" | sed 's/.*kept: //')
+if [ -n "$KEPT" ] && [ -f "$KEPT" ]; then
+  pass "--keep-avi keeps it and prints the path"
+  rm -rf "$(dirname "$KEPT")"
+else
+  fail "--keep-avi keeps it and prints the path (got '$KEPT')"
+fi
+
+echo
+echo "11. end-to-end into motion-metrics with no --game-true-fps"
+OUT="$TMP/metrics"
+bash "$PROJ_DIR/.claude/skills/motion-metrics/compare.sh" \
+  --ref "$PROJ_DIR/.reference-cache/video/ab2-longplay.mp4" --ref-window 6:00-6:05 \
+  --game "$TMP/s1.mp4" --game-window 0-5 --name game-movie-e2e --out "$OUT" >/dev/null 2>&1
+expect "compare.sh accepts the movie via its sidecar alone" "$?" "0"
+if [ -f "$OUT/strip-01.png" ] && [ -f "$OUT/report.md" ]; then
+  pass "strips and report produced"
+else
+  fail "strips and report produced"
+fi
+if grep -q "60.0000" "$OUT/report.md" 2>/dev/null; then
+  pass "report carries the exact 60fps true rate from the sidecar"
+else
+  fail "report carries the exact 60fps true rate from the sidecar"
+fi
+
+echo
+echo "================================"
+echo "$PASSED passed, $FAILED failed"
+[ "$FAILED" -eq 0 ]

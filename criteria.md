@@ -58,6 +58,9 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 
 ## Hard Rules (automatic FAIL if violated)
 
+> TODO (TL, from #120-#122 spec retro): rules 2, 5, 8, 11 + #124's biome identity all partly govern ground/composition and overlap — consolidate into one ground section on the next criteria pass so defects can't fall between rules.
+
+
 1. **No un-dodgeable deaths** — every death preceded by a visible threat with a >=0.5s avoidance window. Idle-survival time is not itself a criterion.
 2. **Ground must show depth-correct parallax STRUCTURE, evaluated as scale — not measured as frame-to-frame speed.** Check that texture features grow and spread correctly with depth within single frames (near features larger and coarser than far), and that features visibly persist and approach across frames rather than regenerating as noise. Do NOT measure per-band pixel shift at sub-60fps — that is a speed measurement, which temporal aliasing makes unreliable (#113: per-band flow on the ARCADE ORIGINAL at 15fps measures higher far than near, so the old monotonic-shift rule fails AB2 itself). Frame-to-frame shift measurement is gated on the 60fps pipeline (#114). The old 'stripe positions must differ' rule passed on pure noise regeneration and must not be reinstated.
 3. **Reference screenshots are the primary truth source** — written descriptions can be wrong. Always look at actual images.
@@ -160,7 +163,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 9. **No rendering artifacts.** Seams, tearing, Z-fighting, flickering, or visual glitches of any kind = FAIL.
 
-8. **Enemies must occupy the SKY.** They appear at the horizon and scale up through the sky above it. A sustained stretch of capture with zero enemy pixels above the horizon line = FAIL. Measure it: count enemy pixels above the horizon across a capture. The original's action happens in the sky, not along the ground.
+8. **Enemies must occupy the SKY.** They appear at the horizon and scale up through the sky above it. A sustained stretch of capture with zero enemy pixels above the horizon line = FAIL. Measure it: count enemy pixels above the horizon across a capture. The original's action happens in the sky, not along the ground. PER-BIOME QUALIFICATION (like rule 5): on low-horizon canyon stages (8, 17 — sky ~4-14%H per verified frames) measure enemy presence against the MATCHING reference stage, not the cruise-stage expectation; a correct canyon stage must not fail this rule for having little sky.
 
 10. **Explosion type must match the target.** Aircraft kills are pale cream/near-white cauliflower puffs at ~10-12% screen height with NO orange or red (desert-explosions.png, closeup-enemies.jpg). Orange/red fireballs are for ground and large impacts ONLY (huge-explosion.jpg, burst-c-10). Using a fireball for every kill = FAIL.
 
@@ -172,7 +175,7 @@ Never evaluate a cropped subject alone. Composition defects live between element
 
 16. **Weapons must demonstrably work.** Firing the vulcan must produce a visible tracer within 2 frames, and a 15s active-fire capture must produce at least one scoring kill. Three gates passed visual work while the guns did nothing — no visual criterion is meaningful if the player cannot shoot.
 
-17. **The horizon must ROLL with bank.** The whole world tilts when the jet banks — measured across 9 verified arcade stage-1 frames, sky-ground boundary tilt spans 1.5% to 57.7% of screen width. Measure boundary tilt across an input-driven capture (held Left/Right): never exceeding ~2%W while the player banks = FAIL. This gap survived every gate until cycle 1 because no rule named it.
+17. **The world must ROLL with bank — measured in DEGREES, the unit the renderer controls.** Measured on verified stage-1 footage (42 clean fits, #128 spec): rigid rotation about screen centre (0.51W, 0.49H), roll spanning −6.2° to +67.9°, saturating 65–68°, median rate while rolling 74.5°/s; HUD stays screen-fixed. Requirement: peak world roll ≥50° during a held turn (reference reaches 68°); level cruise within ±5°; never exceeding ~2° under held bank = FAIL. (The rule's original %W statement was tan-based and non-linear — its own cited maximum was only 30°; a build at half the arcade's roll would have passed. State visual thresholds in the units the code sets.)
 
 18. **Clouds are objects in the sky, not a sky gradient.** Stages whose verified reference frames show cloud banks must render them, scaling/scrolling consistently with depth. Rule 6's flat-fill sky is not licence for an empty sky.
 

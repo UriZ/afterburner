@@ -1,0 +1,8 @@
+{
+  "schema": "capture-input/1",
+  "_comment": "Default timeline: get past the title screen into gameplay. Frames are 1-based _process indices; an event applied at frame F is observable to game logic from F+1.",
+  "events": [
+    {"frame": 30, "action": "key", "key": "Enter"},
+    {"frame": 90, "action": "key", "key": "Enter"}
+  ]
+}

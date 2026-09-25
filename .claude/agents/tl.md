@@ -85,7 +85,8 @@ After EVERY agent completes:
 1. Read the agent's Improvement Insights from their TLDR
 2. Evaluate each suggestion — is it valid? Would it prevent the same issue next time?
 3. Apply valid suggestions IMMEDIATELY — edit agent defs, CLAUDE.md, criteria.md, workflow docs
-   - Every assignment entry in SESSION_LOG must include the CURRENT file-ownership map (who owns which files/ports right now) — three agents touched the capture files in one session and each inherited stale line references or flag names from the last (#114 insight)
+   - Before an issue's text becomes binding: confirm any subsystem it names actually exists (grep), and that an 'X should read as Y' criterion is reachable by the subsystem being changed — two issues in a row failed this (#122 named a nonexistent attract-flight; #124 asked palette work to produce structure)
+   - Maintain `ownership.md` at repo root (files, ports, sequencing decisions, shared-file registry) — update it when issues are created/assigned/closed; issue-comment matrices go stale (#120-#122 gate). Assignment SESSION_LOG entries reference it — three agents touched the capture files in one session and each inherited stale line references or flag names from the last (#114 insight)
    - If an insight describes a concrete, reproducible FAILURE (not a preference), file it as a GitHub issue on the spot — three agents logged the shared mcp_ports.cfg hazard across retros before it was finally filed and fixed (#117)
 4. Insert the agent's TLDR + what you applied at the TOP of SESSION_LOG.md (newest-first) under a "Retrospective" heading
 
