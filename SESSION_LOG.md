@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-25 23:20] — TL — Retrospective: dev-125 #120 impl — at judge gate
+
+**Agent TLDR**: verbatim in its entry below. All 9 ACs verified with classifiers stated per AC10; stage_data diff additive-only (programmatically verified), ready as the first commit for #124's rebase; latent shader-uniform bug fixed WITH a negative control (delete push → test fails → restore → passes); preview harness extended additively (now pushes horizon); AC6's ~2.5pp offset explained as the shader's own horizon haze (flagged as expected behavior for future ACs, not a discrepancy).
+
+**Retrospective — applied**: reference-facts (haze-blend offset expectation); CLAUDE.md (preview harness named the default per-stage AC tool). Judge gate → judge-cycle-1 (port 9585). APPLIED.
+
+
 ### [2026-09-25 23:00] — TL — Retrospective: batch gates #121 FAIL 8 / #124 PASS 9 / #135 FAIL 8
 
 **Judge TLDR**: verbatim in its entry below. #121: core gap closed (segmentation stated AND run; counts within 1-5, several bit-exact); small-object count is the discriminator that held (77-103 vs 35-60, no overlap); two remaining items are one level finer (window-vs-band edge policy; margin-N claims). #124: PASS — selector defect real (pure sea trips the colour bar 7.5x over), variance gate verified at >20x separation, honest-limits airtight, cited as the self-caught model. #135: ocean verified (ACF 2.32x in-band; draw-order minimal-footprint confirmed); canyon fails the author's own per-biome-stats rule + AC 6 omits 'median' over a 10x spread.
