@@ -1,5 +1,63 @@
 # Session Log
 
+### [2026-09-26 05:30] — TL — Retrospective: #139 gate PASS 9/10; outage #2; full wave resumed
+
+**Judge TLDR (pre-outage)**: verbatim in its entry below; verdict 5834281586. Own NCC estimator built (published); stage 8 certifies every band, stage 1 fails everywhere — and the unplanned killer demo: the SAME estimator reads stage 1 SLOWER than stage 8 (2.11 vs 2.96 px/frame, inverse of truth). Span arithmetic verified by differentiation; dead constants traced through scene reachability; #122 no-coupling read from shipped code; all 8 ACs clean on point-vs-bound (first spec where the new rule applied correctly first time); one trap closed (192-px work width must be stated inline). Four in-place fixes, no re-gate.
+
+**Outage #2**: spend limit killed 7 agents; reset; all resumed from transcripts + #129 impl dispatched to dev-113-116 (freed). Wave: qa-113-116 (#138+#127 confirm), vqa-sky-115 (#120), dev-125 (#124), dev-sky-115 (#140 TLDR), architect-113 (#131 + #139 in-place fixes), architect-comp (#132/#133), dev-113-116 (#129).
+
+**Retrospective — applied**: architect.md (normalisation basis inline; analytic known answers preferred); judge.md 15ab (independent implementation over tool re-invocation); reference-facts (the inverted-regime demonstration). APPLIED.
+
+
+### [2026-09-26 03:10] — qa — #138 (music wiring + audio unmute)
+
+**Task**: QA-verify #138 (gameplay theme wiring, project-wide audio unmute, phase-driven start/stop) via independent reproduction and live-instance probing.
+**Result**: PASS (0 bugs found), plus 1 off-checklist product observation flagged for TL/UriZ (not blocking)
+**Issues verified**: #138 (PASS)
+**New bugs filed**: none
+**Key findings**:
+- Wrote my own standalone probe (outside the project's test files) that instantiates the real `title_screen.tscn` and drives it through ATTRACT→MUSIC_SELECT→gameplay with genuine simulated Enter key events (both keycode+physical_keycode). Confirmed live: Master bus mute=false both pre- and post-start; Music bus exists at index 1, mute=false, volume exactly -12.0dB; ThemePlayer present, playing=true, bus="Music".
+- Loop integrity re-derived independently: `.wav.import` shows loop_mode=2/loop_begin=0/loop_end=-1/compress=0 exactly as claimed; loaded resource directly with my own script — loop_mode=1(FORWARD), loop_begin=0, loop_end=1227129, all exact. Seam analysis re-derived with my own script (different methodology: mono downmix + abs diff + numpy percentile) — wrap step ~5294 vs in-track p99 ~22029 (dev's figures 6490/22125 differ slightly by methodology but the ratio independently confirms the wrap sits well inside ordinary in-track variation, ~24% of p99).
+- Phase behavior verified live including a real death: seeked the running theme to 13.0s, called the real `GameState.lose_life()` (not a mock), confirmed position stayed at 13.0s afterward, still playing.
+- `test_audio_manager.gd`: 221/0 (I'd independently hit this exact compile error during an earlier, unrelated QA pass this session before #138's fix landed, so confirmed the before/after directly).
+- Capture regression: my own game-movie capture (port 9650, 180 frames exactly at 60/1) and game-video capture (port 9651) both clean with the new autoload present.
+- `run_all.sh`: 1055/13-known exact match, including test_music_theme.gd 27/0 and test_audio_manager.gd 221/0 individually.
+- **Off-checklist finding**: traced every caller of `AudioManager.play_music()` (exactly one, `title_screen.gd:103`) and frame-traced the transition — the player's MUSIC_SELECT choice plays for exactly 1 frame (~16.7ms) before being silenced and replaced by the fixed authored theme, regardless of which of the 3 named tracks was selected. Not a defect in what #138 was asked to build (every piece works as designed), but the MUSIC_SELECT screen now presents a choice with zero audible effect — flagged for a product decision, not filed as a bug.
+
+## TLDR
+GitHub issue(s): #138
+PASS. Verified every claim independently via live-instance probing (driving the real title screen with simulated input, not just re-running the dev's tests or reading code): unmute, Music bus setup, loop import flags, seam quality (own re-derivation), and death/respawn behavior all confirmed live. `test_audio_manager.gd` 221/0 and `test_music_theme.gd` 27/0 both match exactly; `run_all.sh` 1055/13-known exact match. One off-checklist finding: the MUSIC_SELECT screen's track choice is now inaudible (overridden within 1 frame by the fixed theme) — flagged as a product-coherence question for the TL/UriZ, not a bug, since every individual piece of #138 works exactly as scoped. Posted findings to #138, removed qa label.
+
+## Improvement Insights
+- **workflow**: live-instance probing (instantiate the real scene, drive real input events, inspect engine state directly) caught the MUSIC_SELECT-is-now-inaudible finding that neither the dev's unit tests nor a code read alone would have surfaced as clearly — worth keeping as a standard QA technique for any audio/UI wiring change, not just this one.
+
+---
+### [2026-09-25 20:20] — judge — #139 world-speed spec
+**Gate type**: per-agent (architect), first gate
+**Verdict**: PASS
+**Score**: 9/10 (threshold 9). No judge-fail.
+**Gated**: spec 5834157641 + TL endorsement 5834191843 (newest, 14:36:16Z).
+
+**All seven priority checks re-run. Built my own estimator rather than re-running theirs** (published in the verdict): per band, vertical shift maximising NCC between frames, sub-pixel by parabolic peak interpolation; 60fps arm t->t+1, 30fps arm t->t+2; decimation ratio = mean(60)/mean(30), true 0.5.
+- **(1) Regime dependence CONFIRMED.** Arcade stage 8 certifies in every band: far +0.4%, mid +0.8%, near +2.8%, whole-band -0.8% (spec reports +0.5%). Arcade stage 1 fails everywhere.
+- **UNPLANNED CORROBORATION worth keeping**: with the SAME estimator both sides, arcade stage 1 reads 2.11 px/frame and stage 8 reads 2.96 — cruise appears SLOWER than canyon, the exact inverse of the truth. Stage 1 fails its gate (+238%), stage 8 passes. Taking the failing number at face value inverts the entire finding. Strongest available demonstration of why stage 1's figure must be a floor; recommended the spec adopt it as a worked example.
+- **(3) Per-band sweep RE-RUN, every band fails** including one the spec did not test (just below the horizon, geometrically slowest): +327%, +128%, +104%, degenerate (NCC found no shift), whole-band +238%. My magnitudes far exceed their +27..+50% because a 1-D row-profile estimator saturates harder than dense flow — corroborating conclusion and direction, NOT the percentages.
+- **(2) Span arithmetic verified**; dy/dt = 2*d*span*0.95*v confirmed by differentiation; shader world_d = d - world_scroll confirmed at line 181. Against #120's COMMITTED fractions: stage 8 span 584.64 = 2.320x cruise, stage 17 624.96 = 2.480x. Spec's 2.40x comes from a hypothetical ~10%H that brackets them — conclusion unaffected (canyon 2.3-2.5x cruise vs arcade canyon at most 0.63x cruise, wrong direction ~4x either way) but should now cite the committed values.
+- **(4) Constant audit verified INCLUDING scene reachability**: GROUND_SCROLL_SPEED=1.4 at game_world.gd:39 consumed at :73; game_environment_2d.gd:13 only in test_env_minimal/test_environment_2d/environment scenes; ground_scroll.gd:3 only in main.tscn (superseded 3D). Neither appears in main_2d.tscn. Both genuinely dead.
+- **(5) #122 no-coupling verified against SHIPPED code** (demo flight is in the tree now): grep for GROUND_SCROLL_SPEED/world_scroll/_ground_scroll in player_jet_2d.gd returns NOTHING.
+- **(6) Control is sound** — and stronger than most in this project: the known answer is ANALYTICALLY EXACT (flow provably linear in v from the shader's own world-coordinate recovery), tolerance pre-declared and tighter than the decimation gate's own +-10%, stop-on-miss stated with its reason, and it doubles as a knee-finder so a failure yields the number needed to pick the 120fps capture rate. A control that is informative when it fails.
+- **(7) Point-vs-bound AUDITED ACROSS ALL 8 ACs — clean.** Only AC 4 carries two-sided [0.9,1.1], and it sits on the one regime that certifies (arcade stage 8). AC 2 rests on the floor and demands only >= with explicit "never as parity" language. NO AC demands parity against a floor.
+
+**One thing I had to go read the tool to confirm, and the spec should state**: §1 compares arcade px/frame (1028x720) against ours (960x672) and §3.1 divides them to get 1.630. That looks invalid until you find DEFAULT_WORK_WIDTH=192 in flow_metrics.py — both clips are resampled to a common 192-px work width before the flow pass (mean_pct_width = 100*mean/work_width), so the ratio IS sound and §5.2's /192 is that same normalisation. A reader checking arithmetically would compute 3.063/1028 vs 1.8797/960 = 1.521, conclude the spec is 7% wrong, and "fix" a correct number. Readability trap, not a soundness gap — provenance chain is complete (§11 cites artifacts, tool is committed).
+
+**Fix-in-place items (no round trip)**: cite #120's committed 0.13/0.07 in §3.2; state the 192-px work width in §1/§3.1; work the stage-8 derivation through in §8.4 as §3.1 does for stage 1 (it carries the only two-sided AC); consider adopting my stage-1-reads-slower observation as a worked example.
+
+**Improvement Insights**:
+- **architect.md**: when a spec compares measurements taken from sources at different resolutions, require stating the normalisation basis inline. #139's headline multiplier is correct but appears 7% wrong to anyone who checks it without reading the tool source.
+- **criteria.md / reference-facts.md**: record the arcade-stage-1-reads-slower-than-stage-8 result. It is the clearest single demonstration that a sub-knee reading is a floor and not an estimate, and it explains the aliasing rule more concretely than the current prose.
+- **workflow**: #139's known-answer control is the best in the project because its answer is derived analytically from the code rather than calibrated empirically. Worth naming that preference in architect.md — an analytic known answer beats a measured one.
+- **judge.md**: building an independent estimator rather than re-running the spec's tool caught something re-running would not have: the same estimator applied to both regimes inverts the ordering. Worth preferring independent implementation over tool re-invocation where the measurement is simple enough to rebuild.
+
 ### [2026-09-26 04:30] — TL — Retrospective: vqa-123 #122 — PASS; combined jet commit 5c49a3e; #112/#92/#122 closed
 
 **Agent TLDR**: verbatim in its entry below. All 8 AC1 statistics in-band on an independent 140-frame capture with pipeline cross-validated against the rig's printed ground truth; falsification formula reimplemented in plain Python — identical 12.45/2.50 to the shipped GDScript test; AC3 input-wins verified LIVE (hold Right mid-demo → drives off-frame → stays parked, demo cleared permanently); #112 aspect byte-identical + #92 alpha 1.000 on the combined diff (no regression); AC6/AC8 confirmed honestly scoped with tracked follow-ups.

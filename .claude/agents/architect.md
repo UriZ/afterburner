@@ -84,6 +84,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Every numeric target must state whether it is a POINT ESTIMATE or a BOUND, and an AC may not demand two-sided parity against a bound** — #139's original [0.9,1.1]-against-a-floor was unsatisfiable in principle, visible only by tracing the measurement's semantics.
    - **Publish the search window ALONGSIDE the result** ('searched rows 452-470, found 456-461') — a window-dominated error is then self-evident on the page instead of needing a gate to catch it (#129).
    - **An AC naming a containing REGION needs a companion constraint on the element's own SIZE** — containment can't reject something wrong in a dimension the region doesn't bound (a 1.5x-too-tall icon inside the band; a relocated readout outside the slot — #129).
+   - **When comparing measurements from sources at different resolutions, state the normalisation basis INLINE** — #139's correct multiplier read as 7% wrong to anyone checking without opening the tool source (both clips resample to a 192-px work width).
+   - **An ANALYTIC known answer beats a measured one** — #139's control derives its expected value from the shader's own coordinate recovery rather than calibration; pre-declared tolerance, stop-on-miss, and doubles as a knee-finder.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
