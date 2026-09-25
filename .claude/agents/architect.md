@@ -90,6 +90,10 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Sanity-check every measurement against where the thing can PHYSICALLY be** — nearly free, complementary to controls: a 'cloud bank' at 48-55%H spanning 100%W is the horizon haze band, caught only because the numbers were absurd (#132).
    - **Verify the premise against the CODE before speccing the delta** — #131's stated gap ('flat single-fill, zero bank') was substantially already implemented (#100); a rebuild spec would have discarded gate-verified work and reintroduced fixed defects. Same discipline as reference numbers: verify, then spec what's actually missing.
    - **Before trusting a masked measurement, report what fraction of the window the mask selected** — >50% or <1% is a red flag it found background or nothing; one pre-check covers three separate method failures (#131: 87,310px 'nozzle' was the orange sky).
+   - **Enumerate the candidate answers and their DISTINCT SIGNATURES before measuring** — turns 'does the arcade fade or shrink?' into a table lookup instead of an interpretation (#137: fade→area flat/value falls; shrink→area falls/value flat; fragment→count rises; smoke→hot mass desaturates).
+   - **Add clipping/saturation to the physical-plausibility checks**: a measurement pinned at exactly a frame dimension for consecutive frames is CLIPPED, and any ratio from it is silently wrong in a known direction (#137: 100.00%W for 14 frames).
+   - **When raising a clamp or limit, show the current ACHIEVABLE RANGE against it** — #131's clamp never engages (34.38° achievable vs 35° clamp); the raise was inert and nothing in the ACs would have revealed it.
+   - **An AC must FAIL if the change misses the spec's own stated reference target** — #131's AC bar (>45°) couldn't see a 54.43° ceiling against a stated 57°.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

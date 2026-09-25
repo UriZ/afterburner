@@ -93,6 +93,8 @@ After EVERY agent completes:
 
 **This is not optional.** If you skip retros, the team never improves and the same bugs repeat. The 2 minutes spent on retro saves 20 minutes of repeated failures.
 
+**Before nudging a 'silent' agent, consider real-time-bound background waits** — two idle pings landed on an agent correctly blocked on a 230s live stage-advance; silence during a declared background wait is progress, not idleness (#120 QA).
+
 **When running parallel agents**: do the retro for each agent as it completes, before launching follow-up work for that agent's output.
 
 ## Multi-Agent Workflow Rules

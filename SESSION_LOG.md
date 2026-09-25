@@ -1,5 +1,16 @@
 # Session Log
 
+### [2026-09-26 08:20] — TL — Retrospective: #120 SHIPPED (34a546c); #131 FAIL routed; #137 spec at gate; #145 filed
+
+**vqa-sky-115 TLDR**: verbatim below. #120 verified under REAL motion (230s live auto-advance to stage 8; 24 moving frames; dev's own classifier median 15.48%H in-band; enemies correct in thin sky; strips structural match). Non-blocking finds routed: canyon haze 80-135px vs 6-20px reference (→#121), stage-8 palette biome (→#124), 3rd sighting of transient sky-colour glitch (→NEW #145 per standing rule). Fair pushback on my idle-nudges (it was blocked on real-time waits — tl.md updated).
+
+**judge-cycle-1 #131 TLDR**: verbatim below. Premise correction CONFIRMED + judge self-corrected its own cycle-1 wording on the record (magnified its own frame); produced the better evidence (type-0 vs type-2 value-spread pair). FAIL on §3.1's inverted arithmetic (clamp never engages; achievable 34.38° vs clamp 35°; ceiling 54.43° vs stated 57°; AC blind to it). Routed to architect-113 with the two new rules.
+
+**architect-comp #137 TLDR**: verbatim below. Arcade SHRINKS fireballs (15.5% radius, value held/rising); signature-table method; self-caught orange-sky mask trap + 14-frame clipping exclusion; timing preserved, mechanism swapped; smoke-gap deferred with guard. At gate (judge-cycle-1).
+
+**Retrospective — applied**: architect.md ×4 (signature enumeration; clipping checks; achievable-range-vs-limit; AC-fails-on-missing-own-target); reference-facts ×2 (fireball shrink; value-spread example); game-capture SKILL (late-stage live pattern); tl.md (background-wait awareness). #120 committed+closed → #128 core + #139 impls UNBLOCKED, awaiting first free developer. APPLIED.
+
+
 ### [2026-09-26 07:40] — TL — Retrospective: ground consolidation applied (3bfe0a1)
 
 **Agent TLDR**: verbatim in architect-113's entry below; draft on #126. Nine fact/rule disagreements found in cross-check; three would mis-gate (eyeball-speed line contradicting the aliasing evidence; rule 11 baking literals while forbidding bakes; single-hue failing a correct ocean). TL rulings: all three in the draft's direction. Six staleness fixes incl. the DUPLICATE rule number 8 (every 'rule 8' citation was ambiguous). Discipline held: no new requirements, no invented numbers, no incident history dropped.

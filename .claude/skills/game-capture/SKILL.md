@@ -105,3 +105,5 @@ When evaluating visual work, ALWAYS use this skill instead of a single screensho
 The harness's usage header governs its own controls (e.g. stage cycling).
 
 **Under heavy concurrent load** (4+ Godot instances), a first `--start-game` launch can occasionally produce a black screen or non-monotonic stage state — retry once with a clean restart before diagnosing a rendering regression.
+
+**Reaching a late stage LIVE** (vs the preview harness): `set_capture_invincible` + continuous fire via bridge hold + a real-time background wait (~30s/stage; stage 8 ≈ 230s). Standard pattern from #120 QA — don't re-derive it.
