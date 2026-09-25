@@ -53,7 +53,8 @@ Screenshots alone are NOT sufficient. Videos reveal speed, timing, movement, and
 6. **less is more** less is more , no ai slop. can you do it with less code? better
 
 
-- - **When a harness cycles content on a timer, identify frames by RENDERED CONTENT, not capture order** — a 3.9s-vs-4.0s interval drift silently mislabels every measurement one stage over (#120 gate).
+- - **A 'no X ever appears' guard must be tested against the actual PRODUCTION artifact the principle protects, not only synthetic fixtures** — #127's guard passed every fixture while the shipped report leaked the quantity as bare 'px' two lines under the sentence denying it.
+- **When a harness cycles content on a timer, identify frames by RENDERED CONTENT, not capture order** — a 3.9s-vs-4.0s interval drift silently mislabels every measurement one stage over (#120 gate).
 - **When a measurement fit has free parameters, report the RESIDUAL next to the result** — a railed phase fit produced plausible wrong segments; the residual (11.33 vs 1.46pp) was the only tell (#122).
 - **For any visual-artifact bug, the FIRST move is an isolated composite-render harness** — the suspect effect alone on a plain background, stepped through its full lifecycle — not reading a single in-context frame (one screenshot sent #134's investigation to the wrong file entirely).
 - **When fixing a defect that was itself introduced as a fix, state the WHOLE chain in the code comment** — each previous version looked correct in isolation; only the sequence shows the constraint is two-sided (#92: visibility-toggle → translucent-flash → RGB-gain flash).
