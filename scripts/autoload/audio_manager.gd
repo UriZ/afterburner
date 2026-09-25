@@ -1,12 +1,43 @@
 extends Node
 
 ## AudioManager autoload singleton.
-## Generates and plays procedural chip-tune music and sound effects.
-## All audio is synthesized at runtime — no external audio files.
+## SFX and the title chip-tune are synthesized at runtime; the gameplay theme is
+## an authored asset (#138).
 
 const SAMPLE_RATE := 22050.0
 const MUSIC_BPM := 150.0
 const MUSIC_BUFFER_SIZE := 512
+
+## Gameplay theme (#138). A 27.83s seamless loop, imported as PCM with
+## loop_mode=Forward over the whole sample, so the wrap is sample-exact rather
+## than merely close — see tests/test_music_theme.gd, which pins the import
+## flags because losing them degrades silently into an audible gap every 28s.
+const THEME_PATH := "res://assets/audio/music/main_theme.wav"
+
+## Dedicated bus so music level moves independently of SFX.
+## SFX players sit at -6 dB; the music bus at -12 dB puts the continuous bed
+## 6 dB under the transients, which keeps vulcan/explosion/lock-on audible over
+## it. One number to change if the mix needs adjusting.
+const MUSIC_BUS := "Music"
+const MUSIC_BUS_VOLUME_DB := -12.0
+
+## Opt-out for capture and test runs: `-- --mute-audio`. Before #138 the Master
+## bus was muted unconditionally in _ready(), which meant NO audio had ever been
+## audible — wiring the theme up without removing that would have shipped a
+## silent feature.
+const MUTE_FLAG := "--mute-audio"
+
+## GameState.Phase values, mirrored rather than referenced.
+##
+## Naming the `GameState` autoload directly here would make THIS script fail to
+## compile in any context that loads it before the autoload bootstrap — which is
+## exactly what tests/test_audio_manager.gd does, and it turned the whole file
+## into a silent no-op the moment the reference was added (#118's mechanism,
+## caught by tests/run_all.sh). The node is resolved at runtime instead, and
+## tests/test_music_theme.gd asserts these constants against the real enum so
+## the mirror cannot drift.
+const PHASE_PLAYING := 1
+const PHASE_BONUS_STAGE := 3
 
 ## Note frequencies (octave 4 base)
 const NOTE_FREQ := {
@@ -95,9 +126,17 @@ var _bass_freq: float = 0.0
 var _sfx_players: Array[AudioStreamPlayer] = []
 const SFX_POOL_SIZE := 8
 
+## Gameplay theme state (#138)
+var _theme_player: AudioStreamPlayer = null
+var _audio_muted := false
+var _game_state: Node = null
+
 
 func _ready() -> void:
-	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), true)
+	_audio_muted = OS.get_cmdline_user_args().has(MUTE_FLAG)
+	AudioServer.set_bus_mute(AudioServer.get_bus_index("Master"), _audio_muted)
+	_ensure_music_bus()
+	_setup_theme_player()
 
 	_tracks = [_track_final_take_off, _track_super_stripe, _track_after_burner]
 	_bass_lines = [_bass_final_take_off, _bass_super_stripe, _bass_after_burner]
@@ -123,6 +162,97 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _music_playing and _music_playback != null:
 		_fill_music_buffer()
+	_update_theme_for_phase()
+
+
+# ---------------------------------------------------------------------------
+# Gameplay theme (#138)
+# ---------------------------------------------------------------------------
+
+func _ensure_music_bus() -> void:
+	if AudioServer.get_bus_index(MUSIC_BUS) != -1:
+		return
+	# No default_bus_layout.tres in this project, so the bus is created at
+	# runtime rather than assumed to exist.
+	var index := AudioServer.bus_count
+	AudioServer.add_bus(index)
+	AudioServer.set_bus_name(index, MUSIC_BUS)
+	AudioServer.set_bus_send(index, "Master")
+	AudioServer.set_bus_volume_db(index, MUSIC_BUS_VOLUME_DB)
+
+
+func _setup_theme_player() -> void:
+	_theme_player = AudioStreamPlayer.new()
+	_theme_player.name = "ThemePlayer"
+	_theme_player.bus = MUSIC_BUS
+	var stream := load(THEME_PATH)
+	if stream == null:
+		# Loud, because a missing theme is silent by nature and would otherwise
+		# look like "the music feature just doesn't work".
+		push_error("AudioManager: could not load the gameplay theme at %s" % THEME_PATH)
+	else:
+		_theme_player.stream = stream
+	add_child(_theme_player)
+
+
+## Drives the theme off GameState.phase.
+##
+## Polled rather than signal-driven because `phase` is a plain var with no
+## setter and no signal; adding one would mean editing game_state.gd, which this
+## change does not own. The poll is a single enum compare per frame.
+##
+## Death and respawn do NOT pass through here: lose_life() leaves phase at
+## PLAYING, so `playing` stays true and the loop is never restarted — which is
+## the "survives respawn" requirement, satisfied by construction rather than by
+## a special case.
+func _update_theme_for_phase() -> void:
+	if _theme_player == null or _theme_player.stream == null:
+		return
+	if _game_state == null:
+		_game_state = get_node_or_null("/root/GameState")
+		if _game_state == null:
+			return
+	var phase: int = _game_state.phase
+	var wants_theme := phase == PHASE_PLAYING or phase == PHASE_BONUS_STAGE
+	if wants_theme and not _theme_player.playing:
+		start_theme()
+	elif not wants_theme and _theme_player.playing:
+		stop_theme()
+
+
+## Starts the gameplay theme from the top. Called automatically on entering
+## gameplay; exposed so tests and tools can drive it directly.
+func start_theme() -> void:
+	if _theme_player == null or _theme_player.stream == null:
+		return
+	# The title chip-tune is started by title_screen.gd and nothing ever stops
+	# it, so without this both would play over each other during gameplay.
+	stop_music()
+	_theme_player.play()
+
+
+func stop_theme() -> void:
+	if _theme_player != null and _theme_player.playing:
+		_theme_player.stop()
+
+
+## True while the gameplay theme is sounding. Used by tests.
+func is_theme_playing() -> bool:
+	return _theme_player != null and _theme_player.playing
+
+
+## Moves playback within the track. Exists so tests can prove a respawn does
+## not rewind the loop — comparing two positions inside one frame cannot.
+func seek_theme(seconds: float) -> void:
+	if _theme_player != null and _theme_player.playing:
+		_theme_player.seek(seconds)
+
+
+## Playback position in seconds, for verifying the loop is continuous.
+func theme_position() -> float:
+	if _theme_player == null or not _theme_player.playing:
+		return 0.0
+	return _theme_player.get_playback_position()
 
 
 ## Start playing the selected music track. track_index: 0, 1, or 2.
