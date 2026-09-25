@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-26 03:30] — TL — Retrospective: architect-113 #139 spec — at gate; framing corrected
+
+**Agent TLDR**: verbatim in its entry below. Key: speed must be PER-STAGE (arcade cruise >=1.58x canyon; post-#120 geometry alone would make ours 2.4x backwards; #121's verified growth rides the same constant — two independent routes); AC 2 unachievable as written, established three ways (whole-window, per-band sweep — every band fails, sparse landmarks fail on ocean); proposal: 120fps our-side capture, %W/second units, bound-closure language ("no longer demonstrably too slow"), two-sided parity only on the certifiable stage-8-vs-stage-8 regime post-#120; GROUND_SCROLL_SPEED=1.4 the only live constant (two dead ones fenced); #122 coupling checked-not-assumed (screen-relative); survivability-neutral by construction (enemy table untouched — future enemy-speed work fenced behind #103/#86); pre-declared stop-don't-widen control doubling as our-content knee-finder. Corrected the 0.9672 miscite in MY issue framing.
+
+**Retrospective — applied**: reference-facts (regime-dependent speed; 0.9672 cross-regime caution); architect.md (point-vs-bound classification; no parity ACs against bounds); tl.md filing checklist (classify targets). Endorsement + correction posted on #139. Gate → judge-cycle-1. APPLIED.
+
+
 ### [2026-09-26 03:00] — TL — Retrospective: re-gates #121 PASS 9 / #135 PASS 9 — all composition specs approved
 
 **Judge TLDR**: verbatim in its entry below. #121: corrected operator reimplemented from amendment text alone — every discriminator value exact (counts 1/0/0/4; widths incl. 22.59); the retraction goes PAST the judge's finding (stage-2 inverts the overlap; /10k-px normalization kills the judge's own accepted discriminator — judge agrees); §5's open statement of the automated-gate reduction earns the pass. #135: AC 6 distribution reproduced to the digit; the p90 tail clause closes a hole the judge's own recommendation would have left; wall control holds at ~50x separation on independently hand-picked regions; stage-8 durably barred until re-control. Step 16 measurably working (architect fixes beat judge remedies twice more).
