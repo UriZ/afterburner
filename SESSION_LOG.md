@@ -1,5 +1,84 @@
 # Session Log
 
+### [2026-09-25 21:30] — TL — Retrospective: #128 PASS 9/10; #121 fixed; #124 defect caught; music #138 delivered
+
+**judge-cycle-1 TLDR (verbatim in its entry)**: ran the counter-proof first — holds bit-for-bit; corrected its own record ("reasoned from parenting alone"); the real defect (3 self-drawing Node2D classes) confirmed and fixed by §B; edge guard reproduces within 0.25°; negative-space coverage "best in the project" — judge could not construct a broken variant the suite passes; amendment 3 (caught by the step-15 freshness re-read, 2nd consecutive catch) withdrew out-of-regime canyon numbers outright. Self-caught its own phantom-gap near-miss (plain least squares vs the spec's stated iterative rejection).
+
+**architect-comp TLDR (verbatim in its entry)**: #121 AC 0 fixed AND run — seven statistics don't discriminate (published as do-not-substitute table; RULE ZERO measured), three do (>=8%W features: 0 vs 1-5; max width; small-object count 2x). #124/#135 were already spec'd pre-outage; found+fixed a real #124 defect (selector rejected the sea itself — the preventing fact was already in reference-facts.md and was walked past).
+
+**Retrospective — applied** (commit 13c1bea): architect.md (hardest-case rule; facts-checklist step; run-and-paste greps; #128 as reference example), judge.md (15 comment-id protocol; 15b phantom-gap check), criteria.md RULE ZERO worked example.
+
+**Music (#138, user-directed TL work)**: composed + committed 730f066 — 27.8s seamless 16-bar loop, 138 BPM Am synth-rock (numpy generator, no samples); wiring to AudioManager relabeled developer.
+
+**Dispatched**: judge-cycle-1 batch (#121 re-re-gate, #124 spec gate, #135 spec gate); architect-113 three in-place nits; page biggest-gap panel rows refreshed.
+
+
+---
+### [2026-09-25 17:20] — visual-qa — #112, #92
+**Task**: Independently verify #112 (jet silhouette rebuild) and #92 (respawn-flash opacity fix) against current criteria.md (re-derived aspect 3.4-3.6, non-numeric silhouette checks).
+**Result**: PASS (0 bugs found), both issues
+**Issues verified**: #112 (PASS), #92 (PASS)
+**New bugs filed**: none
+
+**TLDR sent to TL**:
+GitHub issue(s): #112, #92
+I found 0 bugs: both the jet silhouette rebuild and the respawn-flash opacity fix are correct and independently verified.
+Key findings: (1) Characterized `ab2-arcade-reload-dorsal.jpg` myself with a brightness-threshold row scan (not reused from the dev's crops) — confirmed a fully unbroken wingtip-to-wingtip run of airframe pixels at the widest scanline, matching the dev's claim. Cross-checked against my own fresh ffmpeg pulls of the verified refuel frames (t=247/557, STAGE 05/13 digits visible). (2) Our isolated jet (`tests/jet_silhouette_preview.gd`, port 9630, magenta key): measured directly from pixels — span 35.83%W, height 14.43%H, aspect 3.546 (inside the current 35-37%W/3.4-3.6 band), topmost overall pixel is the fin (off-centerline), topmost centerline pixel is the canopy (violet fill, not a needle), full-span unbroken wingtip run (344/344px), 10 distinct brightness buckets in the fuselage region confirming area shading. (3) In-game 2x crop matches the dev's own posted evidence with no discrepancies. (4) #92: replicated the dev's alpha-solve method independently on 22 fresh normal-play frames (dynamic pixel search, not fixed coords) — 20/20 valid samples read alpha=1.000 exactly. Idle play burned through 3 lives too fast to catch cleanly on two polling attempts, so I built a small scratch SceneTree harness (deleted after use, never committed) that forces a real `hit()` after spawn invincibility clears and lets time run normally — captured the actual death→explosion→respawn→flash sequence at 0.25s resolution and confirmed no frame ever showed a blend toward the background (the signature of a partial-alpha bug); flash-lit frames clip to pure white, never translucent. (5) `tests/run_all.sh` was noisy from heavy concurrent editing on the shared tree (#120/#122/#124 all mid-edit); traced two failure classes to transient snapshots of other agents' in-flight saves (a `game_world.gd`/`depth_util.gd` compile error that self-resolved, and four "died before reporting" files that all passed clean on individual re-run) — none touch `player_jet_2d.gd`. `test_player_jet_2d.gd` itself ran clean at 45/0 on repeated runs, including the new #122 demo-flight tests (not my scope, not broken).
+
+## Improvement Insights
+- **workflow**: On a heavily-concurrent shared tree, a single `run_all.sh` pass can show spurious compile errors / "died before reporting" from files mid-save by other agents — even in files you never touched. Before treating a suite run as evidence, re-run at least once and isolate any still-failing file with a standalone `--script res://tests/<file>` invocation; a failure that vanishes on repeat is tree noise, not a regression, and should be reported as such (with the transient evidence) rather than either silently ignored or wrongly blamed on the issue under review.
+- **workflow**: When idle/no-input play is needed to trigger a specific event (a death, a timeout) for verification, don't rely on fixed-interval polling to catch it — the window can be smaller than the poll interval and events can cascade faster than expected (3 lives lost within a ~1s gap here). A small scratch SceneTree harness that drives the real scene/state machine directly and lets real time run gives frame-accurate, reproducible timing and is cheap to write and delete.
+
+**Retrospective**: no CLAUDE.md/criteria.md changes applied — existing guidance (re-derived aspect band, non-numeric silhouette checks, opacity rule) was sufficient and correctly followed by the developer; no gaps found in the criteria itself.
+
+---
+### [2026-09-25 17:05] — judge — #128 RE-GATE (spec + amendments 1, 2, 3)
+**Gate type**: per-agent (architect), re-gate
+**Verdict**: PASS
+**Score**: 9/10 (threshold 9). judge-fail cleared.
+**Gated**: newest comment 5831150593 (amendment 3), 10:48:31Z — the step-15 freshness re-read caught it; my TL brief named amendment 2 as newest. Second time that step has caught a live amendment.
+
+**MY CONCLUSION WAS WRONG — counter-proof run first per step 13, and it holds.** Built the pattern in a throwaway Godot 4.6.2 project (plain Node entities parented to Main, drawn by a SIBLING Node2D, rotated 90 deg about (480,336)):
+  entity is CanvasItem? false | roll=0 -> RENDERED_AT (400.0,100.0) | roll=90 -> RENDERED_AT (716.0,256.0) | expected rotation = (716.0,256.0)
+Both values match the architect's bit-for-bit. Code facts all verified: Node.new() at game_manager_2d.gd:139 and enemy_jet_2d.gd:202, `extends Node` in both enemy scripts, NO func _draw in enemy_jet_2d.gd, GameWorld draws them into its own canvas at game_world.gd:186 (_EnemyRenderer.draw_enemy(self,...)) and :195 (bare draw_circle). A plain Node is not a CanvasItem — no transform, cannot draw — so pixels come from GameWorld's canvas and rotate with it regardless of parenting. I reasoned from parenting alone and never checked node TYPE or who issues the draw call.
+**What I was right about**: the three self-drawing Node2D classes — vulcan_bullet_2d / missile_2d / explosion_2d all `extends Node2D` with own _draw() (1/3/6 occurrences), created Node2D.new() at weapon_manager_2d.gd:202,:232, missile_2d.gd:199, enemy_jet_2d.gd:188. §B reparents them, keeping the _get_container() walk as fallback for standalone demo scenes.
+
+**Verified this round**:
+- §C grep check WORKS and is falsifiable: exactly 3 `player.`-qualified reads at 157/217/252, as stated. Replaces the unfalsifiable "no fifth site" claim. BUT the grep returns 13 hits, not the stated 12, and the prose omits 255/258/302/317 from its partition.
+- §D edge guard reproduced: t=98 no-guard 38.28 vs their 38.11, guard 60.90 vs their 60.72; t=110 no-guard -34.50 vs -34.45, guard -64.76 vs -64.51. All within 0.25 deg. Confirms the correction is 22 deg and 30 deg on the two highest-roll frames — worse than the rejection I originally described.
+- **Self-caught error**: my residuals looked far higher than theirs (33.19 vs 1.94 at t=98) and I nearly logged §8 as under-specifying the fit. §8 ALREADY says "fit a line with iterative outlier rejection" — my first pass used plain least squares. My earlier RANSAC run reproduced their magnitudes (1.12/1.45/0.81 vs 1.94/1.36/1.02). No gap. Same class of error as the enemies mistake, caught BEFORE ruling this time.
+- Amendment 3 detector stats re-run: stage 1 coverage mine 40.35/43.12/43.50/45.43/41.84% vs theirs 40.9/43.5/43.9/45.7/42.5% (within 0.7pp). Stage 8 canyon mine 0.08/0.00/0.01/0.00% vs theirs 0.47/1.36/0.47/0.09% — mine even lower, conclusion strengthened. Two cells don't reproduce: their t=346 49.9% (I get 0.11%) and "#faecb0 within 3/255" (I measure up to 7/255); neither affects the withdrawal.
+- R3's assertions are mathematically consistent: get_transform()*p with rotation=roll, position=C-C.rotated(roll) expands to C+(p-C).rotated(roll) == world_to_screen(p).
+**Negative-space check passes on every broken variant I could construct**: wraps removed -> collision AC; reparenting skipped -> R2 + projectile/explosion AC; enemies made drawable -> R1; transform wrong -> R3; SCREEN_UV swap -> amd1 §D control; UV extension omitted -> pixel-identical regression; edge guard omitted -> high-roll frames rejected so AC1's >=50 deg peak fails; near-empty sky -> new 5% coverage floor. Best negative-space coverage in the project.
+**Withdrawals accepted as correct**: canyon roll -8.2..+16.2 withdrawn (defer to my softer -5.1..+5.9, median 0.4, itself explicitly soft); stage-8 horizon 5.8-6.1%H withdrawn OUTRIGHT so it cannot influence #120's rework — closes the caveat I raised in the re-gate and the #120 verdict. Reframing is better-founded than mine: a horizon-tilt AC in a canyon is UNDEFINED (no horizon to fit at 0-1.4% sky coverage), not merely lenient.
+
+**Improvement Insights**:
+- **judge.md step 13 works and should stay verbatim.** It converted what would have been a repeat confident-FAIL into a corrected record. Worth adding the converse: when YOUR OWN re-derivation disagrees with a spec's numbers, check whether the spec already specifies the method you simplified — I nearly logged a phantom §8 gap for exactly that.
+- **judge.md step 15**: second consecutive catch (an amendment newer than the one the TL briefed me on). Recommend the TL's gate requests cite a comment id AND the judge restate the newest id gated, so brief-vs-reality drift is visible on both sides.
+- **architect.md**: when a spec states a grep/count as a verification instruction, require running it and pasting the output. #128's "12 hits" is 13 — harmless here, but it is the one instruction whose entire value is precision.
+- **workflow**: this issue is the template — a judge error corrected by runnable proof, three architect defects accepted, two measurement sets withdrawn for being out of regime, and a demonstrated negative control on every guard. Worth citing in architect.md as the reference example.
+
+---
+### [2026-09-25 18:40] — architect — #121 (AC 0 re-gate), #124, #135
+**Task**: Fix #121's AC 0 per re-gate FAIL 8/10; confirm #124/#135 state; fix a defect found in #124's posted method.
+**Result**: COMPLETED — #121 AC 0 respecified AND RUN with numbers published, judge-fail cleared; #124 amended (real defect); #135 spec was already posted and is on `developer`.
+
+**Key decisions**:
+- **I reintroduced, in #121's AC 0, the exact defect I diagnosed as #120's root cause in the same batch**: a criterion that names a measurement but not its metric or threshold. Worse, I asserted "our build scores ~0 by this measure" WITHOUT RUNNING IT. The judge ran it and got 76. Fixed by specifying the segmentation in full (depth-equivalent band; foreground = V > localmedian(41px) + 0.06; 4-connected; >=1.0 %W) and running it.
+- **Six object statistics do NOT discriminate our ground from the arcade** — count, size spread p90/p10, orientation concentration, median width, feature contrast, interior std, plus the perimeter^2/area CV the old AC 0 used (judge: ours 1.271 vs stage-17 0.782 — we PASS a bar meant to catch us). Published so nobody substitutes them. This is criteria RULE ZERO's warning measured: a proxy cannot detect a defect it does not cover.
+- **Three metrics DO separate cleanly, and our build fails all three today**: features >=8 %W (ours 0 in every frame, arcade 1-5); max feature width (ours 7.3-7.9 %W, arcade 11.2-22.2); count >=1 %W (ours 82-98, arcade 36-60 — we have MORE small features, the signature of a thresholded noise texture next to discrete objects). Corrected claim: our build does not score ~0 on object count, it scores roughly double the arcade, while scoring exactly 0 on large objects.
+- **AC 0's third measure is two-sided and anti-gaming by construction**: "thousands of blobs over a still-uniform ground" pushes count >=1 %W further ABOVE 70 while leaving >=8 %W at 0 — failing two of three. Passing requires a few large near-field objects, which is what the issue is for.
+- **#124 and #135 were already spec'd and on `developer`** — that work completed before the spend limit; the TL's status was stale.
+- **Found and fixed a real defect in #124's POSTED method while measuring #135**: its frame selector rejects a frame when >=0.5% of band pixels match the verified sky colour — and on stage 1 the sky #009fff and the sea's bright crests are the same blue, so it rejects the sea itself (40/46 frames rejected; survivors were island crops, not sea). #124 could not measure the stage it is named after. Replaced with the local-variance gate validated in #135 work (pure sky 100.0% flat, pure sea 7.6%, threshold 0.40 inside a >12x separation). reference-facts.md already carried this fact ("texture, not colour, separates sky from ground on blue-sea stages") and I failed to apply it when writing #124.
+- Noted my first variance threshold (0.01) sat OUTSIDE the demonstrated separation and rejected everything — recorded so the next person doesn't repeat it.
+
+**Spec posted to**: #121 comment 5833739221, #124 comment 5833754251
+
+**Improvement Insights**:
+- [architect.md]: the new "run new ACs against the current build and publish the number" rule is right, and this session proves why — but it needs a companion: **run the method against the HARDEST case it must handle, not a convenient one.** #124's selector was fine on desert and structurally incapable on stage 1, the one stage the issue exists for.
+- [workflow]: I had the fact that would have prevented the #124 defect sitting in reference-facts.md and didn't consult it while writing that spec. reference-facts.md is only load-bearing if reading it is a step in the spec checklist, not an optional reference.
+- [criteria.md]: RULE ZERO says a proxy cannot detect a defect it does not cover; this session produced a concrete worked example (seven proxies matching while the ground reads wrong). Worth citing it there — the abstract statement did not stop me writing proxy-only ACs twice.
+
 ### [2026-09-25 20:20] — TL — Retrospective: re-gates #120 PASS 9 / #121 FAIL 8 / #122 PASS 9; spend-limit outage
 
 **Judge TLDR**: verbatim in judge-cycle-1's entry below. #120: root cause confirmed deeper than the original verdict (classifier choice alone moves the cut 5-6pp); band-based ACs made the outcome insensitive to exactly the scatter that failed the first gate — by design; tilt addendum verified cell-by-cell. #121: one item — AC 0 repeats the unpublished-classifier defect diagnosed in the SAME batch; judge implemented it and our build scores 76 objects (not "~0"), and the outline-variety half passes the current lozenge field. #122: reconciliation arithmetic exact; C_CY=360-not-355 catch (clipping would silently depress measured sd) called best detail in the batch. NEW function-level collision confirmed (#128 follow-up deletes _update_banking; #122 calls it) — ownership registry must track functions.
