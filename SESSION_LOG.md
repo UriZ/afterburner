@@ -1,5 +1,50 @@
 # Session Log
 
+### [2026-09-25 22:40] — TL — Retrospective: dev-113-116 #127+#136 — SPEED MEASURED: <=61% of arcade; in QA
+
+**Agent TLDR**: verbatim in its entry below; headline on #126/#127. Key: refused to fabricate a point estimate — the bound (<=0.61) is the honest result because arcade stage-1 flight sits ABOVE the 60fps aliasing knee (~1.0-1.15%W/frame; 10-window sweep: 3 pass 7 fail, median error 41%; #125's gate pass was real but didn't generalize). Synthetic positive control separates aliasing from saturation (±0.1% to 3px/frame; real footage far below the 7.7px ceiling). One certified same-regime ratio: 0.9672 vs arcade stage 8. Refusals print diagnostics only — the inverted guard caught the dev's own first version leaking magnitudes. #136 fixed via $ALLOC_PORT + PID offset, with a collapse-control. Suites 79/0, 47/0, 1025/13-KNOWN.
+
+**Actions**: #139 filed (world speed to match arcade; scale curves protected). Page biggest-gap panel leads with the measured result. QA → qa-113-116.
+
+**Retrospective — applied**: criteria.md spread rule (one sample isn't verification — pass rates across inputs); reference-facts aliasing line corrected (content-speed knee, not fixed by 60fps) + certified results recorded; CLAUDE.md honest-bound-is-a-deliverable; judge.md 15a positive-control pairing. APPLIED.
+
+
+---
+### [2026-09-25 22:30] — senior-developer — #127, #136
+**Task**: Quantitative speed metric at 60fps with a committed entry gate (#127); fix the `next_port()` allocator and add the seed caveat (#136).
+**Result**: COMPLETED — with a negative headline that is the actual finding
+**Files changed** (ownership: motion-metrics skill + game-movie selftest/SKILL.md, all mine):
+- `.claude/skills/motion-metrics/flow_metrics.py` — new
+- `.claude/skills/motion-metrics/motion_metrics.py` — `--speed`, flow pass, per-window entry gate, conditional speed section
+- `.claude/skills/motion-metrics/selftest.sh` — inverted scope guard, test 15 (entry gate)
+- `.claude/skills/motion-metrics/SKILL.md` — speed section, re-derived calibration, counts
+- `.claude/skills/game-movie/selftest.sh` — allocator fix + test 12
+- `.claude/skills/game-movie/SKILL.md` — seed-divergence caveat
+
+**THE HEADLINE**: **our game runs at AT MOST 61% of arcade stage-1 speed, and the true figure is lower.** A bound, not a point estimate, because the arcade side fails its own validity gate. Posted on #127 and #126.
+
+**Key findings**:
+- **#125's gate result was real but does not generalise.** I reproduced it almost exactly (0.5035 vs their 0.5022) at the same 6:00 window — then tested 10 windows: **3 pass, 7 fail, median error 41%**. The knee is about content speed, not frame rate: below ~1.0% of frame width per frame passes, above ~1.15% fails.
+- **All 8 stage-1 flight windows fail** (+34% to +68%). Not a window-selection artifact.
+- **Aliasing, not saturation** — separated by a synthetic positive control: the estimator is exact to ±0.1% up to 3 px/frame and breaks at ~4% of frame width, while real footage reads 4.4 px against a 7.7 px ceiling. At 1.56% of width synthetic recovers to −0.1% while real footage at 1.60% is off +38.8%; same displacement, opposite verdicts.
+- **Calibration re-derived** (#113 §4.2/§4.3 not reused): work width 192 vs 384 identical verdicts on all 10 windows; pyramid levels 3-6 inert; larger winsize worse; new aliasing knee ~1.0–1.15% of frame width.
+
+**Technical decisions**:
+- **The gate runs per-window on the actual windows compared**, before any figure is emitted — not once globally. The 3-of-10 survey is why; a file-level gate would have certified a stage-1 number that is 43% wrong.
+- **Reported a bound instead of a point estimate.** Aliasing only ever reads *low*, so arcade true speed >= measured and the ratio is an upper bound. A point estimate would have carried ~40% systematic error — the exact failure #113 exists to prevent.
+- **Refusals print gate diagnostics only, no px/frame magnitudes** — those are precisely what a reader would quote. My first version printed them and the inverted scope guard caught it.
+- **Textured-region gating is load-bearing, not a refinement**: our capture is 38% textured against the arcade's 74%, so an ungated mean would compare composition rather than speed.
+- `next_port()` returns via `$ALLOC_PORT`; the stdout form was unsalvageable because `$()` forks. Added a PID-derived start offset for the cross-agent race QA identified, which the subshell bug had been masking.
+
+**Testing**: `motion-metrics/selftest.sh` **79 passed, 0 failed** (was 64). `game-movie/selftest.sh` **47 passed, 0 failed** (was 44). `tests/run_all.sh` **1025 passed, 13 failed** (known legacy set). Test 15's fixtures pan at a known velocity so the answer is known a priori — gate must read 0.5, self-comparison must ratio to 1.0, measured flow must hit the fixture's true 2.0 px/frame — plus a fast fixture the gate **must fail** on. Test 12 carries a control reconstructing the old `$(next_port)` shape and asserting it collapses.
+
+**Improvement Insights**:
+- **[criteria.md]**: a measured claim verified on ONE sample is not verified. #125's gate pass was correct and reproducible and still did not generalise — 3 of 10. Worth a rule: any gate or calibration that will license future numbers must be demonstrated across a spread of inputs, with the pass rate reported, not a single confirming case.
+- **[reference-facts.md]**: the "aliases below ~60fps" line is now too coarse and reads as "60fps fixes it". It should say aliasing depends on content speed, and that at 60fps the knee measures ~1.0–1.15% of frame width per frame — above which the arcade's own footage is unmeasurable.
+- **[workflow]**: the most valuable thing I produced is a refusal. The pressure on a task framed as "post the headline number" is to produce a number; the bound is more useful and more honest. Worth naming as an accepted outcome so the next agent does not feel obliged to invent one.
+- **[architect.md / judge.md]**: the synthetic positive control was what made the negative result *actionable* — without it "the gate failed" is indistinguishable from "our tool is broken". Pair every negative finding with a control that proves the instrument works.
+
+---
 ### [2026-09-25 22:05] — TL — Retrospective: architect-113 #128 nits — clear; root-caused a measurement paradox
 
 **Agent TLDR**: verbatim in its entry below. Nit 2's root cause: t=346 straddles a hard cut — 0.00% at t=344/345, 51.40% at t=346; two extractions of the same nominal timestamp land on opposite sides, so BOTH careful measurements were right. Row struck (never load-bearing; canyon frames agree between both parties). Grep enumeration corrected to 13 (3 wraps + 8 world reads + 2 projectile reads). Volunteered: #120's development has shifted the wrap sites +3 again — dev told to anchor by content.

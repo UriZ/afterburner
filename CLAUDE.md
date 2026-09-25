@@ -89,6 +89,7 @@ afterburner/
 - apply critical thinking. don't tell me what i want to hear
 - read existing code before modifying it — never blind-edit
 - work in small chunks — one logical change at a time; small prs
+- **an honest BOUND or refusal is an accepted deliverable** — when a point estimate would carry a large systematic error, state the bound and why (#127's '<=61% of arcade speed' beats an invented number); pressure to 'post the headline figure' is not a reason to fabricate one
 - **measure, don't eyeball**: any colour/geometry constant derived from the reference must cite its actual measurement in the comment (source frame, coordinates, sampled value). A comment citing a measurement that was never taken is worse than no comment — the next agent trusts it (#115 root cause).
 - **per-stage visual checks need a harness**: stages advance on a 30s timer and unattended play dies around stage 3 (title screen by ~90s). Use `tests/sky_stage_preview.gd`-style palette harnesses for late stages, never a long unattended capture.
 

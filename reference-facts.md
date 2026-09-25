@@ -14,7 +14,7 @@ Facts about After Burner II established with proven methodology this project kee
 | AB2 stage 1 ground is open OCEAN with directional wave streaks + occasional island — structure, not palette | #124/#135 (proven frames t=92-116) |
 | Canyon stages (8, 17) put the horizon at ~6-14%H with ground ~85%+ of frame; cruise stages 60-65%H | #120 spec + judge re-measure |
 | project.godot InputMap binds physical_keycode ONLY (keycode:0 everywhere); is_key_pressed falsely accepts keycode-only events | #114 gate (CLAUDE.md) |
-| AB2 ground texture temporally aliases below ~60fps sampling — no sub-60fps frame comparison supports a speed claim | #113 (criteria.md) |
+| AB2 ground aliasing depends on CONTENT SPEED, not just frame rate: at 60fps the knee is ~1.0-1.15% of frame width per frame — arcade stage-1 flight (>=3.06 px/frame) is ABOVE it (its own footage reads low), while slower regimes certify. Sub-60fps supports no speed claim at all; 60fps supports bounds everywhere and point estimates only below the knee | #113 · #127 (10-window sweep: 3 pass, 7 fail) |
 | Enemy scale-up: an approaching feature grows x1.45-1.69 per 0.25s; our depth_to_scale() already predicts this within 5-11% | #121 spec |
 | Player jet screen-position distribution (arcade): cx sd 10.44pp, cy sd 11.99pp, 41% of frames >5pp off-centre; two regimes (cruise sd 12.88, canyon 2.59) | #122 spec + judge re-measure |
 | Modal colour estimation works on flat fills (sky mode share 97.8%) and FAILS on dithered grounds (mode share 5.7%; 10% sky contamination flips the mode) — methods don't transfer sky→ground | #124 spec |
@@ -26,3 +26,4 @@ Facts about After Burner II established with proven methodology this project kee
 | Any line fit to a boundary that EXITS the frame needs an edge guard — without it the failure mode is a CONFIDENT wrong number (22-30° shallow at high roll), not an obvious rejection | #128 §8 + gate reproduction |
 | Godot: entities that are plain `Node` (not CanvasItem) are drawn by whoever's canvas calls draw_* — they transform with THAT canvas, not their parent | #128 amendment 2 (runnable 12-line proof) |
 | Check any cited frame for stability across ±1s before quoting it — a frame adjacent to a hard cut is not reproducible across decoders/seek modes (t=346: 0% vs 51% coverage, both measurements correct for the frame each decoded) | #128 nit resolution |
+| First certified speed results (#127): our game 1.880 px/frame (qualifies); arcade stage-1 >=3.063 (floor — aliasing reads low) → ratio <=0.61; certified same-regime ratio 0.9672 vs arcade stage 8 (canyon) | #127 |
