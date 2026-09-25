@@ -1,5 +1,31 @@
 # Session Log
 
+### [2026-09-26 04:00] — TL — Retrospective: architect-113 #129 amendment — impl ready, queued for first free dev
+
+**Agent TLDR**: verbatim in its entry below. Both own errors root-caused to one mistake (publishing the search window as the measurement): life icons re-measured 94.2-96.0%H with a NEW <=2.5%H height cap (band alone can't reject a tall icon starting high); high_score justification corrected (write-only state kept deliberately, alternative stated); AC 6 gains ±2%H for all 16 elements (missile silhouettes are TALL — flat ticks now fail); AC 5 restructured — binding half is a location-independent source grep on hud_canvas.gd (the only play-HUD renderer), pixel check demoted to cross-check.
+
+**Retrospective — applied**: reference-facts (window-vs-content rule); architect.md (publish window alongside result; region ACs need size companions). #129 impl queued for first free developer. APPLIED.
+
+
+### [2026-09-25 23:55] — architect — #129 (amendment 1, post-PASS reproductions)
+**Task**: Satisfy four reproductions from #129's PASS verdict (9/10).
+**Result**: COMPLETED. https://github.com/UriZ/afterburner/issues/129#issuecomment-5834204125 — #129 stays `bug,developer`; implementation dispatches after this.
+
+All four reproduced. **Two were my errors and both came from the same mistake: publishing the search window as the measurement.**
+- **Life-icon extent**: I wrote `y 94.2-97.9 %H`; those were the bounds of the row window I searched (452-470), not of anything found in it. Re-measured with the window narrowed to the element: **94.2-96.0 %H**, two 8x5px icons. The lowest cream pixel anywhere left of 25%W is row 461/480 = 96.0%H, so 97.9 was unreachable. Corrected AC 8 to the union band **93.8-96.2 %H** PLUS an explicit **height cap <= 2.5 %H** — the band alone cannot reject a 1.5x-too-tall icon that starts high, which is exactly the loophole the verdict found.
+- **`high_score` justification was false.** I claimed it "still feeds the title/game-over screens". `grep -rn high_score` returns exactly **4** hits, all in the two HUD files, and **no** title or game-over reader. The decision to keep it stands but the reason changes: after this change it is **write-only state**, kept deliberately so a future high-score screen need not reconstruct the three-line running-maximum logic. Spec'd a code comment saying so, plus the explicit note that deleting all four references is equally defensible — a choice to make, not to drift into.
+
+Also fixed, both verdict findings:
+- **AC 6 had %W tolerances only.** Re-measured true y extents for all 16 elements (window narrowed per element) and added **+/-2 %H**. Every x value reproduced my original to within 0.2 %W, so only the vertical half is new. Noted that the missile silhouettes are **tall** (31px and 27px, ~89-96 %H) — a flat tick row satisfies the old %W-only AC and fails the new one, which is the point.
+- **AC 5 was slot-scoped**, so a relocated `HI` readout passed the pixel half. Widening the region does not work (any region big enough contains the score digits and HIT legitimately). Restructured: the **binding** half is now a location-independent source grep on `hud_canvas.gd` (the only file that renders the play HUD, so a readout cannot exist without a reference there), with the pixel check demoted to a rendering-level cross-check that catches a stale cached scene.
+
+**Folded in the judge's technique note and generalised it.** Their first pass swallowed the HIT digits into the scope bbox; my life-icon error was the same class; and both are the same failure as the 11/25 white-pixel count I abandoned earlier — **a measurement whose output is dominated by the choice of region rather than by the content**. Wrote the rule into the amendment: narrow the window to the element using the other elements' known extents as boundaries; report the extent of pixels FOUND, never the window searched; and treat an extent that touches the window edge as a red flag to re-run wider.
+
+**Improvement Insights**:
+- **reference-facts.md**: add the window-vs-content rule above, beside the median-composite entry. Three separate measurements across two issues (#128's 11/25 count, the judge's scope bbox, my life-icon row) have now failed this same way, which makes it a pattern rather than three slips.
+- **criteria.md / architect.md**: a published measurement should carry its search window alongside its result. Had I written "searched rows 452-470, found 456-461" the error would have been self-evident on the page — and the verdict would not have needed to catch it.
+- **workflow**: an AC that names a containing REGION needs a companion constraint on the element's own SIZE. Both AC 8 (1.5x-too-tall icon) and AC 5 (relocated readout) failed for the same structural reason — a containment test cannot reject something that is merely wrong in a dimension the region does not bound.
+
 ### [2026-09-26 03:30] — TL — Retrospective: architect-113 #139 spec — at gate; framing corrected
 
 **Agent TLDR**: verbatim in its entry below. Key: speed must be PER-STAGE (arcade cruise >=1.58x canyon; post-#120 geometry alone would make ours 2.4x backwards; #121's verified growth rides the same constant — two independent routes); AC 2 unachievable as written, established three ways (whole-window, per-band sweep — every band fails, sparse landmarks fail on ocean); proposal: 120fps our-side capture, %W/second units, bound-closure language ("no longer demonstrably too slow"), two-sided parity only on the certifiable stage-8-vs-stage-8 regime post-#120; GROUND_SCROLL_SPEED=1.4 the only live constant (two dead ones fenced); #122 coupling checked-not-assumed (screen-relative); survivability-neutral by construction (enemy table untouched — future enemy-speed work fenced behind #103/#86); pre-declared stop-don't-widen control doubling as our-content knee-finder. Corrected the 0.9672 miscite in MY issue framing.
