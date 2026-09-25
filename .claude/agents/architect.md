@@ -79,6 +79,7 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **State a windowed operator's SUPPORT relative to its analysis region** — a 41x41 window on a 28-row band measures mostly edge padding, i.e. band geometry, not content (#121 amendment 2).
    - **When comparing counts between sources, normalize by analysis area** — raw counts over 28- vs 94-row bands were never comparable; normalization dissolved a claimed separation (#121).
    - **Before proposing any numeric bar, run it against the REFERENCE frames and confirm they pass** — a bar the arcade fails can never be right; would have caught all three #121 misses.
+   - **Window any search region to the ELEMENT, not the band** — band-wide searches swallowed adjacent glyphs into bboxes twice at one gate, producing plausible wrong extents (#129); the same error class produced the spec's own abandoned presence count.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

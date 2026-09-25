@@ -1,5 +1,14 @@
 # Session Log
 
+### [2026-09-26 01:40] — TL — Retrospective: judge-113-arch #129 spec gate — PASS 9/10, 4 reproductions
+
+**Judge TLDR**: verbatim in its entry below. Rebuilt the evidence (own 25 frames, own median, classifiers published): 6/7 numbers within 0.2%W; scope-box presence 25/25 confirmed incl. the honest downgrade of t=118's adjective (left brackets provable, right ones white-on-white); t=110 (64° roll) MORE convincing than claimed; no HI field on the arcade play screen (0 white/0 red in region). Four reproductions: life-icon extent wrong (AC 8 quotes the same bad range — self-passing defect), high_score justification factually false (right decision, wrong reason), AC 6 x-only, AC 5 slot-scoped. First unprompted negative control by an architect noted (AC 3).
+
+**Actions**: amendments → architect-113 (after #139); #129 implementation holds until they land.
+
+**Retrospective — applied**: criteria rule 14 both-axes requirement; architect.md window-to-element rule. APPLIED.
+
+
 ### [2026-09-26 01:15] — TL — Retrospective: judge #120 impl gate — PASS 9/10; stage_data committed f99baff
 
 **Judge TLDR**: verbatim in its entry below. Additive-only proven mechanically (key-stripped diff = 0 changes); AC4 negative control replicated exactly (delete push → 9/1); AC6/6b bit-identical (15.48/6.25%H); haze explanation actively attacked and held (blend spans the GROUND range → predicts larger canyon offset AND stage 17's negative sign — coherent, not a dodge); cruise pre/post within 0.1pp using the judge's own cycle-1 method. Findings: (a) AC7 estimator plateau/tie-break unreproducible from its description (inherited pre-AC10) → architect amendment + sweep dispatched; (b) 5-frames-vs-20 disclosed honestly, moving-capture check handed to visual QA.
