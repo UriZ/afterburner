@@ -18,6 +18,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+CaptureInput="*res://scripts/autoload/capture_input.gd"
 GameState="*res://scripts/autoload/game_state.gd"
 AudioManager="*res://scripts/autoload/audio_manager.gd"
 McpBridgeGame="*res://mcp_bridge_game.gd"
