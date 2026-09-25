@@ -1,5 +1,167 @@
 # Session Log
 
+### [2026-09-25 14:00] — TL — Retrospective: qa #118 confirm — PASS; committed e5ff275
+
+**Agent TLDR**: verbatim in the QA entry below. Key: independent verification with QA's OWN stub binary (not the dev's) across 5 canned output shapes — masking case correctly flagged; full suite 790/13-KNOWN matches; both rewritten defects verified against actual game code (whole collision-layer scheme cross-checked: player=1, bullets=2, enemies=4, enemy-bullets=8, consistent); exit-code guard verified empirically in a scratch project outside the repo. 0 bugs.
+
+**Retrospective**: no new insights offered (scoped confirm); prior #118 insights already applied. #118 committed (e5ff275) with the accumulated process-doc changes; security-agent removal from tl.md pipeline included. #123 sky files remain uncommitted pending vqa-123.
+
+
+### [2026-09-25 14:05] — qa — #118 (independent verification)
+
+**Task**: as the original bug finder, independently re-verify the #118 fix (un-silenced tests + `tests/run_all.sh` suite runner) by fresh execution, not by re-reading the developer's report.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #118 (PASS)
+**New bugs filed**: none
+**Video evidence**: n/a (tooling/tests, no game visuals)
+**Key findings**:
+- `test_enemy_jet.gd` standalone: 23 passed, 0 failed, exit 0 — original 0/0 masking symptom confirmed gone.
+- Built my OWN stub `Godot` binary (independent of the dev's) cycling 5 canned output shapes across `run_all.sh`'s real file iteration: the masking case (Parse Error + plausible "9 passed, 0 failed") correctly classified `COMPILE ERROR (counts above are not trustworthy)`, plus zero-collected, no-summary, nonzero-exit, and a clean control — all 5 branches correct, exit 1, all 4 injected problems listed.
+- Full suite via `run_all.sh` (no stub): 790 passed, 13 failed (all in `test_jet_mesh_builder.gd`, reported `KNOWN`), exit 0 — matches dev's report exactly.
+- Bitmask fix cross-checked directly against `enemy_jet.gd:154-155` (collision_layer=8, mask=1) AND the whole codebase's collision-layer scheme (player=1, player bullets=2, enemies=4, enemy bullets=8) for internal consistency — genuinely correct, not just self-consistent with an unverified claim.
+- Aiming-system constants (`SIGHT_AHEAD_Y`, `TURN_SPEED_INITIAL/HOMING`) read directly from `weapon_manager.gd`/`missile.gd` — exist exactly as the rewritten test expects, assertions are non-trivial, and the intent mapping against #63's actual acceptance criteria holds up.
+- Exit-code guard (`quit(1 if fail_count>0 or pass_count==0 else 0)`) verified empirically in a scratch Godot project entirely outside the repo, all 3 cases (0/0, 5/1, 5/0) produce the claimed exit codes (1, 1, 0).
+- No `tests/` files modified; only read. Left #123's in-flight sky files untouched as instructed.
+
+## TLDR
+GitHub issue(s): #118
+Independently re-verified the #118 fix by fresh execution: ran the three fixed test files directly (real counts, no masking), built my own stub Godot binary to prove `run_all.sh`'s classifier catches the masking case plus 3 other failure modes, ran the full 790-test suite clean, cross-checked both rewritten defects (bitmask, aiming constants) against the actual game source, and empirically verified the per-file exit-code guard in an isolated scratch project. All claims held. 0 bugs found. Posted findings to #118, removed `qa` label.
+
+## Improvement Insights
+- None new — the dev's fix and the runner's classifier are solid; my independent stub construction just confirms the same 5 branches the dev already tested, from a different angle (own stub, not theirs).
+
+---
+
+### [2026-09-25 13:50] — TL — Retrospective: architect #114 spec — posted, relabeled developer
+
+**Agent TLDR**: verbatim in the architect's entry below; spec comment 5830292786. Key verified facts: MovieWriter works windowed, CRASHES headless (SIGABRT — documented risk, blocks headless CI); MJPEG avi at exact 60/1, --quit-after exact; console summary UNDER-REPORTS frames (parse ffprobe, never stdout); wall clock ≠ game time (66-100% realtime) → frame-scheduled JSON input timeline instead of live TCP sleeps; parse_input_event visible at F+1 (spec'd explicitly, no hidden -1); sidecar reuses game-video-capture/1 schema so #113 consumes MovieWriter output unchanged; content reproducibility separated from timing determinism (seed only under --capture-seed; randomize() stays per #103). Caught own wrong "bridge is dead" conclusion via a positive control (real cause: #117's --port→--mcp-port rename silently binding 9501).
+
+**Retrospective — applied**:
+- architect.md: "every negative result needs a positive control". APPLIED.
+- CLAUDE.md: --port (scripts) vs --mcp-port (direct Godot) trap documented in the concurrency section. APPLIED.
+- tl.md: assignment entries must carry the current file-ownership map. APPLIED.
+- #125 filed (60fps reference side, --min-fps; architect's investigation embedded) per the spec's recommendation — labeled developer directly (investigation already done).
+- Next: judge gate on the #114 spec.
+
+
+### [2026-09-25 12:50] — architect — #114
+**Task**: Spec 60fps deterministic capture via Godot MovieWriter — the prerequisite #113's deferred speed metric is gated on. Also assess the reference-side 60fps fetch path.
+**Result**: COMPLETED. Spec posted, relabelled `architect` -> `developer`. Reference side deliberately NOT folded in — recommended as a separate issue with the investigation already done.
+**Spec posted to**: https://github.com/UriZ/afterburner/issues/114#issuecomment-5830292786
+
+**Prototyped everything before speccing (architect.md rule). Two assumptions were wrong and one test was wrong.**
+Verified on this machine, Godot 4.6.2:
+- MovieWriter works **windowed**; `--headless` **SIGABRT crashes** in `OS_MacOS_Headless::run()` leaving a 332-byte stub. Capture cannot run headless — blocks headless CI, no workaround found.
+- Output is MJPEG `.avi` 960x672 at exactly `60/1`; transcodes to mp4 preserving frame count and fps exactly.
+- `--fixed-fps 60` gives `delta = 0.01666666666667` on every frame; `--quit-after N` gives exactly N frames (checked at 120/180/900).
+- **The console summary under-reports frames** — a 900-frame file printed "750 frames". Any implementation parsing stdout instead of ffprobe will silently accept short captures.
+- `_process` call `n` maps exactly to `get_frames_drawn() == n-1`, `get_physics_frames() == n`, so a `_process` counter is an exact frame index.
+- **Wall clock != game time** — the same project measured 100% and 66% of real-time across runs. Wall-clock sleeps cannot time input, which kills the obvious "sleep then send key" design.
+- **`Input.parse_input_event()` is visible one frame LATE** — applied at F, observable from F+1. Spec'd explicitly rather than hidden behind an internal -1, with a selftest pinning it, because a silent compensation becomes an off-by-one the day the engine changes.
+- **Captures are NOT content-reproducible**: two zero-input runs identical to frame 124, diverging from frame 125. Cause is `randomize()` at `game_manager_2d.gd:47`, whose own comment records it was added **deliberately** in #103 because runs had been bit-for-bit identical.
+
+**Key decisions**:
+- **Frame-scheduled input timeline, not live TCP.** The bridge does work under MovieWriter (verified: binds, answers, and injected Enter keys visibly drove title -> gameplay), but its timing is wall-clock-coupled while game time runs at 66-100% of real-time, so a scripted `sleep` lands on a different frame every run. A pre-declared JSON timeline applied by exact frame index removes the bridge from the critical path entirely.
+- **Reused the bridge's key vocabulary** (`OS.find_keycode_from_string`) rather than inventing a second table, and reused the #91 press/release-on-different-frames rule for taps.
+- **Sidecar reuses #116's `game-video-capture/1` schema unchanged**, so motion-metrics consumes MovieWriter output with no change on that side. For MovieWriter `measured_fps == encoded_fps == container fps` exactly and `interval_stdev_s` is genuinely 0. Flagged that `wall_elapsed_s` is diagnostics only — a future consumer treating it as the time base would reintroduce the #116 bug.
+- **Separated "deterministic timing" from "reproducible content".** Timing is free from MovieWriter and is all #113 needs; content reproducibility needs a seed. Spec'd a 4-line conditional that seeds only when `--capture-seed` is passed, explicitly **not** removing `randomize()` (that would silently revert #103), with a clean drop-point if the TL wants #114 to stay purely pipeline.
+- **Known-answer control with pre-stated abandonment tolerance**: a 2s capture must be exactly 120 frames at exactly `60/1`; off by one frame = stop and escalate, do not widen the assertion. Exactness is the whole property #113's follow-up depends on.
+- **Reference side -> separate issue.** Different skill, different test surface, not in this issue's ACs. Investigation included so the issue is trivial to write: the 60fps longplay has 60fps **only at 720p+** (formats 298/398/302/311/612 at 1028x720@60); everything <=480p is 30fps, so `fetch-reference.sh --height 480` can never yield 60fps. 1028x720 is the same 10:7 as AB2, so #113's crop fractions carry over unchanged.
+
+**A wrong conclusion I caught**: my first bridge test concluded "the bridge is dead under MovieWriter". It was not — I passed `--port`, which #117 renamed to `--mcp-port`, so the test *and its control* both silently bound 9501. The control run is what exposed it.
+
+**Hygiene**: all prototyping ran in an isolated throwaway Godot project in scratchpad plus flag-only launches of the real project with output outside the tree. No game files modified, no stray files, no lingering processes on 9570-9580 (verified).
+
+**Improvement Insights**:
+- **architect.md**: add "every negative result needs a positive control". My "bridge is dead under MovieWriter" conclusion was wrong and only the control run revealed it — without that control I would have spec'd an elaborate workaround for a problem that did not exist. This generalizes past measurement tools to any "X doesn't work" finding.
+- **CLAUDE.md**: the `--port` -> `--mcp-port` rename (#117) is a silent-failure trap — the wrong flag does not error, it falls back to 9501 and collides with whatever else is running. Worth a line in the concurrency section stating the flag name explicitly, since CLAUDE.md currently says "pass `--port N`" which is now wrong for direct Godot launches.
+- **workflow**: three agents touched `capture-video.sh`/`mcp_bridge_game.gd` in one session (#116 spec, #117 refactor, this). A one-line "who owns which file right now" note in SESSION_LOG at assignment time would have saved me a stale-line-reference correction on #116 and a wrong flag name here.
+
+### [2026-09-25 13:40] — TL — Retrospective: senior-developer #118 — silent-zero tests un-silenced
+
+**Agent TLDR**: verbatim in the dev's entry below; report on #118, relabeled qa. Key: answered the "why different" question first — GDScript runtime errors abort the enclosing function and yield null, so depth of dereference determines whether a broken preload zeroes a file (test_enemy_jet), silently drops assertions (test_aiming_system, 3 of 16), or passes vacuously (test_title_screen — worst case, indistinguishable from healthy). Root cause: _init()/top-level preload resolve before autoload bootstrap; correct _initialize()+load() pattern existed in a comment nobody found. Three hidden defects: bitmask layer-vs-value confusion (game code right, test wrong), assertions against deleted constants, vacuous script!=null. NEW tests/run_all.sh: fails on compile errors even with plausible counts, 0/0, missing summary; classifier verified against replayed pre-fix output shapes via a GODOT stub. 790 passed / 13 KNOWN legacy. Kept test_enemy_jet (23/23, caught a real bug) — refused to delete coverage to green a suite.
+
+**Retrospective — applied**:
+- CLAUDE.md: run_all.sh is the only valid suite entry point; the _initialize()+load() autoload rule; script!=null vacuity. APPLIED.
+- qa.md + judge.md + both developer defs: pointed at run_all.sh. APPLIED.
+- developer defs: "weirdly different case is the primary question" rule. APPLIED.
+- Next: QA verification (qa-113-116).
+
+
+---
+### [2026-09-25 13:40] — senior-developer — #118
+**Task**: `test_enemy_jet.gd` silently reports "0 passed, 0 failed"; two other files hit the same compile error without visible effect.
+**Result**: COMPLETED
+**Files changed**: `tests/test_enemy_jet.gd`, `tests/test_aiming_system.gd`, `tests/test_title_screen.gd`, `tests/run_all.sh` (new). No game code.
+
+**Key changes**:
+- All three files: `_init()` → `_initialize()` and `preload()` → `load()`, the pattern already documented in `test_game_manager_2d.gd`. `_init()` and `preload()` both resolve before the engine's autoload bootstrap, so any script referencing `GameState`/`AudioManager` by bare name fails to compile there.
+- `tests/test_enemy_jet.gd` — collision-layer assertion corrected from 4 to 8. The game is right; the test confused a layer *number* with its bitmask *value*.
+- `tests/test_aiming_system.gd` — `SIGHT_OFFSET_Y` and `TURN_SPEED` no longer exist; rewritten against `SIGHT_AHEAD_Y` and `TURN_SPEED_HOMING`/`TURN_SPEED_INITIAL`, preserving the #63 intent. Two `:=` → explicit `: float` (`load()` is untyped).
+- All three: `quit(1 if _fail_count > 0 or _pass_count == 0 else 0)`.
+- `tests/run_all.sh` — new suite runner; there wasn't one, which is why nobody noticed.
+
+**Technical decisions**:
+- **Answered QA's open question before fixing.** The difference is not the error, it is *how deeply each file dereferences the broken script*. Runtime errors abort the enclosing function and yield null, incrementing nothing. `test_enemy_jet.gd` calls methods on the object under test → every test aborts before its first assertion → 0/0. `test_aiming_system.gd` reads constants, and only *some* of its preloads were broken → 3 assertions silently evaporated out of 16. `test_title_screen.gd` only asserts `script != null`, which is true for a failed-compile GDScript → all 9 ran and 2 passed vacuously, claiming "loads without errors" about a script that did not.
+- **The runner flags a compile error even when counts look plausible.** That is the `test_title_screen.gd` masking case, and a counts-only runner would have missed it entirely.
+- **Fixed the test, not the game, on the collision-layer discrepancy** — verified against `enemy_jet.gd:154`'s own comment and the scene files (player 1, player bullets 2, enemies 4), which are self-consistent.
+- **Did not delete `test_enemy_jet.gd`** as the issue floated. It passes 23/23 against a scene that still exists and it caught a real bug the moment it ran. Deleting coverage to make a suite green is the wrong direction.
+
+**Testing**: Full suite via the new runner: **790 passed, 13 failed**, the 13 being the known `test_jet_mesh_builder.gd` legacy failures, reported as KNOWN and excluded from exit status but not hidden. Every other file reports a real count with no compile errors. The runner's classifier was verified against all five branches by pointing `GODOT` at a stub replaying the pre-fix output shapes — masked compile error, zero-collect, no-summary, non-zero exit all caught; clean suite exits 0. No real test file had to be broken to test the guard. Caveat: the tree carried dev-sky-115's uncommitted #123 edits, so the 790 includes their in-flight work.
+
+**Improvement Insights**:
+- **[qa.md / developer.md / judge.md]**: all three tell agents to run tests, none names a runner, because until now none existed. Pointing them at `bash tests/run_all.sh` is the change that actually stops this recurring — left to the TL, outside my assigned ownership this round.
+- **[CLAUDE.md]**: worth recording the Godot rule this whole issue reduces to — in a `SceneTree` test script, `_init()` and top-level `preload()` both run before the autoload bootstrap, so anything touching a script that references `GameState`/`AudioManager` by bare name must use `_initialize()` + `load()`. It is already written in a comment inside one test file, where nobody found it.
+- **[workflow]**: three files had been asserting against deleted constants and a wrong bitmask, indefinitely, while reporting green. A test that cannot fail is worse than no test. Any assertion of the form `assert(thing != null)` about a *loaded script* is near-vacuous in GDScript — a failed-compile script is still non-null.
+- **[senior-developer.md]**: the fix was cheap; the diagnosis was the work. Explaining *why the same error behaved three different ways* is what turned a one-file patch into a suite-wide guard. Worth stating: when a bug report includes "and this other case is weirdly different", treat that difference as the primary question, not a footnote.
+
+---
+### [2026-09-25 13:25] — TL — Retrospective: senior-developer #123 — stage correspondence fixed
+
+**Agent TLDR**: verbatim in the dev's entry below; report on #123, relabeled qa. Key: burst-a-02 PROVEN to be stage 2 (HUD digit read at 5x crop + score continuity; attract ends ~84s, run starts ~88s; burst-a=stage 2, burst-b=stage 9, burst-c=stage 17). All 23 stages re-derived; stage 1 flat blue #009fff exact. Three defect classes: wrong anchors, glow over-application (11 stages → 5 real: 2,14,17,20,22), false inferred rules (hue-toward-yellow contradicted by 3 of 5 real glows; V-floor contradicted by stage 3's #030303 sky). Deleted own #115 tests that encoded the bug. Caught own stage-13 conflation via side-by-side (dE=105). dE=0 on 14 stages, ≤13 on rest. Ground biome defect found (arcade stage 1 coastal vs our desert) — correctly scoped OUT with a loud warning + contaminated-measurement explanation.
+
+**Retrospective — applied**:
+- #124 filed (ground biomes vs verified map; sky-exclusion-mask requirement baked into ACs); architect-comp notified re #120/#121/#124 ownership boundaries.
+- CLAUDE.md: burst frames are UNLABELLED — never identity anchors; ffmpeg-at-timestamp is the provable path; map location documented. APPLIED.
+- developer defs: N-sample-rule test prohibition + prominent layer-scoping disclosure. APPLIED.
+- criteria.md rule 7 proven-identity precondition: already amended at escalation time. VERIFIED.
+- Next: visual-qa with INDEPENDENT stage-identity verification.
+
+
+### [2026-09-25 03:05] — senior-developer — #123
+**Task**: Stage 1 sky is brown — stage↔frame correspondence never verified (user escalation)
+**Result**: COMPLETED (skies); ground mis-correspondence found, documented, deliberately NOT fixed
+**Files changed**: `scripts/stage/stage_data.gd`, `tests/test_sky_gradient.gd`, `tests/sky_stage_preview.gd`
+**Key changes**:
+- `stage_data.gd:6-99` — header replaced with the verified frame↔stage mapping: method, the 23 stage spans in longplay seconds, per-stage confidence, and which values are weak and why.
+- `stage_data.gd:101-146` — all 23 `sky_top`/`sky_horizon` re-derived against verified spans; each stage comment now names its verified arcade environment and measurement timestamp.
+- `test_sky_gradient.gd` — two tests deleted for encoding the bug, replaced by data-tied assertions; glow/flat now asserted in both directions.
+- `sky_stage_preview.gd` — cycles all 23 stages so a run can be diffed stage by stage.
+**Technical decisions**:
+1. **Confirmed the hypothesis rather than assuming it.** Read stage identity straight off the HUD: sampled the longplay every 4s, cropped the stage-number field (x=376..414, y=426..450) at 5x nearest-neighbour, read the digits. Attract mode ends ~84s; the run starts at the carrier launch ~88s with SCORE 0. Stage 1 = t=88-120, flat blue #009fff. burst-a-02 is stage 2. Cross-checked all three burst sets by score continuity: burst-a's SCORE 485420 matches t=148-152 (stage 2), burst-c's ~7.74M matches t=705-709 (stage 17), burst-b's snow matches stage 9 and no other.
+2. **Refused to use the extracted frames as anchors at all.** They carry no stage labels — that is the defect. Everything is now tied to video timestamps whose HUD was read.
+3. **Found three defect classes, not one.** Wrong colours; a glow applied to 11 stages when only 5 have one (measured by scanning the longest unbroken sky column per stage); and a directional rule ("glows shift toward yellow") generalised from two frames that the five real glows contradict — stage 14 shifts away from yellow, 20 brightens at constant hue, 22 shifts toward cyan.
+4. **Deleted two of my own #115 tests because they encoded the bug.** `test_glow_stages_shift_hue_toward_yellow` asserted the false rule; `test_all_stages_bright_enough_to_read_as_sky` imposed a V>=0.38 floor justified by an assumption that near-black night "reads as a dead screen" — arcade stage 3 measures #030303 across 80% of its sky band. A test that encodes an over-generalisation makes it harder to find.
+5. **Caught an error of my own mid-audit.** I initially gave stage 13 a pale peach sky by conflating it with stage 5 (both refuel/runway stages). The side-by-side flagged it at dE=105; corrected to sage #9fc9a5.
+6. **Did not touch ground colours, and did not publish a ground table.** The grounds have the same defect (arcade stage 1 is coastal sea/headland; ours is desert) and it is visible in the evidence. But ground_a/b/c drive #42's terrain shader through judged gates, #123's own criterion 2 specifies desert ground for stage 1, and my ground measurement is contaminated — AB2's horizon sits high and the player banks constantly, so a naive lower-frame sample is full of sky. Publishing numbers that look measured but aren't is the exact failure this issue exists to fix. Documented in the header, flagged on the issue, recommended as a follow-up using the verified span map.
+**Testing**: `test_sky_gradient.gd` 8/8 after rewrite. Full suite run — every other file unchanged and passing; `test_jet_mesh_builder.gd`'s 13 failures are pre-existing on the legacy 3D jet path and not in my diff. `--check-only` clean. Visual: captured all 23 stages via the preview harness on port 9510 and diffed each against its least-occluded in-span arcade frame — **dE=0 on 14 stages, dE<=13 on the other 9, none over tolerance**. Stage 1 ours #009fff vs arcade #009fff, exact. Evidence in `/tmp/afterburner-123-evidence/`. All ports freed, no stray Godot, no mcp_ports.cfg.
+**Improvement Insights**:
+- **[criteria.md / judge.md]**: Make "the reference frame's stage identity is proven" a precondition of any per-stage colour claim, and require the proof (HUD read, score continuity, or timestamp) to be cited next to the value. The #115 chain — developer measured honestly, visual QA re-measured, judge checked methodology — was rigorous at every step and still shipped the wrong colours, because all three asked "does ours match this frame?" and none asked "is this frame the right frame?".
+- **[CLAUDE.md]**: Document that `assets/reference/motion/ab2-longplay/` frames are UNLABELLED and must not anchor per-stage work on their own, and that `.reference-cache/video/ab2-longplay.mp4` + ffmpeg at an exact timestamp is the way to get a frame whose stage you can prove. The burst sampler is for motion, not for identity.
+- **[workflow]**: A rule inferred from N samples should not be encoded as a test assertion until it has been checked against the whole population. I wrote a test in #115 asserting a hue direction from two frames; it passed for a month and made the wrong generalisation look validated. Prefer assertions that tie to per-item measured data over assertions that state a general law.
+- **[developer.md / senior-developer.md]**: When a fix is scoped to one layer of a defect that clearly spans more (skies fixed, grounds equally wrong), say so prominently in the deliverable rather than letting a clean PASS imply the whole class is resolved. The #115 evaluation page said stage 1 "matches the arcade within 1/255", which was true and badly misleading.
+
+
+### [2026-09-25 13:10] — TL — Full queue dispatched; security agent removed from pipeline
+
+Per user instruction:
+- **Security agent removed from pipeline**: CLAUDE.md roles table, pipeline diagram, lifecycle step 7, `security` label, QA relabel path — all removed. Agent def file left in .claude/agents/ (unrouted); delete on user request.
+- **#114** → architect-113 (60fps MovieWriter capture; must measure MovieWriter×bridge-input interaction before speccing; port 9570+).
+- **#120-#122** → architect-comp (new): three independent specs with parallel-dev file boundaries (#120 stage_data horizon fields + game_world projection; #121 ground shader features; #122 player drift). Proven stage identity mandatory for cited frames (amended rule 7). Coordination note re #123's concurrent stage_data palette rewrite.
+- **#118** → dev-113-116 (silently-zero test file; tests/ only; must explain why the same compile error zeroes one file but not others; silent-zero must become loud).
+- Concurrent ownership map: dev-sky-115 = stage_data/game_world/shader palettes (#123, port 9510); architect-113 = capture prototyping (port 9570+); architect-comp = read-only + port 9575+; dev-113-116 = tests/ only.
+
+
 ### [2026-09-25 13:05] — qa — #119 (scoped recheck of the finder's original repro)
 
 **Task**: as the original bug finder, re-run my exact #119 repro (two `compare.sh` racing on one `--out`) against the current fix (flock + staging/atomic replace) and confirm the corrupt-PNG symptom is gone.

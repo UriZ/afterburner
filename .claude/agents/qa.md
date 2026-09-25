@@ -133,7 +133,7 @@ Before analyzing ANY captures, view ALL 9 reference screenshots in `assets/refer
 ### Code
 - No crash errors in Godot console output
 - Build passes: `/Applications/Godot.app/Contents/MacOS/Godot --headless --check-only --path .`
-- Tests pass if applicable
+- Tests pass: `bash tests/run_all.sh` (the ONLY valid way to run the suite — it catches silently-zero files; #118)
 
 ## Bug Report Format
 

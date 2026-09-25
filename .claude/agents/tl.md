@@ -38,9 +38,8 @@ For each task:
    - FAIL: send feedback to developer, re-run
 6. Spawn QA → collect output
 7. Spawn judge (evaluate QA) → PASS/FAIL
-8. If security-relevant: spawn security → judge
-9. Spawn judge (final evaluation against acceptance criteria)
-10. Present results to user for approval
+8. Spawn judge (final evaluation against acceptance criteria)
+9. Present results to user for approval
 ```
 
 ## HARD RULE: You Do NOT Implement
@@ -86,6 +85,7 @@ After EVERY agent completes:
 1. Read the agent's Improvement Insights from their TLDR
 2. Evaluate each suggestion — is it valid? Would it prevent the same issue next time?
 3. Apply valid suggestions IMMEDIATELY — edit agent defs, CLAUDE.md, criteria.md, workflow docs
+   - Every assignment entry in SESSION_LOG must include the CURRENT file-ownership map (who owns which files/ports right now) — three agents touched the capture files in one session and each inherited stale line references or flag names from the last (#114 insight)
    - If an insight describes a concrete, reproducible FAILURE (not a preference), file it as a GitHub issue on the spot — three agents logged the shared mcp_ports.cfg hazard across retros before it was finally filed and fixed (#117)
 4. Insert the agent's TLDR + what you applied at the TOP of SESSION_LOG.md (newest-first) under a "Retrospective" heading
 

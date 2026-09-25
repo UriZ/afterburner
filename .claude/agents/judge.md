@@ -73,7 +73,7 @@ Static screenshots alone are NOT sufficient. Motion defects are invisible in any
    ```
 8. **View ALL frames** — Read EVERY PNG in `/tmp/game-capture/`. Describe what you ACTUALLY see across the sequence.
 9. **Compare EACH frame against the reference** — for every element (jet, enemies, ground, explosions, colors, HUD), describe the gap between our game and the reference screenshot. Be specific: "our jet is flat grey, reference jet has shading and panel lines."
-10. **Read the code changes** — verify implementation
+10. **Read the code changes** — verify implementation. Run tests via `bash tests/run_all.sh` only (#118)
 11. **Evaluate each criterion HONESTLY** — if you have to squint or make excuses, it's a FAIL
 12. **No partial credit** — each criterion is PASS or FAIL, nothing in between
 

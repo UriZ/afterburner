@@ -7,7 +7,7 @@ var _pass_count := 0
 var _fail_count := 0
 
 
-func _init() -> void:
+func _initialize() -> void:
 	print("=== TitleScreen Tests ===")
 
 	test_track_names_defined()
@@ -16,7 +16,8 @@ func _init() -> void:
 	test_game_state_reset_on_start()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
-	quit(1 if _fail_count > 0 else 0)
+	# Zero assertions is a failure, not a clean run (#118).
+	quit(1 if _fail_count > 0 or _pass_count == 0 else 0)
 
 
 func assert_true(condition: bool, message: String) -> void:

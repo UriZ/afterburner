@@ -10,7 +10,7 @@ Study the motion reference AND ALL 9 reference screenshots in `assets/reference/
 
 **Shared working tree** — never run `git stash`, `git checkout .`, `git restore`, or `git reset` on this tree while other agents are active: it silently destroys their uncommitted work (this happened; a stash pulled six agents' edits off disk at once). For A/B comparison against the committed state, use `git show HEAD:<file>` or `git diff HEAD -- <file>` — read-only, no disk mutation.
 
-**Concurrent capture** — when multiple agents run at once, pass `--port N` (e.g. 9502+) to `game-capture`/`game-video`; each script then launches, tracks, and kills only its own Godot instance. Never run a blanket `pkill -f Godot`. An instance that cannot honour its requested port **exits code 9 with a FATAL stderr line** (#117) — if a capture reports "did not confirm listening", grep for FATAL rather than assuming a slow start. Cleanup traps in capture tooling may only remove paths the script itself created under `/tmp/afterburner-capture/`, never anything in the project directory.
+**Concurrent capture** — when multiple agents run at once, pass `--port N` (e.g. 9502+) to the `game-capture`/`game-video` SCRIPTS; each script then launches, tracks, and kills only its own Godot instance. Direct Godot launches take `--mcp-port N` instead (#117 renamed it) — passing the old `--port` to Godot does NOT error, it silently binds 9501 and collides with whoever owns it (#114 nearly spec'd around a phantom failure because of this). Never run a blanket `pkill -f Godot`. An instance that cannot honour its requested port **exits code 9 with a FATAL stderr line** (#117) — if a capture reports "did not confirm listening", grep for FATAL rather than assuming a slow start. Cleanup traps in capture tooling may only remove paths the script itself created under `/tmp/afterburner-capture/`, never anything in the project directory.
 
 **Concurrency rule (general)**: any tool that writes a named output path needs a per-agent-unique name — `--port N` for game-capture/game-video instances, `--output` for video files, `--name`/`--out` for motion-metrics runs. Sharing a name across concurrent agents produces silent corruption, not errors (#117, #119). New tools inherit this rule; don't rediscover it through a corrupted artifact. Reference implementation for safe shared-output handling: `out_dir_lock()` + staging/atomic-replace in `.claude/skills/motion-metrics/motion_metrics.py` (#119) — copy the pattern, don't invent one.
 
@@ -24,6 +24,10 @@ bash .claude/skills/youtube-reference/fetch-reference.sh --url "<AB2 gameplay UR
 ```
 
 Read the `burst-*` frames **in order** — they are 0.25s apart, and motion lives in the differences between them. Extracted frames are gitignored local reference; never commit them.
+
+**Running tests — use the runner**: `bash tests/run_all.sh` is the single entry point (#118). It fails on compile/parse errors even when counts look plausible, on `0 passed, 0 failed`, on missing summaries, and on non-zero exits; the 13 known legacy `test_jet_mesh_builder.gd` failures report as KNOWN. Never run one file with bare `--script` and call the suite green. Godot rule behind #118: in a SceneTree test script, `_init()` and top-level `preload()` run BEFORE the autoload bootstrap — anything touching a script that references `GameState`/`AudioManager` by bare name needs `_initialize()` + `load()`. And `assert(script != null)` on a loaded GDScript is near-vacuous: a failed-compile script is still non-null.
+
+**Frames are UNLABELLED (#123 finding)**: extracted frames in `assets/reference/motion/` carry no stage identity and must NOT anchor per-stage work on their own — #115 shipped a brown stage-1 sky by matching an unidentified frame that turned out to be stage 2. To get a frame whose stage you can PROVE, extract from `.reference-cache/video/ab2-longplay.mp4` with ffmpeg at an exact timestamp and verify identity (HUD stage number, score continuity). The verified stage↔timestamp map lives in `stage_data.gd`'s header. The burst sampler is for motion, not identity.
 
 **Hard limit on what burst frames can tell you (#113 finding)**: AB2's ground texture temporally aliases below ~60fps sampling — even 15fps is past the Nyquist limit, so 4fps burst stills support **pose, scale, and composition judgements only, never speed**. Do not assert "the speed feels right/wrong" from burst frames; speed claims require the 60fps pipeline (#114) or human review of actual video.
 
@@ -96,7 +100,6 @@ Agents are defined in `.claude/agents/`. The team lead (TL) orchestrates all wor
 | `architect` | Designs architecture, API contracts, data models, implementation specs |
 | `developer` | Implements features from specs |
 | `qa` | Tests the app, finds bugs, verifies fixes |
-| `security` | Audits code for vulnerabilities — OWASP, secrets, injection, API abuse |
 | `judge` | Evaluates agent output against acceptance criteria — quality gate |
 
 ### Optional Roles (add as needed)
@@ -120,8 +123,6 @@ TL picks item → creates GitHub issue with acceptance criteria
     ▼
 architect ──► JUDGE GATE ──► developer ──► JUDGE GATE ──► qa ──► JUDGE GATE
                                                                       │
-                                                              security (if needed)
-                                                                      │
                                                               FINAL JUDGE GATE
                                                                       │
                                                                     done
@@ -133,8 +134,7 @@ architect ──► JUDGE GATE ──► developer ──► JUDGE GATE ──�
 4. **Judge evaluates developer output** — checks implementation matches spec, builds, tests pass
 5. **QA verifies** — tests the implementation, files bugs if found
 6. **Judge evaluates QA output** — checks test coverage, bug reports actionable
-7. **Security audits** (when applicable) — reviews code for vulnerabilities
-8. **Final judge gate** — evaluates the complete feature against acceptance criteria
+7. **Final judge gate** — evaluates the complete feature against acceptance criteria
 
 If a judge gate **FAILs**, work is sent back to the responsible agent with specific feedback. The TL does NOT override judge decisions without user approval.
 
@@ -182,7 +182,6 @@ All tasks MUST be tracked as GitHub issues on `UriZ/afterburner`. GitHub issues 
 #### Labels:
 - `enhancement` — new feature or feature request
 - `bug` — something broken found by QA
-- `security` — security finding or security-related task
 - `architect` — needs architect design before implementation
 - `ui-design` — needs UI/visual design spec
 - `developer` — ready for developer implementation
@@ -195,7 +194,7 @@ All tasks MUST be tracked as GitHub issues on `UriZ/afterburner`. GitHub issues 
 1. **Feature request**: Create issue with `enhancement` + `architect` labels. MUST include acceptance criteria.
 2. **Architect designs**: Posts spec as comment, relabels to `developer` (or `ui-design` first)
 3. **Developer implements**: Posts implementation notes, relabels to `qa`
-4. **QA verifies**: Reports findings. Bugs → new `bug` issues. Clean → relabels to `security` or done
+4. **QA verifies**: Reports findings. Bugs → new `bug` issues. Clean → done
 5. **Judge gates**: Run between stages. On FAIL → `judge-fail` label + feedback comment, back to previous stage
 6. **User approves**: UriZ is the FINAL approver
 

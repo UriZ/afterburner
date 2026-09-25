@@ -1,6 +1,15 @@
 extends SceneTree
 
 ## Unit tests for enemy jet configuration and type data.
+##
+## enemy_jet.gd references the GameState autoload by bare name, so the scene
+## must be loaded with `load()` from inside `_initialize()` — NOT `_init()` and
+## NOT top-level `preload()`, both of which run before the engine's autoload
+## bootstrap and fail with "Identifier not found: GameState" (#118). When that
+## happened, instantiate() returned a bare Area3D with no script, _create_enemy()
+## aborted on the first call into it, and every test aborted before reaching a
+## single assertion — the file reported "0 passed, 0 failed" and exited 0.
+##
 ## Run with: godot --headless --script res://tests/test_enemy_jet.gd
 
 var _pass_count := 0
@@ -9,7 +18,7 @@ var _fail_count := 0
 var _enemy_scene: PackedScene
 
 
-func _init() -> void:
+func _initialize() -> void:
 	print("=== EnemyJet Tests ===")
 
 	_enemy_scene = load("res://scenes/enemies/enemy_jet.tscn")
@@ -25,7 +34,9 @@ func _init() -> void:
 	test_bomber_survives_one_hit()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
-	quit(1 if _fail_count > 0 else 0)
+	# Zero assertions is a failure, not a clean run: it means the tests aborted
+	# before counting anything, which is how #118 stayed invisible.
+	quit(1 if _fail_count > 0 or _pass_count == 0 else 0)
 
 
 func assert_true(condition: bool, message: String) -> void:
@@ -120,8 +131,14 @@ func test_bullet_creation() -> void:
 	var bullet: Variant = enemy._create_bullet()
 	assert_true(bullet != null, "Bullet is created")
 	assert_true(bullet is Area3D, "Bullet is an Area3D")
-	assert_eq(bullet.collision_layer, 4, "Bullet collision layer is 4")
-	assert_eq(bullet.collision_mask, 1, "Bullet collision mask is 1")
+	# collision_layer is a BITMASK, not a layer number: layer 4 is bit 3, value 8.
+	# The old expectation of 4 was layer 3's value (enemies) and had never run —
+	# it was inside the block that #118 silently aborted. enemy_jet.gd:154 sets 8
+	# and labels it "layer 4: enemy bullets", consistent with the scene files
+	# (player 1, player bullets 2, enemies 4). The mask assertion below happens to
+	# be right either way, because layer 1's value is also 1.
+	assert_eq(bullet.collision_layer, 8, "Bullet is on layer 4 (bitmask value 8, enemy bullets)")
+	assert_eq(bullet.collision_mask, 1, "Bullet collides with layer 1 (bitmask value 1, player)")
 	assert_true(bullet.get_child_count() >= 2, "Bullet has mesh and collision children")
 	bullet.free()
 
