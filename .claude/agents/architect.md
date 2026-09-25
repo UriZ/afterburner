@@ -50,7 +50,7 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **When quoting a criteria.md rule as an acceptance criterion, re-measure that rule against the verified reference stage in the same pass** — #121 inherited a figure cycle 1 had already disproved.
    - **Per-stage constants derive from >=5 frames spread across the verified span, spread reported** — would have caught both of #120's bad horizon values.
    - **State visual-measurement thresholds in the units the RENDERER controls** (degrees of roll, not %W of tilt) — every pixel-unit↔code-unit conversion is a chance to ship the wrong target (#128: the %W rule's max was half the arcade's actual roll).
-   - **Locate code by content anchors, not line numbers** — two specs in one session shipped drifted line references under concurrent edits (#116, #128); quote the signature/constant, not the line.
+   - **RULE: specs cite content anchors PLUS a re-runnable grep; line numbers only as a dated convenience** — three specs drifted in one session (#116, #128 twice); the grep is the instruction that survives concurrent edits.
    - **Negative-control variant: check time SERIES for physical coherence**, not just individual fits — a smooth monotonic ramp is evidence a detector tracks the real thing; scattered plausible values are not (#128 roll ramp).
    - **When criteria.md changes mid-task, re-read the rules your already-posted specs depend on** — a posted spec went quietly non-compliant for hours after a rule amendment (#121/rule 11).
    - **A METHOD carried between issues needs its own re-validation, not just its output** — #123's modal estimator worked because skies are flat fills (mode share 97.8%); it fails on dithered grounds (mode share 5.7%) and 'do what #123 did' was a dead end (#124).
@@ -68,6 +68,7 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Consulting reference-facts.md is a checklist STEP, not an optional reference** — the fact that would have prevented #124's selector defect was already recorded there and was walked past.
    - **When a spec states a grep or count as a verification instruction, run it and paste the output** — #128's 'returns 12 hits' returned 13.
    - **Reference example for the whole discipline: #128** — a judge error corrected by runnable proof, three architect defects accepted, two measurement sets withdrawn as out-of-regime, a negative control demonstrated on every guard.
+   - **Any measurement built on a segmentation mask must report the mask's own coverage and REFUSE below a floor** — the session's two worst measurement errors (canyon roll figures, missing edge guard) were confident numbers computed from almost no pixels (#128 amendment 3).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

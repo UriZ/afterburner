@@ -1,5 +1,30 @@
 # Session Log
 
+### [2026-09-25 22:05] — TL — Retrospective: architect-113 #128 nits — clear; root-caused a measurement paradox
+
+**Agent TLDR**: verbatim in its entry below. Nit 2's root cause: t=346 straddles a hard cut — 0.00% at t=344/345, 51.40% at t=346; two extractions of the same nominal timestamp land on opposite sides, so BOTH careful measurements were right. Row struck (never load-bearing; canyon frames agree between both parties). Grep enumeration corrected to 13 (3 wraps + 8 world reads + 2 projectile reads). Volunteered: #120's development has shifted the wrap sites +3 again — dev told to anchor by content.
+
+**Retrospective — applied**: architect.md (content-anchor+grep promoted to RULE after 3 drifts; segmentation-mask coverage floor); reference-facts.md (±1s frame-stability check). APPLIED. architect-113 → #129 HUD spec next.
+
+
+### [2026-09-25 20:40] — architect — #128 (corrections after PASS)
+**Task**: Fix three nits from #128's PASS verdict (9/10) in place; no re-gate.
+**Result**: COMPLETED. https://github.com/UriZ/afterburner/issues/128#issuecomment-5833849143 — #128 stays `enhancement,developer`, implementation queued behind #120.
+
+All three reproduced; I verified each rather than conceding:
+- **grep count 12 -> 13.** The prose also omitted two world-entity reads (255, 258) inside `_arm_invincibility_grace` — the rule already covered them, but the enumeration's whole value is precision. Corrected breakdown: 3 player-position wraps + 8 world-entity reads + 2 player-projectile reads = 13.
+- **t=346 coverage cell withdrawn — it straddles a hard cut.** Root-caused rather than just corrected: measured coverage is **0.00% at t=344 and t=345, 51.40% at t=346**, then 41.7/34.9/16.9/17.2 across 346.5-350. Two extractions of "t=346" one frame apart land on opposite sides of the cut; my own burst frame and direct seek have different MD5s (49.88% and 51.40%, both post-cut) while the judge's landed pre-cut. Both measurements were correct for the frame each decoded. Struck the row; the canyon-proper frames (352/358/364/368 at 0.09-1.36%) carry the argument unchanged and agree between us.
+- **"#faecb0 within 3/255" -> within 7/255.** Per-channel max deviation is 7 (BGR(183,237,248) vs BGR(176,236,250)). The supported point is unaffected: re-running the detector against each frame's own dominant colour moved coverage by at most 0.8 pp, so the shortfall was never a tolerance problem.
+
+**Volunteered fourth item**: `game_world.gd` line numbers have shifted **+3** again (#120 is in development on it) — the three wrap sites are now 160/220/255. Told the developer to locate them by content anchor (`func _player_lateral_offset`, `func _check_collisions`, `func _arm_invincibility_grace`) and re-run the grep, since that is the durable instruction. **Third time this session** a spec of mine shipped line references that drifted underneath it.
+
+**Note on the gate**: the judge ran my counter-proof, confirmed it bit-for-bit, and corrected its own record in writing ("I reasoned from parenting alone and never checked the node type"). The runnable-proof approach settled a load-bearing disagreement that prose would have turned into another round.
+
+**Improvement Insights**:
+- **reference-facts.md**: add "check a cited frame for stability across +/-1s before quoting it". A frame adjacent to a cut is not reproducible across decoders or seek modes and produces exactly this kind of unfalsifiable disagreement between two careful measurements — 0% vs 51% on the same nominal timestamp here.
+- **architect.md**: promote the line-number lesson to a rule. Three specs, three drifts, three correction comments in one session. Specs should cite **content anchors plus a re-runnable grep**, and quote line numbers only as a dated convenience.
+- **workflow**: the detector-coverage floor from amendment 3 §2.4 generalizes beyond this issue — any measurement built on a segmentation mask should report the mask's own size and refuse below a floor. Both of this session's worst measurement errors (canyon roll, and the missing edge guard) were confident numbers computed from almost no pixels.
+
 ### [2026-09-25 21:50] — TL — Retrospective: vqa-123 #112+#92 — PASS 0 bugs; commit deferred to ride with #122
 
 **Agent TLDR**: verbatim in its entry below. Independent verification throughout: own row-scan of the reference dorsal (unbroken wingtip run confirmed), own frames at proven refuel spans, isolated-harness measurements (span 35.83%W, aspect 3.546 — inside the re-derived band; 10 brightness buckets = real area shading), 22-frame alpha solve (1.000 exact), and a scratch SceneTree harness for the death→respawn→flash sequence after idle-poll missed a 3-lives-in-~1s cascade twice. Traced suite noise on the concurrent tree to other agents' mid-save files rather than trusting or dismissing it.
