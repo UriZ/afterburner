@@ -69,6 +69,10 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **When a spec states a grep or count as a verification instruction, run it and paste the output** — #128's 'returns 12 hits' returned 13.
    - **Reference example for the whole discipline: #128** — a judge error corrected by runnable proof, three architect defects accepted, two measurement sets withdrawn as out-of-regime, a negative control demonstrated on every guard.
    - **Any measurement built on a segmentation mask must report the mask's own coverage and REFUSE below a floor** — the session's two worst measurement errors (canyon roll figures, missing edge guard) were confident numbers computed from almost no pixels (#128 amendment 3).
+   - **A windowed/neighbourhood operator must state its behaviour at the analysis-region boundary** — #121's 41x41 median window was larger than both bands it was applied to; 'median over a window' is undefined until full-frame-then-crop vs band-only-with-edge-policy is stated.
+   - **Per-biome operating stats are a CHECKLIST item per measured biome, not a general instruction** — #135 did the ocean exemplarily and skipped the canyon, the biome where detectors go out-of-regime.
+   - **Prefer 'separates with margin N' to 'no overlap'** — two of three no-overlap claims died on an independent run; a margin statement survives both (#121).
+   - **Second reference example: #124** — a blocking defect self-caught while working an adjacent issue, verified two ways, fix generalized not special-cased, failed first attempt published.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

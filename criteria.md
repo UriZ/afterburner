@@ -58,6 +58,8 @@ Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/imag
 
 ## Hard Rules (automatic FAIL if violated)
 
+> **Median rule (#135/#120)**: when an AC or constant leans on a median, publish the per-frame spread beside it — this project's medians sit over distributions with 4-10x spreads.
+>
 > **Spread rule (#127)**: a measured claim verified on ONE sample is not verified — any gate or calibration that licenses future numbers must be demonstrated across a spread of inputs with the pass rate reported (#125's gate pass was correct, reproducible, and generalized to 3 of 10 windows).
 >
 > **Measurement publication rule (#120 rework)**: any colour or threshold measurement published as gate evidence must state its distance METRIC and TOLERANCE, and the exact classifier/command so the other side can re-run it. An unpublished classifier cost a full gate cycle — the same estimator legitimately gives 10.2 or 15.6 %H depending on a free parameter neither side had stated.
