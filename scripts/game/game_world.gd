@@ -11,11 +11,10 @@ const _GroundTerrain := preload("res://scripts/game/ground_terrain_2d.gd")
 
 const SCREEN_W: float = 960.0
 const SCREEN_H: float = 672.0
-# Single source of truth is DepthUtil.HORIZON_Y (#108) — this used to be a
-# second hardcoded 268.8 that had to be kept manually in sync with
-# depth_util.gd, which is exactly the kind of duplication that lets the sky
-# and ground bands drift apart into a visible seam.
-const HORIZON_Y: float = _DepthUtil.HORIZON_Y
+# Horizon is now per-stage RUNTIME state (#120) — DepthUtil.horizon_y, not a
+# const. A const here would freeze whatever stage was active when the script
+# first ran (stage 1) for the rest of the session, silently ignoring every
+# later _apply_stage() call. Read it fresh in each drawing function instead.
 
 # Fraction of the sky's height that is a single flat fill before the horizon
 # glow (if any) starts. Measured off burst-a-02: #e67100 is pixel-identical
@@ -109,10 +108,11 @@ func _draw_sky() -> void:
 	# Stages whose sky_top and sky_horizon are equal therefore render as a
 	# single flat fill by construction — that is the data saying "this stage has
 	# no glow", not a degenerate case to work around.
-	var flat_h: float = HORIZON_Y * SKY_FLAT_FRACTION
+	var horizon: float = _DepthUtil.horizon_y
+	var flat_h: float = horizon * SKY_FLAT_FRACTION
 	draw_rect(Rect2(0.0, 0.0, SCREEN_W, flat_h), sky_top_color)
 	if sky_top_color.is_equal_approx(sky_horizon_color):
-		draw_rect(Rect2(0.0, flat_h, SCREEN_W, HORIZON_Y - flat_h), sky_top_color)
+		draw_rect(Rect2(0.0, flat_h, SCREEN_W, horizon - flat_h), sky_top_color)
 		return
 	# One rect per scanline across the glow band only. The previous code spread
 	# 50 fixed-height bands over the WHOLE sky, which put ~8px-tall quantisation
@@ -120,13 +120,16 @@ func _draw_sky() -> void:
 	# caps the step at smoothstep's peak slope (1.5) / 84 = 1.8% of the total
 	# delta — about 2/255 on the widest-ranging stage, spread over 1px, which is
 	# below the banding threshold. Cost is unchanged: the flat 80% is now a
-	# single rect instead of 40.
-	var rows: int = int(ceil(HORIZON_Y - flat_h))
+	# single rect instead of 40. On a canyon stage's much shorter sky (e.g. 17px
+	# at horizon_fraction=0.13) this loop runs far fewer iterations — smaller
+	# real estate, correctly reflected, never a divide-by-zero since rows stays
+	# a positive ceil().
+	var rows: int = int(ceil(horizon - flat_h))
 	for i in range(rows):
 		var y: float = flat_h + float(i)
 		draw_rect(
 			Rect2(0.0, y, SCREEN_W, 1.0),
-			sky_color_at(y / HORIZON_Y, sky_top_color, sky_horizon_color)
+			sky_color_at(y / horizon, sky_top_color, sky_horizon_color)
 		)
 	# No horizon stroke here (#42 redo) — the ground shader's own haze blend
 	# (ground_terrain_2d.gdshader, fades to sky_horizon_color as it nears the

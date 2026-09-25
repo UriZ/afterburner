@@ -25,6 +25,7 @@ extends SceneTree
 
 const GameWorld := preload("res://scripts/game/game_world.gd")
 const StageData := preload("res://scripts/stage/stage_data.gd")
+const DepthUtil := preload("res://scripts/game/depth_util.gd")
 
 # All 23, so a single run can be diffed against the verified arcade frames
 # stage by stage (#123). Drop to a subset when iterating on one biome.
@@ -69,5 +70,9 @@ func _apply(stage_number: int) -> void:
 	_world.ground_color_a = data["ground_a"]
 	_world.ground_color_b = data["ground_b"]
 	_world.ground_color_c = data["ground_c"]
+	# #120: per-stage horizon — same call site game_manager_2d._apply_stage()
+	# uses, so this preview shows the real horizon/ground-coverage a stage
+	# gets in actual play, not just its palette.
+	DepthUtil.set_horizon_fraction(data["horizon_fraction"])
 	_label.text = "STAGE %d" % stage_number
-	print("stage %d  sky_top=%s  sky_horizon=%s" % [stage_number, data["sky_top"], data["sky_horizon"]])
+	print("stage %d  sky_top=%s  sky_horizon=%s  horizon_fraction=%s" % [stage_number, data["sky_top"], data["sky_horizon"], data["horizon_fraction"]])

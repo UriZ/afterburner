@@ -5,6 +5,7 @@ extends Node
 
 const StageData := preload("res://scripts/stage/stage_data.gd")
 const SpawnPacing := preload("res://scripts/game/spawn_pacing.gd")
+const DepthUtil := preload("res://scripts/game/depth_util.gd")
 
 const STAGE_DURATION := 30.0
 const STAGE_ANNOUNCE_DURATION := 2.0
@@ -94,6 +95,11 @@ func _advance_stage() -> void:
 
 func _apply_stage(stage_number: int) -> void:
 	var data := StageData.get_stage(stage_number)
+
+	# Per-stage horizon (#120) — must land before GameWorld/ground quad read
+	# DepthUtil.horizon_y in their next _process/_draw, which happens after
+	# this function returns.
+	DepthUtil.set_horizon_fraction(data["horizon_fraction"])
 
 	# Update GameWorld sky/ground colors
 	var game_world: Node2D = get_parent().get_node_or_null("GameWorld")

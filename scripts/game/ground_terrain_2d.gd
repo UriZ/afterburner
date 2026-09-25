@@ -34,7 +34,7 @@ func _ensure_material() -> void:
 
 
 func _draw() -> void:
-	var top: float = _DepthUtil.HORIZON_Y
+	var top: float = _DepthUtil.horizon_y
 	var bottom: float = _DepthUtil.SCREEN_H
 	var w: float = _DepthUtil.SCREEN_W
 	var points := PackedVector2Array([
@@ -57,4 +57,15 @@ func update(world_scroll: float, lateral: float, color_a: Color, color_b: Color,
 	_material.set_shader_parameter("color_b", color_b)
 	_material.set_shader_parameter("color_c", color_c)
 	_material.set_shader_parameter("haze_color", haze_color)
+	# #120: the shader's horizon_y/screen_h/screen_w uniforms carry a comment
+	# claiming "GameWorld pushes these from _DepthUtil at _ready()" — nothing
+	# ever did. It worked purely because the uniform defaults (420/672/960)
+	# coincided with DepthUtil's old compile-time const. Now that the horizon
+	# is per-stage runtime state, the shader would keep inverting its own
+	# projection at a stale 420 while this quad's geometry (_draw() above)
+	# moved with the real horizon — desyncing the terrain from its own quad
+	# with no error anywhere. Push every call so they can never drift apart.
+	_material.set_shader_parameter("horizon_y", _DepthUtil.horizon_y)
+	_material.set_shader_parameter("screen_h", _DepthUtil.SCREEN_H)
+	_material.set_shader_parameter("screen_w", _DepthUtil.SCREEN_W)
 	queue_redraw()
