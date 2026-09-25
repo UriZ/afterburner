@@ -1,5 +1,69 @@
 # Session Log
 
+### [2026-09-25 20:20] — TL — Retrospective: re-gates #120 PASS 9 / #121 FAIL 8 / #122 PASS 9; spend-limit outage
+
+**Judge TLDR**: verbatim in judge-cycle-1's entry below. #120: root cause confirmed deeper than the original verdict (classifier choice alone moves the cut 5-6pp); band-based ACs made the outcome insensitive to exactly the scatter that failed the first gate — by design; tilt addendum verified cell-by-cell. #121: one item — AC 0 repeats the unpublished-classifier defect diagnosed in the SAME batch; judge implemented it and our build scores 76 objects (not "~0"), and the outline-variety half passes the current lozenge field. #122: reconciliation arithmetic exact; C_CY=360-not-355 catch (clipping would silently depress measured sd) called best detail in the batch. NEW function-level collision confirmed (#128 follow-up deletes _update_banking; #122 calls it) — ownership registry must track functions.
+
+**Outage**: monthly spend limit hit mid-round — architect-comp (mid #124 spec), vqa-123 (mid jet QA), dev-113-116 (mid #127+#136), judge-cycle-1 (before the #128 amendment-2 re-gate), architect-113 (work complete) all failed. Limit reset; resuming all via SendMessage.
+
+**Retrospective — applied**: architect.md (metric+threshold on every figure — generalized AC 10; run new ACs against current build, publish the number); judge.md (verdict freshness stamp; gaps as reproductions-to-satisfy); ownership.md function-level registry note. APPLIED.
+
+**Dispatches on resume**: #120 impl → dev-125 (PASSed spec; stage_data hunk as early commit); #122 impl → dev-sky-115 (owns player_jet_2d.gd already — collision-free by construction); #121 AC 0 fix + #124 spec continuation → architect-comp; #128 amendment-2 re-gate re-sent → judge-cycle-1; #112/#92 jet QA resume → vqa-123; #130/#134 explosions QA → vqa-sky-115; #127+#136 resume → dev-113-116.
+
+
+---
+### [2026-09-25 16:20] — judge — #120, #121, #122 RE-GATE (architect reworks)
+**Gate type**: per-agent (architect) x3, re-gate
+**Verdicts**: #120 PASS 9/10 · #121 FAIL 8/10 · #122 PASS 9/10 (threshold 9)
+**judge-fail**: cleared on #120 and #122; re-applied on #121.
+
+**#120 PASS.** Gated spec + merge amendment + rework + tilt addendum as one document. The freshness re-read (judge.md step 13) caught the addendum, posted 5 min before I ruled — that step earned itself immediately.
+- Root cause found is DEEPER than my verdict: not wrong values, but a published sky colour with no metric or tolerance. I verified on t=360 that classifier choice alone moves the cut 5-6 pp (sum|dRGB| 10.4/11.9/14.0/16.9 at tol 30/60/90/150; primary cell matches their table exactly). AC 10 generalises it into a standing rule.
+- I re-derived both stages myself (n=41, declared protocol): stage 8 median 11.25 vs their 13.12; stage 17 5.83 vs their 7.08. Distribution SHAPE reproduces — p10/p25 EXACT on stage 8, p10 exact on stage 17, sweep spreads 3.54 vs 3.33 and 8.44 vs 7.92. My medians run 1.2-1.9 pp low, partly because my loop reports 0.0%H when the top row is itself occluded where theirs floors at 3.1/6.0 — their handling is better. NOT a fail: ACs 6/6b are now p25-p75 BANDS (10.2-18.1 and 5.6-12.7) and both their medians and mine fall inside both. That insensitivity was the rework's design goal.
+- Tilt addendum arithmetic verified exactly: y_cut = y_c + (1-2c)(W/2)tan(theta); all six table cells reproduce (0.479/7.088/39.6 and 0.299/4.43/24.75). Conclusion holds — tilt is negligible on canyons (0.48 pp at median roll) and disqualifying on cruise (~40 pp at 30 deg). Addendum also correctly declines the #128 6.0%H figure using my own re-gate reasoning, reports a tilt-fitter that FAILED its declared control (-13.98 pp), and ships per-biome operating stats applying the architect.md rule from the #128 gate.
+- Nit logged: the span claims to exclude stage-17 t=700 but 696+4=700 is its first sample, and their reported max 47.9 IS that frame.
+
+**#121 FAIL — one item, AC 0.** Three of four gaps closed cleanly and two fixes are better than what I proposed:
+- §2.4 controlled second hue family (exactly two families, offset+jitter from shape_seed only) — correct, and they confirmed the contradiction against the arcade themselves.
+- §2.1/§2.3: my "991 is prime so only FIELD_LENGTH=1.0 divides it" was true and unhelpful; their answer — an exact divisor need not be an integer — is better. Verified bit-exact: float32(991)/32 = 30.96875, 32*FL-991 == 0.0, fmod(991,FL) == 0.0, and fmod(991,40) == 31.0 so the negative control fails as intended. Counts 6820=220*31, 4960=160*31, wrap 22.12s, cull 1/31.6 all check. Risk 7 explicitly WITHDRAWN.
+- AC 0 is the failure. It says "connected components >=1.0%W ... identical procedure both sides" but NEVER states what makes a pixel foreground — the exact defect #120's rework diagnosed as ITS root cause in this same batch, reintroduced one issue over on the whole-frame gate. I implemented it with a plain identical procedure: OURS 76 objects / CV 1.271; AB2 stage17 44 / 0.782; AB2 stage2 32 / 2.030. So (a) "our build scores ~0" is not reproducible — I get 76, MORE than either reference; (b) the outline-variety half PASSES our current build (1.271 vs a 0.469 bar) though it exists precisely to catch identical lozenges. If the intended segmentation is hue-based the "~0" claim becomes true, but then any second-hue features satisfy it — including thousands of blobs over a still-uniform ground, the exact failure mode it was written for.
+
+**#122 PASS.** Every number re-verified. The reconciliation arithmetic the TL flagged checks out exactly: regimes pool to 11.03 (121.66), between-regime term 26.29, total 147.95 -> 12.16 vs arcade 11.99. Per-regime amplitude sds all land within 0.1 pp of target; K_CY 427 -> 63.54%H vs arcade 63.5. Excursion bounds all inside the clamps, and the note that C_CY is 360 not the measured 355 because 355-159=196 would clip at MOVE_MIN.y and SILENTLY DEPRESS the measured sd is a genuine catch. AC 1's falsification check works (forcing regime weight to 1.0 gives ~12.8 pp in straight segments against a 4.5 bound). Closing my gap surfaced real new insight: the arcade's combined cy sd 11.99 is unreachable from the regimes' internal spreads alone, so the canyon regime flies LOWER as well as straighter — the old model could not express it. One overclaim logged: "x pools to 10.44 (exact)" is 10.407.
+**Cross-issue collision caught by the architect, not by any gate**: #128's follow-up deletes `_update_banking()`, which `_process_demo_flight()` calls. Verified both halves (player_jet_2d.gd:151-153; #128 §3). Neither ownership.md's matrix nor my own earlier "#122 shares no file with anyone" caught it.
+
+**Improvement Insights**:
+- **judge.md**: the step-13 freshness re-read paid off on its first use — it caught #120's addendum 5 minutes old. Keep it; consider making it print the newest comment id/timestamp so the verdict can cite exactly what it gated.
+- **architect.md**: promote #120's AC 10 into a general rule — ANY measured figure in a spec or AC must carry its metric and threshold. #121's AC 0 reintroduced the identical defect in the same batch, which shows the lesson does not transfer across issues on its own.
+- **architect.md**: when an AC is added in response to a gate finding, require the author to RUN it against the current build and publish the number. #121 asserted "our build scores ~0" without running it; it scores 76.
+- **criteria.md / ownership.md**: the shared-file registry misses cross-issue collisions at FUNCTION level (#128 deleting a function #122 calls). Registry should list claimed functions, not just files — dev-sky-115's row already does this informally.
+- **workflow**: two of three reworks produced a fix better than the judge's suggested remedy (#121's 991/2^k, #122's between-regime term). Keep stating gaps as reproductions to satisfy rather than as prescribed patches.
+
+### [2026-09-25 20:05] — developer — #130, #134
+**Task**: Fix death-fireball facet/concentric-ring defect (#130, cycle-1 gap 6) and kill-puff halo + hard-edged circle defect (#134, cycle-1 gap 11), per criteria.md rule 12.
+**Result**: COMPLETED. Both relabelled `developer` -> `qa`. Ownership: `scripts/effects/` only (explosion_2d.gd + its tests) — no other agent's files touched.
+
+**Root-cause work (both required a live/composite-render investigation, not just code reading)**:
+- #130: composite render at the fireball's real peak size (r_base~336px, base_radius=120 from the one real caller `player_jet_2d.gd`) reproduced "~12 giant flat heptagons with concentric rings + detached maroon slab" exactly. Cause: `FIRE_BUBBLE_COUNT=16` bubbles at 20-38% of r_base with only 16 verts each (chord ~54px at peak — the "40-80px straight edges"), each bubble's bright inner layer an EXACT scaled copy of its own outline (perfect concentric nesting = flat "onion ring" read regardless of outline irregularity), and `DIST_MAX=0.82` leaving a lobe tip beyond that radius with zero bubble coverage (the "detached slab").
+- #134: my first hypothesis from a live capture (a round pale-cyan disc + white center, seemingly separate from a cauliflower puff) was WRONG — that was the vulcan bullet's own glow (`vulcan_bullet_2d.gd`, different file, unrelated). Built an isolated harness (instantiate `explosion_2d.gd` alone on a plain sky background, screenshot every frame of its natural lifecycle) to find the real defect: (1) a `draw_circle()` "ignition flash" — a literal geometric circle banned by rule 12(a) regardless of size; (2) the fade-out phase collapsed to a single flat CREAM polygon at partial alpha, and alpha-blending cream over the sky's vivid blue reads as pale cyan — the reported "halo" IS the puff's own cream fade, misread as a separate disc.
+
+**Fixes**:
+- #130: `FIRE_BUBBLE_COUNT` 16->70, size 0.20-0.38->0.03-0.055 of r_base (worst-case chord <10px at the class's own `MAX_BASE_RADIUS` ceiling — a real derived number, not eyeballed), `DIST_MAX` 0.82->0.97, and each bubble now gets an independently-generated `inner_blob` + small offset instead of an exact-copy nested layer.
+- #134: removed the `draw_circle()` flash entirely; replaced alpha-fade with a `_kill_puff_radius(t, r_cap)` pure function that shrinks the puff to ~0 while staying fully opaque the whole time — no alpha<1 anywhere means no colour-mixing with the background, ever.
+
+**Testing**:
+- Composite renders (throwaway Godot SceneTree harness, deleted after use, not committed) confirmed before/after for both issues — screenshots show the exact defects reproduced pre-fix and gone post-fix.
+- Live in-game verification for both: held Z to kill enemies (confirmed clean kill puffs, no halo/circle) and let the player die to trigger a real death fireball (confirmed dense small-lobe texture, no detached slab, through an actual `GAME OVER` sequence).
+- Value-level histogram (offline Python/cv2, per #42 precedent): 17-23 distinct bins both before and after — this bar was already cleared; the defect was shape, not value count.
+- 3 new unit tests in `tests/test_missile_2d.gd`: `test_kill_puff_dissolves_via_radius_not_alpha`, `test_fireball_bubble_facet_size_bounded`, `test_fireball_bubble_inner_layer_is_independent_shape`. All pass; confirmed analytically each would FAIL against the pre-fix constants/structure (old size gives 54px chord; old `DIST_MAX=0.82` fails the `>0.9` check; old bubble dicts had no `inner_blob` key at all; old radius formula never dropped below `r_cap*0.78`).
+- `bash tests/run_all.sh`: 995 passed, 13 failed (all pre-existing `test_jet_mesh_builder.gd`, unrelated). `git status` confirms only `scripts/effects/explosion_2d.gd` and `tests/test_missile_2d.gd` touched by me.
+
+**Improvement Insights**:
+- **workflow**: a visual bug report built from ONE live-capture screenshot can misattribute the defect to the wrong code entirely (I initially chased the vulcan bullet's glow before realizing it was unrelated). An isolated composite-render harness that instantiates just the suspect effect on a plain background and steps through its full lifecycle is far more reliable for root-causing than reading a single in-context frame, and should be the default first move for any reported "weird visual artifact near effect X", not a fallback after code-reading fails.
+- **criteria.md rule 12**: worth adding explicitly that a fade-to-transparent over a saturated background is itself a rule-12(a) violation (translucent halo), not just an implementation detail — this exact failure mode (round 7's "fix" for a seam bug reintroduced a halo bug) is likely to recur wherever an effect fades via alpha rather than shrinking/dissolving geometrically.
+- **explosion_2d.gd**: flagged but did not fix (out of scope for #130/#134) — the fireball's own end-of-life alpha fade shows the same translucent-blend flavour I fixed for the kill puff, briefer and masked by the following smoke phase. Worth a follow-up issue if ever judged separately.
+
+---
+
 ### [2026-09-25 19:50] — TL — Retrospective: architect-113 #128 amendment 2 — re-gate dispatched
 
 **Agent TLDR**: verbatim in its entry below; amendment 5831109160. Key: accepted 3/4 verdict defects (edge guard reproduced WORSE — confident 22-30° errors, not noisy rejection); contradicted the bolt-upright-enemies claim with a one-command runnable proof (plain-Node entities drawn by GameWorld's canvas rotate with it — parenting is for group lookup only, per the code's own comment); genuinely-missed classes identified (player projectiles + explosions = self-drawing Node2Ds) and fixed by reparenting with fallback; parenting invariant settled ("rolling world iff pixels emitted by GameWorld's canvas") collapsing §4 to 3 sites + grep check; vacuous AC made decisive (must fail with wraps removed); §G ready-to-go follow-up mini-spec, content-anchored.

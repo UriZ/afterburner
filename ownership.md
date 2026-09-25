@@ -24,7 +24,7 @@ Judge insight (#120-#122 gate): ownership must live in a repo file, not issue pr
 ## Unassigned queue
 #129 (HUD), #131 (enemies), #132 (clouds), #133 (trails), #126 (cycle tracker).
 
-## Shared-file registry (check before assigning)
+## Shared-file registry (check before assigning — list claimed FUNCTIONS, not just files: #128's follow-up deletes _update_banking() which #122's _process_demo_flight() calls, a collision no file-level view caught)
 - `game_world.gd`: #120 (horizon/projection, `_draw_sky()`), #128 (roll — after #120), #121 (appends one new function — disjoint), dev-sky-115 (jet draw functions — claimed)
 - `stage_data.gd`: #120 (adds horizon key) → #124 (69 colour values) — strict sequence
 - `ground_terrain_2d.gdshader`: #121 explicitly does NOT touch; #135 will; latent `horizon_y` uniform bug fixed by #120

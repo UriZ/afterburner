@@ -62,6 +62,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Never ship a value measured from one frame — re-measure over the full verified span first.** Of #120's two single-frame values, one survived ("by luck") and one was wrong, and the single-frame read gave no signal which (#120 rework: stage 8 median stable ±3.33pp, stage 17 ±7.92pp).
    - **Godot: "which node is the parent" and "which CanvasItem issues the draw call" are DIFFERENT questions** — a plain `Node` cannot draw at all; entities drawn by another node's canvas inherit THAT node's transform regardless of parenting. Check node types and who passes the canvas before reasoning from the scene tree (#128 amendment 2's proof).
    - **Contradicting a judge requires evidence the judge can re-run in one command** — a 12-line throwaway project settled a load-bearing disagreement in minutes; prose would have cost a full round (#128).
+   - **Any measured figure in a spec or AC carries its metric and threshold** (generalized #120 AC 10) — #121 reintroduced the identical unpublished-classifier defect in the SAME batch; the lesson does not transfer between issues by itself.
+   - **An AC added in response to a gate finding must be RUN against the current build with the number published** — #121 asserted "our build scores ~0" on an AC that actually scores 76 (more objects than the reference).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
