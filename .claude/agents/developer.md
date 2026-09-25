@@ -53,7 +53,8 @@ Screenshots alone are NOT sufficient. Videos reveal speed, timing, movement, and
 6. **less is more** less is more , no ai slop. can you do it with less code? better
 
 
-- - **Shell scripts must be verified with an actual `bash script.sh` run** — macOS system bash (3.2) and zsh disagree on real parses of identical text; interactive typing and `bash -n` both hide it (#125 found a shipped mis-parse this way).
+- - **When fixing a defect that was itself introduced as a fix, state the WHOLE chain in the code comment** — each previous version looked correct in isolation; only the sequence shows the constraint is two-sided (#92: visibility-toggle → translucent-flash → RGB-gain flash).
+- **Shell scripts must be verified with an actual `bash script.sh` run** — macOS system bash (3.2) and zsh disagree on real parses of identical text; interactive typing and `bash -n` both hide it (#125 found a shipped mis-parse this way).
 - **Run the suite only via `bash tests/run_all.sh`** — it fails on compile errors, silent-zero files, and missing summaries that bare `--script` runs hide (#118).
 - **When a bug report notes "this other case is weirdly different", treat that difference as the PRIMARY question, not a footnote** — chasing it is what turned #118 from a one-file patch into a suite-wide guard.
 - **Never encode a rule inferred from N samples as a test assertion until checked against the whole population** — a #115 test asserted a hue-direction "law" from two frames; the five real cases contradicted it, and the passing test made the wrong generalisation look validated (#123). Prefer assertions tied to per-item measured data over assertions stating a general law.
