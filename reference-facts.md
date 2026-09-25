@@ -17,3 +17,6 @@ Facts about After Burner II established with proven methodology this project kee
 | AB2 ground texture temporally aliases below ~60fps sampling — no sub-60fps frame comparison supports a speed claim | #113 (criteria.md) |
 | Enemy scale-up: an approaching feature grows x1.45-1.69 per 0.25s; our depth_to_scale() already predicts this within 5-11% | #121 spec |
 | Player jet screen-position distribution (arcade): cx sd 10.44pp, cy sd 11.99pp, 41% of frames >5pp off-centre; two regimes (cruise sd 12.88, canyon 2.59) | #122 spec + judge re-measure |
+| Modal colour estimation works on flat fills (sky mode share 97.8%) and FAILS on dithered grounds (mode share 5.7%; 10% sky contamination flips the mode) — methods don't transfer sky→ground | #124 spec |
+| Sky reaches the near-ground band on 69% of sampled frames (roll) — NO fixed screen region is reliably ground; use frame SELECTION, not masking | #124 spec |
+| Arcade stage-1 ground band hue swings 100° between frames (deep-blue sea + cyan crests + green island); stage 7 swings 80° — some grounds are genuinely two-hue | #124 spec |

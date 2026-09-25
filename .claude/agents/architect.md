@@ -52,6 +52,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **State visual-measurement thresholds in the units the RENDERER controls** (degrees of roll, not %W of tilt) — every pixel-unit↔code-unit conversion is a chance to ship the wrong target (#128: the %W rule's max was half the arcade's actual roll).
    - **Locate code by content anchors, not line numbers** — two specs in one session shipped drifted line references under concurrent edits (#116, #128); quote the signature/constant, not the line.
    - **Negative-control variant: check time SERIES for physical coherence**, not just individual fits — a smooth monotonic ramp is evidence a detector tracks the real thing; scattered plausible values are not (#128 roll ramp).
+   - **When criteria.md changes mid-task, re-read the rules your already-posted specs depend on** — a posted spec went quietly non-compliant for hours after a rule amendment (#121/rule 11).
+   - **A METHOD carried between issues needs its own re-validation, not just its output** — #123's modal estimator worked because skies are flat fills (mode share 97.8%); it fails on dithered grounds (mode share 5.7%) and 'do what #123 did' was a dead end (#124).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

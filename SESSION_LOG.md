@@ -1,5 +1,14 @@
 # Session Log
 
+### [2026-09-25 17:45] — TL — Retrospective: architect-comp #124 spec + #121 self-correction
+
+**Agent TLDR**: verbatim in its entry below. Key: #124 spec'd + relabeled with honest limits (method validates on single-biome saturated stages, FAILS on 4/8 tested — mixed-biome and low-saturation; ~half of 23 stages expected unmeasurable, left unchanged+annotated per #123 precedent; refused to hand over a contaminated 4-stage table). Root cause found for why #123's method didn't transfer: modal estimation needs flat fills (97.8% mode share) — dithered grounds sit at 5.7%. Data-model wall: our shader is one-hue-by-construction, arcade stage-1 ground is genuinely two-hue (100° swings). Self-corrected its own #121 criterion 5 after the rule-11 amendment made it non-compliant (replaced with two-sided ±12pp gate-time comparison). Quantified rule-17's masking consequence: sky reaches near-ground band on 69% of frames.
+
+**TL decisions**: stage-1 palette = SEA (island → #135 second-material design); rework order enforced (#121 remaining items + #120 + #122 before #135, #135 pre-authorized after amendments post).
+
+**Retrospective — applied**: criteria.md rule 11 standing two-sided rule; architect.md (mid-task criteria re-read; method-transfer re-validation); tl.md data-model representability check; 3 facts added to reference-facts.md. APPLIED.
+
+
 ### [2026-09-25 17:25] — TL — Retrospective: architect-113 #128 spec — posted; rule 17 corrected; gate next
 
 **Agent TLDR**: verbatim in its entry below; spec 5830841450 + line-ref correction. Key: colour-based sky mask tracks the COASTLINE on blue-sea stages — texture (local variance) is the discriminator; measured roll model from 42 fits (rigid rotation about screen centre, −6.2..+67.9°, sat 65-68°, 74.5°/s median rate, HUD fixed, smooth ramp as time-series control); design = rotate GameWorld Node2D (screen-fixed elements correct by construction) + screen_to_world() wraps on 4 collision sites (banked-collision drift is invisible in level screenshots — explicit weapons-while-banked AC); jet bank machinery exists but slews 6× too fast; BANK_FOLLOW honestly flagged as visually-tuned. Found rule 17's %W unit caps at HALF the arcade's roll.
