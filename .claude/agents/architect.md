@@ -73,6 +73,7 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **Per-biome operating stats are a CHECKLIST item per measured biome, not a general instruction** — #135 did the ocean exemplarily and skipped the canyon, the biome where detectors go out-of-regime.
    - **Prefer 'separates with margin N' to 'no overlap'** — two of three no-overlap claims died on an independent run; a margin statement survives both (#121).
    - **Second reference example: #124** — a blocking defect self-caught while working an adjacent issue, verified two ways, fix generalized not special-cased, failed first attempt published.
+   - **Detect by modelling SHAPE (template correlation, line fits), not by colour-threshold pixel counts** — pixel counting produced two confident wrong answers in one session (#128 edge guard, #129 presence test); when a metric disagrees with the eye, the eye wins and the metric gets replaced.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent

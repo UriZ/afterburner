@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-26 00:00] — TL — Retrospective: architect-113 #129 HUD spec — at gate
+
+**Agent TLDR**: verbatim in its entry below. Median-composite measurement (2 failed techniques published beside it); scope box present 25/25 (the one low correlation was a white cloud BEHIND the box — eye beat metric); hard case answered (HUD never occluded/recoloured — verified over cloud bank and at 64° roll; CanvasLayer gives it free); full layout measured ±0.3%W; missile readout is two sizes at two pitches; high_score STATE kept while the readout dies (feeds title/game-over); "no HI" AC phrased as absence + grep.
+
+**Retrospective — applied**: reference-facts ×3 (median composite; HUD-composites-last; shape-over-pixel-counting); criteria rule 14 cites the measured box; architect.md shape-modelling rule. Gate → judge-113-arch (judge-cycle-1 busy on #120). APPLIED.
+
+
 ### [2026-09-25 23:40] — TL — Retrospective: vqa-sky-115 #130+#134 — PASS 0 bugs; committed 5070df9; issues closed
 
 **Agent TLDR**: verbatim in its entry below. Freeze-time harness verification at both peak sizes (incl. MAX_BASE_RADIUS worst case); analytical claims spot-checked against git show HEAD (54.3px chord matches the cited 54); overlapping puffs occlude cleanly; live pass independently reproduced the vulcan tracer glow the dev had originally mistaken for the halo — folded into #133's scope. Suite-total drift (995→1028) correctly attributed to concurrent test additions, not regressions.
