@@ -1,5 +1,33 @@
 # Session Log
 
+### [2026-09-25 16:10] — TL — Retrospective: judge gate #114 impl — PASS 10/10; QA dispatched
+
+**Judge TLDR**: verbatim in judge's entry below; verdict 5830706450. All 4 corrections verified by execution (keycode control reproduced; offset exactly 1 both directions through the ACTION system — first confirmation via the API the game uses; 120/480 frames exact; wall-time span now 60-150% across 6 points; sidecar keys absent w/ visible discrepancy). Game diffs exactly minimal. Port allocator proven under live contention (suite ran 44/44 while judge-cycle-1 held 9595 — the exact original collision). Bonus observation: strips show our sky nearly empty vs AB2's busy sky — tool doing its job.
+
+**Retrospective — applied**:
+- CLAUDE.md: next_port() added as the port-allocation reference implementation. APPLIED.
+- Negative-control-on-assertions + physical_keycode: already applied earlier this session. DUPLICATES (3rd/2nd appearances — rules working).
+- #114 → qa-113-116 (fresh end-to-end, F+1 edges, seed paths, contention, off-checklist probe). architect-comp TLDR requested (specs landed on #120-#122; #124 disposition pending).
+
+
+---
+### [2026-09-25 16:10] — qa — #125
+**Task**: Verify the youtube-reference `--min-fps` fix for #125 (five checks) — independent reproduction of the 60fps cache, cache-hit behavior under real bash, loud-failure path, compare.sh compatibility, and full test suite.
+**Result**: PASS
+**Issues verified**: #125 (PASS)
+**New bugs filed**: none (followed up on existing #118 instead — see below)
+**Video evidence**: N/A — infrastructure/tooling QA, no gameplay capture involved.
+**Key findings**:
+- 60fps cache: `ffprobe` confirmed `1028x720`, `60/1`, `av1` on `ab2-longplay-60fps.mp4`. 30fps `ab2-longplay.mp4` checksum (`ec93f4ec1bca5798d409d4b7650911bc`) unchanged across every test, including an accidental `--force` invocation of mine that (per unchanged mtime) never actually reached the download step — no harm done, noted for the record.
+- Real `/bin/bash` (3.2.57, confirmed via `--version`) ran `--list` and a cached `--min-fps 60` invocation cleanly — 18s, "Using cached video", no re-download, no parse errors.
+- `--min-fps 120` (impossible for this source, tops out at 60fps) exited 1, named the exact format selector, printed the full `-F` listing, created no new cache file, and left both existing caches byte-identical.
+- `compare.sh --ref ab2-longplay-60fps.mp4 --ref-window 6:00-6:08 --game game-truespeed-2026-09-25.mp4 --name qa125`: exit 0, 3 strips + report. Read strip-01.png — legible 1028x720 AB2 reference row, correctly labelled.
+- `bash tests/run_all.sh`: 790 passed, 13 failed, all 13 in the known `test_jet_mesh_builder.gd` bucket. Suite clean.
+- Bonus: `tests/run_all.sh` is new since my last pass and explicitly cites #118 (the bug I filed verifying #117) in its header. Running it now shows `test_enemy_jet.gd`/`test_aiming_system.gd`/`test_title_screen.gd` all clean with no compile errors — the underlying identifier issue from #118 appears fixed. Commented on #118 rather than closing it myself (outside #125's scope).
+**Improvement Insights**:
+- **workflow**: when constructing an ad-hoc test command with output piped through a filter (`| true`, `| tail`, etc.), the exit code of the piped command masks the real command's failure — a script that silently no-ops looks identical to one that succeeds quietly. Check `$PIPESTATUS`/avoid piping through a discard when the exit code matters, especially for destructive-looking flags like `--force`.
+- **CLAUDE.md**: none — the fix's documented guarantees (dual cache naming, loud failure, real-bash parse fix) all held exactly as described once tested correctly.
+
 ### [2026-09-25 15:50] — TL — Convergence cycle 1 processed — FAIL 3/10; 7 issues filed; 3 fixes dispatched
 
 **Judge TLDR**: verbatim in judge-cycle-1's entry below; full evaluation #126 comment 5830645972. 15 ranked gaps; what held: #123 sky exact, horizon height, Super Scaler scale-up, weapons (proven via input-driven burst — flipped the verdict vs idle capture), kill-puff colour.
@@ -156,8 +184,8 @@
 
 **Key decisions**:
 - **Stage identity proven from the HUD, not inferred.** AB2 shows the stage number continuously at bottom-centre (x=376..414, y=426..450 of 686x480), not only on the transition banner. Read directly: t=355/360/365/370 -> STAGE 8 (the #120 evidence window); burst-a -> STAGE 2; burst-c -> STAGE 17. Independently corroborates dev-sky-115's #123 span table, which was derived separately.
-- **Six estimators built, five abandoned on their own controls.** Horizon: colour-seed split (-6.55 pp, breaks on our own sky gradient), per-column top-run (-44 pp, clouds truncate), deepest-sky-row (+19.6 pp, sky colour recurs in ground), narrow-band (-43 pp). The last failure is a finding in itself: **AB2's horizon tilts with player bank**, so no per-column method can work. Survivor: texture-split, control-validated at +1.19 pp against our build's known 62.50%H. It correctly REFUSES on canyon frames (separation goes negative) — canyon horizons come from a published row profile instead, which needs no estimator.
-- **Jet detector: five failed, one passed.** A per-pixel colour classifier cannot isolate the F-14 across stages (airframe S 0.09-0.70 overlaps explosion cream and snow ground completely; best attempt missed by 53 pp). Crop-then-centroid passed its control at -0.17 pp, and independently reports 36.0%W x 15.4%H on burst-a-02, matching criteria's separately-measured jet size.
+- **Five horizon estimators built, four abandoned on their own controls.** Horizon: colour-seed split (-6.55 pp, breaks on our own sky gradient), per-column top-run (-44 pp, clouds truncate), deepest-sky-row (+19.6 pp, sky colour recurs in ground), narrow-band (-43 pp). The last failure is a finding in itself: **AB2's horizon tilts with player bank**, so no per-column method can work. Survivor: texture-split, control-validated at +1.19 pp against our build's known 62.50%H. It correctly REFUSES on canyon frames (separation goes negative) — canyon horizons come from a published row profile instead, which needs no estimator.
+- **Jet position: one automated detector plus two rounds of hand-reading failed verification; crop-then-centroid passed.** A per-pixel colour classifier cannot isolate the F-14 across stages (airframe S 0.09-0.70 overlaps explosion cream and snow ground completely; best attempt missed by 53 pp). Crop-then-centroid passed its control at -0.17 pp, and independently reports 36.0%W x 15.4%H on burst-a-02, matching criteria's separately-measured jet size.
 - **#122's stated root cause is wrong, and the spec says so.** There is no default/attract flight in the codebase. The jet is centred because the evidence capture had no input (cx sd 0.40 = literally zero movement). Control envelope measured ample on all three axes, so the fix is a demo-flight controller (default OFF, live input always wins) with amplitudes solved from the measured sd — not control tuning, which would have risked criterion 4 for nothing.
 - **Latent bug found in #120's path**: `ground_terrain_2d.gdshader` declares `uniform float horizon_y = 420.0` and comments that GameWorld pushes it; nothing does. It works only because the default equals the const. A per-stage horizon would silently desync the shader from its own quad. Spec requires the push.
 - **Deferred scope is mechanically guarded.** #121 defers canyon walls (they rise above the horizon and would be overpainted by `_draw_sky`) and ground targets, with a required test that no feature rises above the horizon **plus a negative-control fixture proving the guard can fail**.
@@ -180,6 +208,7 @@
 - **Reusable finding for any masking work**: never use a horizontal split line. AB2's horizon tilts with bank (confirmed by a 43 pp disagreement between narrow-band and full-frame estimators on one frame), so per-row masking leaks a wedge of sky on every banked frame. Per-column is right for a MASK even though it is wrong for horizon ESTIMATION.
 - **Amended #121 criterion 5** to avoid the unsolved mask entirely: measure the single-hue rule over the union of the node's own drawn feature footprints, not over a screen band. It is the exact population the rule is about and needs no classifier.
 - **Corrected #120's merge-point note**: #123 committed as 7a7c4ef during this task, so stage_data.gd is clean and no rebase dance is needed — branch at/after 7a7c4ef.
+- **Self-caught and corrected an overstatement in my own #122 spec**: it claimed "five automated jet detectors" were abandoned; the true count is one automated detector (53 pp fail) plus two rounds of hand-reading (2/12 and 2/6 readings verified). Posted the correction on #122. No derived number changes. The #120 spec's "four abandoned estimators" was re-verified and IS accurate.
 
 **Improvement Insights**:
 - **[architect.md]**: the rule says prototype tooling before speccing; it should add "budget for the control to FAIL — five of six estimators here died on theirs." The instruction currently reads as if one control run confirms a method. Naming the abandoned attempts in the spec is what stops the next agent rebuilding them.

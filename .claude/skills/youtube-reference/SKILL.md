@@ -2,7 +2,7 @@
 name: youtube-reference
 description: Turn YouTube gameplay footage into local frame sequences any agent can read. Produces motion bursts (consecutive frames showing speed, scaling, and timing) plus a stage spread (terrain and palette variety). Use before any visual design, implementation, or review work.
 user-invocable: true
-argument-hint: "--url URL --name SLUG [--bursts \"150,420,700\"] [--burst-fps 4] [--force] [--list]"
+argument-hint: "--url URL --name SLUG [--bursts \"150,420,700\"] [--burst-fps 4] [--min-fps N] [--force] [--list]"
 allowed-tools: Bash, Read
 ---
 
@@ -52,9 +52,45 @@ bash .claude/skills/youtube-reference/fetch-reference.sh \
   --name ab2-night --bursts "300,900" --burst-fps 8
 ```
 
+## Getting 60fps footage (`--min-fps`)
+
+The default `--height 480` download of the 60 FPS longplay is not actually 60fps: YouTube
+only muxes the higher frame rate at 720p and above for that source (verified with
+`yt-dlp -F` — every format at 480p and below is 30fps; 60fps exists at formats 298/398/302
+1028x720). `--height 480` alone can never yield it, no matter which URL you point at.
+
+```bash
+bash .claude/skills/youtube-reference/fetch-reference.sh \
+  --url "https://www.youtube.com/watch?v=65weTx0haog" \
+  --name ab2-longplay --min-fps 60
+```
+
+- Adds an `[fps>=N]` term to the yt-dlp format selector.
+- Auto-bumps the default `--height` to `720` when you don't set one explicitly — otherwise
+  `[height<=480][fps>=60]` matches nothing and the download fails outright.
+- After download, `ffprobe`'s `r_frame_rate` is checked against `--min-fps`; a short-of-target
+  result fails loudly with the exact selector used and the source's full format list, rather
+  than silently accepting a lower fps.
+
+**Dual-cache layout — the 30fps and 60fps copies never collide.** A `--min-fps` run is cached
+and extracted under `<name>-<min-fps>fps` (e.g. `ab2-longplay-60fps`), not `<name>`:
+
+```
+.reference-cache/video/ab2-longplay.mp4          # existing 30fps copy, untouched
+.reference-cache/video/ab2-longplay-60fps.mp4     # new, ~300-380 MiB
+assets/reference/motion/ab2-longplay/             # 30fps frames, untouched
+assets/reference/motion/ab2-longplay-60fps/        # 60fps frames
+```
+
+Running one never modifies or deletes the other, in either order. This 60fps copy is what
+the #113 §12 fps-decimation entry gate and any future quantitative speed metric (#114) need
+as the reference side — the 30fps copy fails that gate (measured ratio ~0.92 against a true
+0.5, see #113).
+
 ## Output
 
-Frames land in `assets/reference/motion/<name>/`:
+Frames land in `assets/reference/motion/<name>/` (or `<name>-<min-fps>fps/` for a `--min-fps`
+fetch):
 
 - `burst-a-01.jpg` … `burst-a-12.jpg` — consecutive frames, 0.25s apart by default. **Read these in order.** This is where motion lives.
 - `stage-01.jpg` … — spread across the run, for stage, terrain, and palette variety.
