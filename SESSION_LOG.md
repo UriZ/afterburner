@@ -1,5 +1,14 @@
 # Session Log
 
+### [2026-09-26 03:00] — TL — Retrospective: re-gates #121 PASS 9 / #135 PASS 9 — all composition specs approved
+
+**Judge TLDR**: verbatim in its entry below. #121: corrected operator reimplemented from amendment text alone — every discriminator value exact (counts 1/0/0/4; widths incl. 22.59); the retraction goes PAST the judge's finding (stage-2 inverts the overlap; /10k-px normalization kills the judge's own accepted discriminator — judge agrees); §5's open statement of the automated-gate reduction earns the pass. #135: AC 6 distribution reproduced to the digit; the p90 tail clause closes a hole the judge's own recommendation would have left; wall control holds at ~50x separation on independently hand-picked regions; stage-8 durably barred until re-control. Step 16 measurably working (architect fixes beat judge remedies twice more).
+
+**Actions**: #124 impl → dev-125 (rebased on committed f99baff; honest-limits + crop-rectangle rules in prompt). #121/#135 impls queue for freed devs (#121 ground features; #135 after #124).
+
+**Retrospective — applied**: architect.md (publish control rectangles); criteria.md (median+tail+spread model above ~3x); judge.md 15aa (reimplement-from-text). APPLIED.
+
+
 ### [2026-09-26 02:30] — TL — Retrospective: dev-113-116 #138 music wiring — in QA; TWO project-level finds
 
 **Agent TLDR**: verbatim in its entry below. Finds: (1) the committed .ogg is FLAC-in-Ogg — this ffmpeg has no libvorbis and silently falls back (recipe right, toolchain lied); dev correctly did NOT install dependencies (proposed instead), shipped lossless WAV native import — sample-exact gapless loop verified empirically (loop_mode enum trap: 1=Disabled, 2=Forward; seam step 6490 vs p99 22125). (2) audio_manager.gd:100 muted Master unconditionally — the project has NEVER had audible audio; every audio test passed silent. Music bus −12dB vs SFX −6dB; phase-polled start (no setter/signal on phase — didn't edit unowned game_state.gd); title chip-tune now stopped (would have double-played); caught own #118-class bare-name regression via the runner (221 assertions un-silenced).

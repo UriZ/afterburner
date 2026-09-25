@@ -80,6 +80,7 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **When comparing counts between sources, normalize by analysis area** — raw counts over 28- vs 94-row bands were never comparable; normalization dissolved a claimed separation (#121).
    - **Before proposing any numeric bar, run it against the REFERENCE frames and confirm they pass** — a bar the arcade fails can never be right; would have caught all three #121 misses.
    - **Window any search region to the ELEMENT, not the band** — band-wide searches swallowed adjacent glyphs into bboxes twice at one gate, producing plausible wrong extents (#129); the same error class produced the spec's own abandoned presence count.
+   - **Publish the crop/region rectangles with any control** — raised twice (#124, #135): a control whose regions are unstated re-runs to the same conclusion but not the same numbers; half a control.
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
