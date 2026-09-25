@@ -1,5 +1,37 @@
 # Session Log
 
+### [2026-09-26 11:40] — TL — Retrospective: #131 re-gate PASS 10/10 — impl-ready
+
+**Judge TLDR**: verbatim in its entry below. All figures recomputed exact (binding analysis, per-formation ranges to the decimal, live constants read); multiplicative fix verified (0.00° at zero drift every phase vs ±20.05° additive); AC 1a's decisive property: the ORIGINAL spec's configuration computes 54.43° and FAILS it — the criterion catches the defect it was written in response to; two-sided (over-scaling also fails). One-sentence note routed (BASE+AMOUNT sum pinned ±3.5% by 1a). Judge names the session pattern: an amendment finding a second defect while fixing the first is the signature of re-deriving rather than patching.
+
+**Retrospective — applied**: architect.md (achievable range PER CASE); criteria.md AC-template rule (deterministic+observational halves; new bars must fail the defect they were written for). #131 → implementation queue. APPLIED.
+
+
+### [2026-09-25 06:05] — judge — #131 amendment 1 (scoped re-gate)
+
+**Gate type**: per-agent, scoped to amendment 1; original verdict's confirmed parts stand
+**Verdict**: PASS
+**Score**: 10/10 (threshold 9)
+**Gated comment**: id 5838468158 (19:39:12Z), newest on the issue; freshness re-read showed no amendment. Original FAIL was id 5838409166 (judge-cycle-1).
+**Key gaps**: none. One observation: the confidence note calls BANK_OSC_BASE/AMOUNT freely tunable, but they enter AC 1a via their SUM — at scale 8.3 the criterion admits BASE+AMOUNT only in [0.9638, 1.0339], ~+/-3.5% around 1.00. RATE is genuinely free; the factor SPAN is pinned unless the scale moves with it. One sentence in the note.
+
+**Verified by recomputation (every number reproduces exactly)**:
+- Shipped baseline matches the amendment's "from" column: enemy_jet_2d.gd:84-85,167-168 give MAX_BANK_RAD 0.6109, BANK_DRIFT_SCALE 5.0, clampf(_x_drift*SCALE, ±MAX). Four formation drifts live in game_manager_2d.gd: leader ±0.05 (219), V wingmen ±0.10 (232), line ±0.07 (249), scattered ±0.12 (259) — §5's "untouched" claim holds.
+- **Binding**: OLD 0.12x5.0 = 34.38° vs clamp 35.00° -> headroom 0.62°, clamp never engages. NEW 0.12x8.3 = 57.07° vs clamp 60.00° -> headroom 2.93°. G1 necessity: new peak truncates to EXACTLY 35.00° at the old clamp. All four exact.
+- **Per-formation ranges** all reproduce to the decimal: 2.4-23.8 / 3.3-33.3 / 4.8-47.6 / 5.7-57.1, swings 21.4/30.0/42.8/51.4. Osc factor 0.55+0.45sin spans exactly [0.10,1.00]. AC 2's >=15° satisfied by all four, V leader tightest at 21.4°.
+- **Multiplicative fix**: at zero drift gives 0.00° at EVERY phase (level flight); old additive gives ±20.05° at phase ±pi/2 — confirms the "constant ±20° roll" description precisely. Ceiling preserved: 0.12x8.3x1.00 = 57.07°, under the 60° guard. This defect was NOT in the original FAIL — the amendment found it while fixing what was.
+- **AC 1a** (bar 57±2 = [55,59]): corrected build 57.07 PASS; **clamp-only build 34.38 FAIL by 20.6°**; untouched shipped 34.38 FAIL; **the original spec's own config (5.0, clamp 60, additive 0.35) = 54.43 FAIL**. That last row is the real test — AC 1a retroactively catches the exact defect the old ">45°" bar passed. Also two-sided: scale 12 clamps to 60.00 and falls outside the band, so it pins the ceiling rather than setting a floor.
+- **§0 adoption**: recomputed the body-tier value spreads from enemy_sprite_renderer.gd rather than adopting them — type 0 = 0.102, type 1 = 0.251, type 2 = 0.219. The quoted 0.102 and 0.219 are exact. Diagnosis follows: same renderer/layers/geometry, only the colour table's value spread differs, so G2 is correctly a colour-table change and "add shading" would have been the wrong fix. G2's >=0.20 target puts type 0 alongside types 1 and 2.
+
+**Honest assessment**: model amendment. It accepts the FAIL, reproduces the error exactly, finds a SECOND defect the gate missed (additive oscillation giving a non-turning enemy a permanent ±20° roll), and rebuilds the acceptance criterion so that it would have caught the original defect. Everything verifies.
+
+**Improvement Insights**:
+- architect.md: publishing the ACHIEVABLE RANGE PER CASE rather than a single headline number is what made this verifiable in one pass. A ceiling alone can't be checked against "varied bank angles"; four ranges and their swings can, and they let me confirm AC 2 with no capture.
+- criteria.md: record AC 1a's shape as a template — deterministic half computed from the constants, paired with an observational half. The deterministic half removes sampling luck from a visual criterion, and the test of whether it's set right is that it FAILS the build that caused the original FAIL. Require new numeric ACs to be checked against the defect they were written for.
+- General: an amendment that finds a second defect while fixing the first is the sign the author re-derived rather than patched. Worth the retro alongside #114's control.
+
+---
+
 ### [2026-09-26 11:10] — TL — Retrospective: architect-comp #132/#133 amendments — impl-ready
 
 **Agent TLDR**: verbatim in its entry below. #133's guard rephrased to ARITY not value (the variable-alpha real code would have passed its own guard; fixture now mandates the exact variable form — third literal-vs-variable blindness in one batch). #132's HUD rect extended to cover the #129 scope box (phantom bank on the canonical cloudless frame killed; 76%→69% occupancy restated on own set for internal consistency); height/width bias separated (direct vs selection — opposite treatments); white-jet ambiguity adopted as load-bearing text; #133 background figure reconciled to the honest 0.0118 (still 15x separation).
