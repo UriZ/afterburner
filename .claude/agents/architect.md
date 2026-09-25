@@ -88,6 +88,8 @@ Additionally, view ALL 9 reference screenshots in `assets/reference/` with the R
    - **An ANALYTIC known answer beats a measured one** — #139's control derives its expected value from the shader's own coordinate recovery rather than calibration; pre-declared tolerance, stop-on-miss, and doubles as a knee-finder.
    - **When adding a new visual element, name every existing detector whose assumptions it violates** — #132's clouds break the #128 roll detector (boundary at a cloud edge) AND the #124 variance gate (a cloud-filled crop passes as sky); both must re-validate on cloud-bearing frames before their numbers are quoted again.
    - **Sanity-check every measurement against where the thing can PHYSICALLY be** — nearly free, complementary to controls: a 'cloud bank' at 48-55%H spanning 100%W is the horizon haze band, caught only because the numbers were absurd (#132).
+   - **Verify the premise against the CODE before speccing the delta** — #131's stated gap ('flat single-fill, zero bank') was substantially already implemented (#100); a rebuild spec would have discarded gate-verified work and reintroduced fixed defects. Same discipline as reference numbers: verify, then spec what's actually missing.
+   - **Before trusting a masked measurement, report what fraction of the window the mask selected** — >50% or <1% is a red flag it found background or nothing; one pre-check covers three separate method failures (#131: 87,310px 'nozzle' was the orange sky).
 3. **Choose technologies** — evaluate tradeoffs, recommend libraries/services with clear reasoning
 4. **Design API routes** — request/response schemas, error handling, validation rules
 5. **Review implementations** — verify they match specs and architectural intent
