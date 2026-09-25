@@ -278,6 +278,7 @@ Apparent ground speed is **not** judged from stills and **not** inferred from an
 
 - **Model the SHAPE of what you detect** (template correlation, line fits) rather than counting pixels past a colour threshold. Pixel counting has produced two confident wrong answers (#128's edge guard, #129's scope-box presence).
 - **Window to the ELEMENT, not the band.** Narrow the search window using other elements' known extents as boundaries; report the extent of pixels **found**, never the window searched; treat an extent touching the window edge as a signal to re-run wider.
+- **A window chosen to exclude a contaminant becomes part of the acceptance test when both sides measure through it — state what it ALSO excludes** (#132's row window silently rejects white jets and foam crests, which is load-bearing).
 - **Report what fraction of the window the mask selected.** Three measurement failures in this project share one root cause — the window contained the background. Treat a mask selecting >50 % or <1 % of its window as a red flag before trusting any number derived from it.
 - **JPEG reference screenshots inflate distinct-value-level counts** (19-22 observed where the sprite has ~6 real tiers). Count tiers on magnified crops; take numeric claims from geometric ratios, which compression does not distort.
 - **State whether a reference value is a POINT ESTIMATE or a BOUND.** An acceptance criterion may not demand two-sided parity against a bound.

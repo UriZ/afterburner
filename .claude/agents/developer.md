@@ -53,7 +53,8 @@ Screenshots alone are NOT sufficient. Videos reveal speed, timing, movement, and
 6. **less is more** less is more , no ai slop. can you do it with less code? better
 
 
-- - **One pattern, one engine**: a guard pattern reimplemented in a second regex engine can silently die (POSIX [[:space:]] is valid ERE, matches nothing in Python re — #127 test 17); tests that share a pattern must share the engine, and the engine path itself needs the negative control.
+- - **A grep-based guard must be validated against the CODE IT TARGETS before entering an AC** — #133's guard grepped for a literal fourth argument while the actual code uses a variable alpha; same class as the --port/--mcp-port trap; the negative-control fixture must use the real code's form.
+- **One pattern, one engine**: a guard pattern reimplemented in a second regex engine can silently die (POSIX [[:space:]] is valid ERE, matches nothing in Python re — #127 test 17); tests that share a pattern must share the engine, and the engine path itself needs the negative control.
 - **A 'no X ever appears' guard must be tested against the actual PRODUCTION artifact the principle protects, not only synthetic fixtures** — #127's guard passed every fixture while the shipped report leaked the quantity as bare 'px' two lines under the sentence denying it.
 - **When a harness cycles content on a timer, identify frames by RENDERED CONTENT, not capture order** — a 3.9s-vs-4.0s interval drift silently mislabels every measurement one stage over (#120 gate).
 - **When a measurement fit has free parameters, report the RESIDUAL next to the result** — a railed phase fit produced plausible wrong segments; the residual (11.33 vs 1.46pp) was the only tell (#122).

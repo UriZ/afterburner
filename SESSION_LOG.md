@@ -1,5 +1,70 @@
 # Session Log
 
+### [2026-09-26 09:00] — TL — Retrospective: #132 PASS 9 / #133 PASS 9 — in-place fixes routed
+
+**Judge TLDR**: verbatim in judge-113-arch's entry below. Both segmentations reimplemented from text alone; #132 reproduces component-for-component (five statistics exactly); haze self-catch verified; the flat-sky fact's cloudless premise confirmed BY ACCIDENT (t=94 inspected). Two #132 reproductions (scope-box leak into the cloud classifier — matters because AC 1 runs on OUR build gaining that box via #129; truncation bias on height/aspect). Near-miss published: white jets are classifier-identical to white clouds — the row window is load-bearing. #133 exact on all measurements; deferral premise verified by eye (the night STAGE digit is an 18-pixel glyph, genuinely unassignable); AC 3's grep would miss the actual variable-alpha code it targets.
+
+**Retrospective — applied**: reference-facts (flat-sky fact sourced+qualified; white-jet/cloud ambiguity); criteria G7 (windows state what they also exclude); dev defs (validate grep guards against target code); architect.md (pixel exclusion rects). Fixes → architect-comp in place; both specs then queue for developers. APPLIED.
+
+
+### [2026-09-26 06:40] — architect — #131 (amendment 1, judge rework)
+**Task**: Fix #131's FAIL 8/10 — §3.1's binding analysis inverted.
+**Result**: COMPLETED. https://github.com/UriZ/afterburner/issues/131#issuecomment-5838468158 — `judge-fail` cleared, back to `bug,developer`. Ready for the scoped re-gate.
+
+**The FAIL is correct and every number reproduces exactly. I had the binding constraint backwards.**
+```
+max |drift| 0.12 x BANK_DRIFT_SCALE 5.0 = 0.6000 rad = 34.38 deg
+MAX_BANK_RAD 0.6109                     =              35.00 deg   -> headroom 0.62 deg
+```
+The clamp **never engages** — the drift x scale product peaks 0.62 deg below it. So my "the clamp is what binds" was exactly wrong, G1 alone was **inert**, and worse, the spec forbade touching `BANK_DRIFT_SCALE` — the only lever that moves anything — on that false premise. A developer would have raised 35->60, captured, seen no change, and had nothing in the spec to explain why.
+
+It compounded: my specified additive osc gave a ceiling of 0.60+0.35 = 0.95 rad = **54.43 deg against the 57 deg reference I cited myself**, and AC 1's ">45 deg" bar could not see the 2.57 deg shortfall. **The spec could not reach its own stated target and its own AC could not detect that.** Both new architect.md rules exist because of this.
+
+**Fix**: `BANK_DRIFT_SCALE` 5.0 -> **8.3** (sets the ceiling: 0.12 x 8.3 = 0.9960 rad = **57.07 deg**, matching the measurement); `MAX_BANK_RAD` -> 1.0472 (60 deg) as a **guard with 2.93 deg headroom that does not bind**. Raising the clamp is still *required* — at the old 0.6109 the new 57.07 peak truncates to 35.00 — so G1 is **necessary but not sufficient**, the inverse of what I wrote. Published the achievable range per formation as the new rule requires: V leader 2.4-23.8, line 3.3-33.3, V wingmen 4.8-47.6, scattered 5.7-57.1 deg.
+
+**Second defect found while fixing the first**: the additive oscillation gave a **zero-drift enemy a constant +/-20 deg roll for no reason** — an aircraft that is not turning should not be banked. Changed to **multiplicative** (factor in [0.10, 1.00] modulating the characteristic bank), which also lets an enemy roll back toward level instead of oscillating around a fixed offset.
+
+**AC 1 split into two halves, one deterministic**: 1a computes the ceiling from the constants and requires **57 deg +/- 2 deg** — it cannot be passed by a lucky draw or missed by an unlucky one, and **a build that raises only the clamp fails it immediately**, which the old AC did not. 1b keeps a capture check at >= 50 deg observed. Kept the confidence note distinguishing the three oscillation constants (unmeasured visual) from `BANK_DRIFT_SCALE` (derived arithmetically from the measured 57 deg ceiling).
+
+**Adopted the gate's side-by-side into §0** — it isolates the cause better than my table: two enemy types, same renderer, same frame, same eight layers, and only type 0 reads as flat, because its value spread is 0.102 against type 2's 0.219. That is exactly why G2 is a colour-table change and why "add shading" would have been the wrong fix.
+
+**Improvement Insights**:
+- **architect.md (beyond the two rules just added)**: when a spec says "leave constant X alone", that justification needs the same arithmetic as a change to it. My "leave `BANK_DRIFT_SCALE` alone" sentence carried a claim about what binds and was never checked — a *negative* instruction hid an unverified premise, which is harder to spot than a wrong number because nothing looks like it needs verifying.
+- **workflow**: this is the second defect this session found only by computing the achievable range rather than the target (the first was #139's AC 2 demanding two-sided parity against a bound). Both are the same shape: **a criterion that the system cannot reach, stated as though it could**. Computing reachability before writing any AC would have caught both.
+- **criteria.md**: the deterministic/observational AC split used here generalises — where a target is a function of constants, assert it on the constants and use the capture only to confirm it reaches the screen. Sampling-dependent ACs cannot distinguish "wrong constants" from "unlucky capture".
+
+### [2026-09-25 05:40] — judge — #132 + #133 (architect specs, batch)
+
+**Gate type**: per-agent (architect) x2
+**Verdicts**: #132 **PASS** 9/10 (2 reproductions) · #133 **PASS** 9/10 (3 minor corrections)
+**Gated comments**: #132 id 5834299828 (14:43:41Z, only comment) · #133 id 5838316572 (19:26:46Z; earlier id 5834001618 is the #134 scope addition, folded into §3.2). Freshness re-read immediately before posting on both — no amendments.
+
+**Method**: rule 15aa — reimplemented BOTH segmentations from spec text alone, no re-invocation of the architect's tooling.
+
+**#132 reproduced** on my own 25 HUD-verified stage-1 frames (t=94-118, the set I proved STAGE 1 on at #129): occupancy 72% vs spec 76%; banks/frame median 1 p90 5.0 vs 1/5; width median 9.62 vs 9.33; width max 42.27 EXACT; height max 37.71 EXACT; centroid Y median 25.0 and p90 41.1 BOTH EXACT; coverage p90 7.49 vs 7.44. Maxima and centroid quantiles landing exactly = same objects measured. Haze self-catch confirmed: removing window+width discard finds components at median width exactly 100.0 %W at the horizon. Detector-impact mechanism in §2 is correct AND I confirmed its premise incidentally — reference-facts' "sky is flat fill, zero variance" cites t=94, and t=94 is the frame I inspected: flat blue, no clouds. t=118 in the same span has a large bank. The fact really was measured on a cloudless frame.
+
+**#132 reproductions to satisfy**:
+1. **HUD exclusion rect too short — the classifier reports the scope box as a cloud.** On t=94 (the frame reference-facts calls CLOUDLESS) the spec's classifier reports one bank: bbox x506 y86 120x16 = 17.5 %W. I boxed it and looked: it is the lower bar of the HUD fixed scope box. Rect stops at y=82; #129's own measurement puts the box at 10.4-21.7 %H = y50-104. Extending to y=105: occupancy 72%->68%, detections 45->44, width median 9.62->9.33 (lands on their published value). Impact small, BUT AC 1 uses this classifier on OUR build and #129 is adding that very box to our HUD — the leak would score a phantom bank with zero clouds rendered.
+2. **34% of banks (15/44) are vertically truncated by the 45%H cut.** Truncated: height median 17.50 %H, aspect 1.05. Untruncated: 6.46 %H, aspect 0.94. Pooled height median 6.67 is biased low, aspect 1.02 biased high — and §3.3 sets the cloud model shape from "aspect ~1.0 (measured)" while AC 2 tests against those pooled figures. WIDTH is unaffected (horizontal cut can't change width), so width stats stand.
+
+**Near-miss reported in the verdict (rule 15b)**: I first measured 55 components entirely below 45%H (2.20/frame, width median 8.31 %W — indistinguishable from counted clouds) and nearly filed "the window discards two-thirds of the clouds". Then I looked at pixels: on t=94, the frame with the MOST such components (8), every one is an aircraft fuselage or sea-foam wave crest — the jets are white, S<0.25 V>0.80. On t=118 they genuinely are cloud. Population is mixed; the window does MORE protective work than §1 credits (excludes aircraft and foam, not just haze) while also truncating real banks. The classifier cannot tell a white jet from a white cloud; the row window is what saves it.
+
+**#133 reproduced EXACTLY** on ab2-arcade-night-missiles.jpg (confirmed 181x127): extent 48x27 = 26.5 %W x 21.3 %H exact; continuity 48/48 = 100% exact; thickness 3.0/2/4/7 exact; 2.36 %H -> 16 px at 672 exact; colour mean RGB (94,14,14) exact; interior min V 0.180 exact; quintile ratio 2.71x vs 2.7x. Only background median V differs (0.012 vs 0.004) — immaterial.
+
+**#133 code claims all exact**: vulcan_bullet_2d.gd:91 is the alpha glow `Color(1.0,1.0,0.6,0.35)` commented "# Outer glow"; game_world.gd:192-198 `_draw_bullet_obj` ends in the flat orange disc; missile_2d.gd:168-175 is the bead chain with `a = 0.95*pow(...)` and the exact three colours §3.1 keeps. **Disjointness verified by line number**: _draw() call list 91-93 (#132/#135), _draw_sky() 98 (#120/#128), _draw_sorted_objects() 166, _draw_enemy_obj 184, #133's hunk _draw_bullet_obj 192. No overlap.
+
+**#133 deferral premise verified by looking, not accepting**: the night frame's bottom HUD band IS legible (SPEED, mode letter, bar, STAGE all readable) so the stage FIELD exists — but cropping the digit at 24x gives a ~4x5 px glyph, 18 px above V=0.5, ambiguous between 2/3/5/6/8. Not assignable under rule 7. Deferral correct. Both guards clean against the current tree: the StageData/stage grep over scripts/weapons/*.gd returns nothing today, so it fires on real regressions.
+
+**#133 minor corrections**: (1) AC 3's alpha grep "Color( with a fourth argument < 1.0" CANNOT evaluate `Color(1.0,1.0,1.0,a)` — alpha is a variable in the exact code this issue removes; rephrase as 4-arg Color whose 4th arg is not literally 1.0. (2) "HUD bands excluded" not dimensioned for this image (unlike #132's exact rects) — I get 13 components vs the stated 9; doesn't affect the ribbon. (3) background-V region unstated.
+
+**Improvement Insights**:
+- reference-facts.md: the "sky is flat fill, zero local variance" entry must carry its source frame and the cloudless caveat. #132 §2 is entirely about the downstream damage one unqualified fact causes; fix it at source.
+- criteria.md: a measurement window chosen to exclude a contaminant becomes part of the acceptance test when both sides are measured through it. Any such window must state what it ALSO excludes — here it silently removes aircraft and sea foam (a virtue) and truncates a third of the banks (not).
+- criteria.md/testing: a grep-based guard must be validated against the code it is meant to catch BEFORE being written into an AC. #133 AC 3 and the #114 --port/--mcp-port incident are the same failure class. The negative-control fixture #133 §2 already mandates is the general remedy — require it for every grep-based AC.
+- architect.md: publish exclusion rectangles in pixels whenever a segmentation is published for a specific image. The two specs gated together differ on exactly this and only #132 reproduces component-for-component.
+
+---
+
 ### [2026-09-26 08:20] — TL — Retrospective: #120 SHIPPED (34a546c); #131 FAIL routed; #137 spec at gate; #145 filed
 
 **vqa-sky-115 TLDR**: verbatim below. #120 verified under REAL motion (230s live auto-advance to stage 8; 24 moving frames; dev's own classifier median 15.48%H in-band; enemies correct in thin sky; strips structural match). Non-blocking finds routed: canyon haze 80-135px vs 6-20px reference (→#121), stage-8 palette biome (→#124), 3rd sighting of transient sky-colour glitch (→NEW #145 per standing rule). Fair pushback on my idle-nudges (it was blocked on real-time waits — tl.md updated).
