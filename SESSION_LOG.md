@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-26 10:40] — TL — Retrospective: dev-113-116 #129 HUD impl — in visual QA
+
+**Agent TLDR**: verbatim in its entry below. All 11 ACs pass (16/16 positions ±2%, colours dmax 0, box 72/72 with a genuine can-fail negative control — gated off → 0/10 → restored byte-identical). THREE self-caught defects: the window-as-result failure committed one message after reading the warning (own <window-clipped> flag caught a 3-vs-4 icon miscount); BlockFont square-pixel trap rendering the stage digit invisible at 1px/cell; a false colour mismatch from h264 chroma bleed (lossless re-measure exact). Design calls: gold speed pip is a MOVING band not a prefix fill; structural rule-14 tests (indentation + no-locked_enemy grep) as the cheapest proof no conditional crept in.
+
+**Retrospective — applied**: reference-facts (lossless-colour rule); criteria G7 (window-edge touch = auto-invalid, with teeth); CLAUDE.md (BlockFont trap; .uid commit policy settled). Test-17 status queried (missing from #127); #139 assigned to dev-113-116 after it; #129 → vqa-sky-115. APPLIED.
+
+
 ### [2026-09-26 10:00] — TL — Retrospective: judge #137 gate — FAIL 8/10; fixes routed
 
 **Judge TLDR**: verbatim in its entry below. Shrink-not-fade verified twice (decay law 0.150-0.179 vs 0.155 under a DIFFERENT radius definition — robustness, not luck; explosion A near-exact); found stronger saturation evidence than the spec (span pinned while area moves 67%). FAILs: AC 5's unstated component-size filter (unfiltered count runs BACKWARDS); AC 3 inverted on the bright stage-2 sky (an alpha fade would PASS the anti-fade bar; AC 4 is the true discriminator).
