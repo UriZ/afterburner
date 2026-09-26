@@ -1,5 +1,30 @@
 # Session Log
 
+### [2026-09-26 18:40] — TL — Retrospective: HUD SHIPPED (a85c7e2); #129+#147 closed; #150 filed
+
+**vqa-129 TLDR**: verbatim in its entry below. Base-8 model independently re-derived (own frames matched the dev's table exactly; the lone invalid 4L+8S frame correctly attributed to a one-frame artifact in the ARCADE'S OWN footage); live borrow verified (50→6L+2S, fire→5L+7S); one-anchor layout confirmed by exact pixel shift (24px = one large pitch); the hardened test fails its author's own defeat naming the line; new off-checklist find: a match-statement guard evades the keyword scanner → #150 (indentation-depth scanning; third defeat round — keyword lists always have one more keyword).
+
+**Retrospective**: HUD committed a85c7e2 (narrow staging — the tree carries in-flight #128/#133/#131 work); #129/#147 closed; #150 filed low. The fire-cooldown rig note logged. Insights about scanner generalization live in #150 rather than criteria (implementation detail). APPLIED.
+
+
+### [2026-09-26 18:15] — visual-qa — #147, #129
+**Task**: Re-verify the #147 fixes to the #129 HUD (base-8 missile model, one-anchor contiguous-row layout, mode-letter blue colour, hardened structural test) against my own prior QA findings.
+**Result**: PASS (0 new bugs; 1 residual test-coverage gap noted, non-blocking)
+**Issues verified**: #147 (PASS), #129 (PASS)
+**New bugs filed**: none
+**Video/frame evidence**: fresh frame pulls from `.reference-cache/video/ab2-longplay-60fps.mp4` at t=94-105 (own extraction, not re-checking the dev's), lossless `assets/reference/ab2-arcade-desert.png` cross-check, live captures on port 9635 (`set_capture_invincible` on) before and after firing missiles
+**Key findings**:
+- Base-8 model (`large=floor(n/8)`, `small=n%8`) reproduces on 5 of 6 independently-pulled points (5+0 at t=94/95, 4+3 at t=100, 4+1 at t=101, 3+7 at t=105) plus the lossless desert.png cross-check (3L+7S exact). One isolated frame (t=96.0) read 4L+8S, an invalid base-8 state — flagged as most likely a one-frame render-order artifact in the arcade's own original footage (two independent sprite writes caught mid-update), not evidence against the model, since it doesn't recur and both neighbours are clean.
+- Live: default `missile_count=50` renders 6L+2S exactly, confirmed by both eye and a pixel-column classifier (large icons measured 41px tall vs 35-37px small — a real, measurable distinction). After firing, updated to 5L+7S (n=47) — no longer frozen. Could not reliably reproduce the dev's exact "fire 12 → 38" example due to the 0.4s `MISSILE_FIRE_COOLDOWN` interacting with remote-input round-trip latency on this concurrently-loaded machine — a limitation of my test rig, not a HUD defect.
+- One-anchor contiguous-row claim confirmed by direct pixel measurement: first small icon shifted exactly 24px = 2.50%W left when large count dropped 6→5, matching `MISSILE_LARGE_PITCH` (2.5%W) exactly — a two-independent-boxes model would show zero shift.
+- Mode-letter blue confirmed live (clean blue "H" on the light plate).
+- Hardened structural test: reproduced my exact original early-return defeat in an rsync'd scratch copy (md5-verified untouched afterward) — hardened test correctly fails it, 94/1, naming the exact inserted line, matching the dev's claim precisely.
+- New off-checklist probe: tried a boolean short-circuit guard (`cond and _draw_scope_box()`) first — GDScript's own type system rejects it at compile time (void can't be used in a boolean expression), closing that vector for free. A **`match` statement** guard, however, bypasses the hardened scanner cleanly (compiles, genuinely re-gates the box, and the test still reports 95/0) — the scanner checks for `if`/`elif`/`else`/`return` keywords but not `match`. Not a live bug (shipped code has no such construct); flagged as a residual, non-blocking gap.
+- `test_hud_layout.gd`: 95/0, matches the dev's claim exactly. Grand total drifted further since #124's QA pass (now 1197/13) purely from other concurrent agents' unrelated work — per-file counts are what's evidentiary on this shared tree, third time this exact pattern has shown up today.
+**Improvement Insights**:
+- **`.claude/agents/qa.md` / criteria.md G7**: "scan by indentation depth relative to the function's base level, not by enumerating guard keywords" is the general fix for the `match`-bypass gap — worth stating as a standing rule for any future "is this call unconditional" structural test, since keyword enumeration will always have one more keyword (already 3 rounds deep on this exact guard: literal-line match → indentation+string match → keyword-scan — each fix closed the previous specific defeat while leaving the general class open).
+- **workflow**: live remote-input timing (bridge `key` command + cooldown constants) is unreliable for reproducing an EXACT fire count on a loaded shared machine — worth documenting the known-good pattern (space presses well beyond the relevant cooldown, verify via the weapon/cooldown constant first rather than guessing an interval) so the next agent doesn't burn a capture cycle discovering this the same way I did.
+
 ### [2026-09-26 18:00] — TL — Retrospective: dev-124-139 #139 — SPEED CLOSED (in QA); #149 filed
 
 **Agent TLDR**: verbatim in its entry below. AC 1 analytic control PASS 1.940x at 120fps (three-rate sweep revealed a usable estimator BAND); chased a 32% baseline disagreement before deriving anything (motion-metrics' 0.12/0.12 crop — a full-frame driver reads 28% low; the shipped constant would have been silently wrong); cruise 2.8/stage-8 0.804/stage-17 0.752; AC 2 bound-closure certified 97.48 vs ≥95.7; AC 4's K-fit re-solved after the verdict flipped across the boundary between two references (0.999/0.989 final); the sed no-op trap caught twice (a no-op perturbation reads as a vacuous guard — good tests nearly deleted); own first regime-invariant test corrected for the very bound-vs-point discipline this issue taught. Deviation (stage 17 regime assumption) ENDORSED. Tooling gap → #149 (we changed our speed past our own tool's measuring range).
