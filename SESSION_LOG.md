@@ -1,5 +1,14 @@
 # Session Log
 
+### [2026-09-26 13:30] — TL — Outage #3: prior agent sessions TERMINATED; fresh team spawned
+
+Spend limit killed 5 agents mid-task (~19:46) and this time the sessions are gone from the roster entirely (not resumable). Work survived on disk: #129 HUD (implemented, was mid-QA), #124 partial palette diff, #140 composition-metrics skill (built, unreported), #127/#136 metrics fixes (test-17 state unknown), plus modified test files of uncertain provenance (left untouched for assessment).
+
+**Fresh spawns**: vqa-129 (#129 QA), dev-124-139 (assess+complete #124 → #139 impl), dev-140-128 (close out #140 → #128 CORE), qa-127-final (determine test-17 state → verify → enable #127+#136 commit). Prompts carry the full accumulated rulebook (criteria G, reference-facts, ownership). ownership.md rebuilt.
+
+**Pending after this wave**: #137 re-check (needs a judge), #131/#121/#132/#133/#135 implementations, #141-#145, #144 (user gate), CYCLE 2.
+
+
 ### [2026-09-26 12:40] — TL — Retrospective: #131 addendum — clear for implementation
 
 **Agent TLDR**: verbatim in its entry below. The pinned-sum note framed as a usable rule ("the split is free, the sum is not") with verified alternatives; identified as the same defect class one level down (constants described as free while arithmetic binds them); all three #131 defects share one root — intent stated about constants without computing what they produce.
