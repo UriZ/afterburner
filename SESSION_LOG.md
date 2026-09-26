@@ -1,5 +1,14 @@
 # Session Log
 
+### [2026-09-26 17:20] — TL — Retrospective: dev-140-128 #140 close-out — in QA; #128 CORE starting
+
+**Agent TLDR**: verbatim in its entry below. Two defects the as-left work couldn't catch: (1) the jet-free false-positive guard — the entire point of #140 — SKIPPED by default behind an env var while the suite printed 6/0 (now: 12 committed fixtures, runs always, and it FAILED on first run — stage-17 rock at 0.262 vs the 0.25 threshold → re-swept to 0.30, 0/12); (2) matchTemplate is structurally blind at frame edges — all 15 refusals were edge-clipped jets, i.e. the furthest-off-centre frames, truncating the roam distribution toward centre (13/28→28/28 after visible-mask scoring; negative controls non-vacuous both ways). Honest limits: off-centre fraction is a FLOOR; level cases partly circular; title-screen frames correctly report nothing (noted in criteria so judges don't misread).
+
+**Process deviation**: dev self-committed (7f29aaf, 89349ed) pre-QA — rule added to dev defs (TL commits after QA); QA verifies committed state, fix-forward.
+
+**Retrospective — applied**: CLAUDE.md (skip-by-default tests don't exist; handoff = read the SKIPs and REFUSALs; no-dev-commits policy); criteria G7 (check refused frames — centre-truncation corollary). QA → qa-127-final. dev-140-128 → #128 CORE. APPLIED.
+
+
 ---
 ### [2026-09-26 18:05] — senior-developer — #140
 **Task**: Close out the composition detector (shape-model jet locator) left unreported by a prior session; verify its three ACs and complete what was missing.
