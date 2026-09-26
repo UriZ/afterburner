@@ -1,5 +1,29 @@
 # Session Log
 
+### [2026-09-26 14:40] — TL — Retrospective: vqa-129 #129 QA — FAIL, #147 filed; fix dispatched
+
+**Agent TLDR**: verbatim in its entry below. Two bugs: invented missile-icon model (hardcoded 10-per-icon/max-3 vs reference 5→4→3 in the spec's own window — readout frozen across the 30-50 range) and a black SPEED mode letter the spec's colour table never measured. Everything else reproduced within 0.2%W (own 30-frame lossless median; 5 core colours dmax 0; AC 4/5 direct; suite exact). Off-checklist probe (in an rsync scratch copy, correctly) defeated the structural rule-14 test with an early-return before the call — coverage gap, not a live bug.
+
+**Retrospective — applied**: criteria G7 (multi-frame verification for dynamic readouts; early-return probe standardized). Fix → fresh dev-147 (model re-derivation from footage where the count CHANGES + colour + test hardening). APPLIED.
+
+
+### [2026-09-26 15:05] — visual-qa — #129, #147
+**Task**: Visual QA the #129 HUD-parity implementation (uncommitted `scripts/ui/hud_canvas.gd`, `scripts/ui/hud.gd`, `tests/test_hud_layout.gd`) — architect spec + amendment + implementation report all read from the issue; independently re-derive geometry/colour rather than re-checking the dev's arithmetic.
+**Result**: FAIL (2 bugs found: 1 High, 1 Medium)
+**Issues verified**: #129 (FAIL — see #147); AC 1/2/4/5/6/7/11 and the negative controls hold up under independent re-derivation
+**New bugs filed**: #147 (High: missile large-icon count hardcoded at 3 via a fabricated "10 missiles per icon" model, contradicting the spec's own cited t=94-118 evidence window which shows the count at 5/4/3/3; with pre-existing `DEFAULT_MISSILES=50` this freezes the display for the entire 30-50 missile range. Medium: SPEED bar mode letter "H" renders black, reference is saturated blue — never in the spec's measured colour table, confirmed on both a native 60fps frame and an independent median, ruling out chroma-bleed)
+**Video/frame evidence**: 30-frame lossless bridge captures (port 9635) with `set_capture_invincible` on, per-pixel median composite built independently of the dev's; cross-checked against 13 direct frames pulled from `.reference-cache/video/ab2-longplay-60fps.mp4` and `ab2-longplay.mp4` across the spec's own t=94-118 evidence window
+**Key findings**:
+- Geometry (scope box, SCORE emblem, missile pitches) and 5 of the spec's colours reproduce independently within ~0.2%W/H and dmax 0 — the dev's core measurement work is sound.
+- AC 4 (both bracket elements coexist) and AC 5 (no HI readout) both confirmed live/via grep.
+- `bash tests/run_all.sh` reproduces exactly: 1156/13 (known `test_jet_mesh_builder.gd`); `test_hud_layout.gd` 101/0.
+- Off-checklist probe: in a scratch copy (never touched the shared tree), an early-return guard placed immediately before `_draw_scope_box()` — the exact rule-14 regression the structural test exists to catch — passes `test_scope_box_is_unconditional()` cleanly (101/0), because the check only inspects the call line's own indentation and a literal `locked_enemy` string.
+- Methodology note: my first capture (no `set_capture_invincible`) showed the idle jet dying twice and hitting GAME OVER within ~8s, contaminating a naive median (life-icon count read as 1 then 0). Re-captured with invincibility on per CLAUDE.md guidance and got a clean, stable 3-life read — worth restating since it cost one throwaway capture cycle.
+**Improvement Insights**:
+- **criteria.md / reference-facts.md**: add a rule that any HUD (or other) element whose displayed value is a mapped/grouped function of live game state (count/10, clamped max, etc.) must be verified against MULTIPLE reference frames showing the value actually change over time — a single median composite (even a correct one) freezes one instant of a live counter and invites exactly this defect (#129/#147). The existing median-composite technique is right for STATIC geometry: it is silently wrong for measuring the *mapping rule* behind a dynamic readout.
+- **`.claude/agents/architect.md` / developer.md**: when inventing a mapping constant not present in any measured evidence (here: "10 missiles per large icon"), flag it explicitly as an assumption needing verification, rather than encoding it as a named constant with the same confidence as a measured one — this makes future review able to tell the difference at a glance.
+- **`.claude/agents/qa.md` / visual-qa**: the early-return-guard defeat of a structural "unconditional call" test is now the SECOND coverage-gap class found in this project's judge/QA history purely by trying to break a passing test — worth adding "for any structural test asserting a call is unconditional, try an early-return guard placed before it, not just a wrapping if-block" as a standard probe alongside the indentation/grep pattern already in criteria.md G7.
+
 ### [2026-09-26 14:00] — TL — Retrospective: qa-127-final — PASS; #127+#136 committed 75f5435, closed; #146 filed
 
 **Agent TLDR**: verbatim in its entry below. Test-17 fix confirmed on disk AND the engine mismatch independently reproduced outside the suite (grep 1 vs re 0 on the shipped leak line); suites 89/0, 47/0, 1156/13-known; prior audio_manager noise confirmed transient. Off-checklist probe (4th round on this guard): per-frame/displacement arms are order-dependent — number-before-keyword scores 0 → #146 (low, non-blocking; realistic revert vector still caught).
