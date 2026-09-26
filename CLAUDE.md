@@ -33,6 +33,8 @@ Read the `burst-*` frames **in order** — they are 0.25s apart, and motion live
 
 **BlockFont.draw_text is square-pixel only** — any HUD glyph whose box is far from the font's 5:7 (the arcade stage digit is 1:2.2) silently renders at 1px/cell under width-constrained sizing: present in source, invisible on screen, passing %W-only checks (#129). Use a per-axis path for non-5:7 boxes. **Godot .uid files are COMMITTED** (project policy — they've been landing with their scripts all session).
 
+**A negative-control perturbation must VERIFY it changed the file** — macOS sed silently no-ops the `0,/re/` address form (exit 0, file unchanged), and a no-op perturbation is indistinguishable from a vacuous guard: the natural response is deleting a GOOD test (#139 hit this twice).
+
 **A test that SKIPs by default does not exist** (#140): a selftest's primary negative control may not gate on an env var — commit the fixtures and run it always; the skip line read as a pass in the summary. Dead-session handoffs: run the selftest AND read what it SKIPS and what it REFUSES — both #140 defects were visible there, in no failing assertion. **Developers do NOT commit — work stays in the tree for QA; the TL commits after verification** (one pre-QA self-commit this session; verification then ran against committed state, fix-forward only).
 
 **Multi-arm regex guards (#127's four rounds)**: each arm must be checked for BOTH operand orders and against non-fixture phrasings before it's trusted — the same guard was beaten by phrasing, an unrendered branch, a second regex engine, and word order in successive rounds. And for any regex/guard verification task, the off-checklist phrasing probe is a STANDARD step, not optional (3 real bugs in 3 passes on one skill).
