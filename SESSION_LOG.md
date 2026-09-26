@@ -1,5 +1,30 @@
 # Session Log
 
+### [2026-09-26 19:10] — TL — Retrospective: qa-127-final #140 — PASS, closed; #151 filed; #139 QA dispatched
+
+**Agent TLDR**: verbatim in its entry below. All ACs verified with independent evidence beyond re-running the dev's numbers — incl. reconstructing the pre-fix detector and running it on REAL edge-clipped live-capture frames (0/6 vs 6/6); fixtures regenerate byte-identical; stale SKILL.md number noted (28.41 vs actual 43.21 — doc nit). Off-checklist: make_control.py concurrency crash → #151 (loud, set intact; THIRD fixed-default-path tool caught this session).
+
+**Retrospective — applied**: CLAUDE.md (output-path concurrency = standard pre-close-out check, not QA-probe territory); qa.md (reconstruct-the-before as standard for blind-spot fixes). #140 CLOSED. qa-127-final → #139 QA (final gate before the wave commit + cycle 2). APPLIED.
+
+
+### [2026-09-26 18:55] — qa — #140, #151
+**Task**: Final QA close-out of the committed composition-metrics work (#140: shape-model jet detector replacing the colour-threshold method) — verify AC1-3, threshold re-sweep, edge-clip fix, fixture reproducibility, run_all.sh.
+**Result**: PASS (1 new bug filed, non-blocking)
+**Issues verified**: #140 (PASS, closed)
+**New bugs filed**: #151 (Low — `make_control.py` has no lock on its shared default output dir; two concurrent `--force` runs race, one crashes loudly during stale-file cleanup; non-blocking, surviving fixture set verified intact)
+**Video evidence**: N/A per TL's framing (infrastructure/tooling QA) — but I captured a real 7s 60fps `game-movie` clip (frame-scheduled `move_left` hold) to independently verify the edge-clip fix against live gameplay, not just synthetic fixtures (see below).
+**Key findings**:
+- `selftest.sh`: 9/9, my own run — matches exactly: legacy centred 1.73pp (pass), legacy asymmetric 43.21pp (fail), shape-model 0.00/0.05pp, clipped 81% (26/32) accepted, jet-free 0/12.
+- Independently confirmed the edge-clip fix beyond the committed synthetic fixtures: drove the jet to the left edge with a real `game-movie` capture, extracted 6 frames with the jet visibly clipped, ran `jet_detect.py` — 6/6 detected, score 0.81. Reconstructed the pre-fix algorithm (unpadded `matchTemplate`) in a scratch copy and ran it on the identical frames — 0/6 detected. This is a second, independent line of evidence beyond the make_control.py fixtures.
+- `make_control.py --force` regeneration is byte-identical to the committed `control/generated/` (sampled 5 of 112, diffed clean; `ground_truth.json` diffs to nothing).
+- `tests/run_all.sh`: 1197 passed, 13 failed, all known-legacy `test_jet_mesh_builder.gd` — matches the dev report exactly.
+- AC3 deprecation references (`criteria.md:57`, `motion-metrics/SKILL.md`, `jet_detect.py` docstring/`--legacy` warning, `tests/demo_flight_preview.gd:7-11`) all checked by hand.
+- Doc nit (non-blocking, noted in the #140 close-out comment, no separate issue): `SKILL.md` line 142 still says the legacy detector's asymmetric error is 28.41pp; the actual code in the same commit (7f29aaf) produces 43.21pp. Stale relative to its own commit — likely predates the 4 extreme-offset clipped cases added to `CASES`.
+- Off-checklist probe: two concurrent `make_control.py --force` invocations on the shared default output dir race — one crashes with `FileNotFoundError` in the stale-cleanup loop. Loud, not silent; fixture set verified intact after. Filed as #151, same non-blocking treatment as #142/#146.
+**Improvement Insights**:
+- **CLAUDE.md / workflow**: the per-tool concurrency rule (unique `--out`/lock per invocation) has now caught a real bug in a THIRD tool this session (#119 motion-metrics, #136 game-movie port allocator, now #151 make_control.py) — every new script that writes to a fixed default path should get this check as a matter of course before being called "done", not just when QA happens to think of it.
+- **agent-definition (qa.md)**: independently reconstructing a "before" state in a scratch copy (rather than trusting a synthetic fixture's claimed pre-fix behaviour) caught nothing new here but is worth keeping as standard practice for any "fixed a detection blind spot" claim — it converts "the fixture says so" into "I verified it against real, unscripted gameplay too."
+
 ### [2026-09-26 18:40] — TL — Retrospective: HUD SHIPPED (a85c7e2); #129+#147 closed; #150 filed
 
 **vqa-129 TLDR**: verbatim in its entry below. Base-8 model independently re-derived (own frames matched the dev's table exactly; the lone invalid 4L+8S frame correctly attributed to a one-frame artifact in the ARCADE'S OWN footage); live borrow verified (50→6L+2S, fire→5L+7S); one-anchor layout confirmed by exact pixel shift (24px = one large pitch); the hardened test fails its author's own defeat naming the line; new off-checklist find: a match-statement guard evades the keyword scanner → #150 (indentation-depth scanning; third defeat round — keyword lists always have one more keyword).
