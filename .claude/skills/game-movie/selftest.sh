@@ -4,7 +4,7 @@
 # No framework, matching the other skills. Every capture opens a real window —
 # MovieWriter SIGABRTs under --headless — so expect windows to flash past.
 #
-# Ports are allocated from 9590 upward, skipping any already in use.
+# Ports are allocated from 9640 upward (PID-offset start), skipping any in use.
 
 set -uo pipefail
 
@@ -16,22 +16,35 @@ CAPTURE="bash $SKILL_DIR/capture-movie.sh"
 TMP="$(mktemp -d "${TMPDIR:-/tmp}/game-movie-selftest.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-# Ports are ALLOCATED, not hard-coded. 9590+ is this suite's range, but other
-# agents run their own Godot instances and a collision would surface as a bogus
-# test failure (it did: an unrelated instance on 9595 made the inertness test
-# report exit 9). Never kill what we did not start — step over it instead.
-PORT_CURSOR=9590
+# Ports are ALLOCATED, not hard-coded. Other agents run their own Godot
+# instances and a collision surfaces as a bogus test failure (it did: an
+# unrelated instance on 9595 made the inertness test report exit 9). Never kill
+# what we did not start — step over it instead.
+#
+# The result is returned in $ALLOC_PORT rather than on stdout, and callers MUST
+# use `next_port; X=$ALLOC_PORT` — never `X=$(next_port)`. Command substitution
+# forks a subshell, so the cursor increment was discarded the instant it
+# returned and every call handed back the same port (#136). The whole point of
+# the allocator is state that survives across calls, and $() destroys exactly
+# that state.
+#
+# The start offset is derived from the PID so two agents running this suite at
+# the same moment do not both open on the same port. Skipping handles the rest.
+PORT_BASE=9640
+PORT_SPAN=100
+PORT_CURSOR=$((PORT_BASE + ($$ % 40)))
+ALLOC_PORT=""
 next_port() {
-  while [ "$PORT_CURSOR" -lt 9650 ]; do
-    if [ -z "$(lsof -i "tcp:$PORT_CURSOR" -sTCP:LISTEN -t 2>/dev/null)" ]; then
-      echo "$PORT_CURSOR"
-      PORT_CURSOR=$((PORT_CURSOR + 1))
+  while [ "$PORT_CURSOR" -lt "$((PORT_BASE + PORT_SPAN))" ]; do
+    local candidate="$PORT_CURSOR"
+    PORT_CURSOR=$((PORT_CURSOR + 1))
+    if [ -z "$(lsof -i "tcp:$candidate" -sTCP:LISTEN -t 2>/dev/null)" ]; then
+      ALLOC_PORT="$candidate"
       return 0
     fi
-    echo "  (port $PORT_CURSOR is in use by another process — skipping)" >&2
-    PORT_CURSOR=$((PORT_CURSOR + 1))
+    echo "  (port $candidate is in use by another process — skipping)" >&2
   done
-  echo "ERROR: no free port in 9590-9650" >&2
+  echo "ERROR: no free port in $PORT_BASE-$((PORT_BASE + PORT_SPAN))" >&2
   exit 1
 }
 
@@ -56,13 +69,13 @@ echo "1. frame count is exact"
 # frame, or the rate is anything but 60/1, stop and report — do not widen the
 # assertion. MovieWriter's entire value is exactness, and a tool that needs a
 # fudge factor has lost the property #113's speed metric depends on.
-P1=$(next_port); $CAPTURE --duration 2 --fps 60 --port "$P1" --output "$TMP/t1.mp4" >/dev/null 2>&1
+next_port; P1=$ALLOC_PORT; $CAPTURE --duration 2 --fps 60 --port "$P1" --output "$TMP/t1.mp4" >/dev/null 2>&1
 expect "2s at 60fps is exactly 120 frames" "$(frames_of "$TMP/t1.mp4")" "120"
 expect "container rate is exactly 60/1" "$(rate_of "$TMP/t1.mp4")" "60/1"
 
 echo
 echo "2. fps is not hard-coded"
-P2=$(next_port); $CAPTURE --duration 2 --fps 30 --port "$P2" --output "$TMP/t2.mp4" >/dev/null 2>&1
+next_port; P2=$ALLOC_PORT; $CAPTURE --duration 2 --fps 30 --port "$P2" --output "$TMP/t2.mp4" >/dev/null 2>&1
 expect "2s at 30fps is exactly 60 frames" "$(frames_of "$TMP/t2.mp4")" "60"
 expect "container rate is exactly 30/1" "$(rate_of "$TMP/t2.mp4")" "30/1"
 
@@ -95,6 +108,7 @@ PASSED=$((PASSED + $(echo "$SIDE_OUT" | grep '^TALLY ' | cut -d' ' -f2)))
 FAILED=$((FAILED + $(echo "$SIDE_OUT" | grep '^TALLY ' | cut -d' ' -f3)))
 
 echo
+next_port; OFFSET_PORT=$ALLOC_PORT
 echo "4. input offset is exactly one frame — THROUGH THE ACTION SYSTEM"
 # project.godot binds every action to physical_keycode with keycode: 0, so a
 # probe via Input.is_key_pressed() passes on an implementation that cannot drive
@@ -106,7 +120,7 @@ cat > "$TMP/offset.json" <<'EOF'
  {"frame":20,"action":"key_up","key":"Z"},
  {"frame":30,"action":"key","key":"Z"}]}
 EOF
-"$GODOT" --headless --path "$PROJ_DIR" --quit-after 34 -- --mcp-port "$(next_port)" \
+"$GODOT" --headless --path "$PROJ_DIR" --quit-after 34 -- --mcp-port "$OFFSET_PORT" \
   --capture-input "$TMP/offset.json" --capture-probe fire_vulcan > "$TMP/probe.log" 2>&1
 probe_at() { grep "^PROBE $1 " "$TMP/probe.log" | awk '{print $3}'; }
 expect "key_down at F=10: action NOT yet pressed at frame 10" "$(probe_at 10)" "0"
@@ -134,7 +148,7 @@ echo
 echo "5. timeline validation rejects before launching Godot"
 check_reject() {
   local label="$1" body="$2"
-  REJECT_PORT=$(next_port)
+  next_port; REJECT_PORT=$ALLOC_PORT
   echo "$body" > "$TMP/bad.json"
   rm -f "$TMP/bad.mp4"
   $CAPTURE --duration 1 --port "$REJECT_PORT" --input-script "$TMP/bad.json" --output "$TMP/bad.mp4" >/dev/null 2>&1
@@ -155,10 +169,11 @@ check_reject "malformed JSON" '{"schema":'
 
 echo
 echo "6. events past the end of the run are ignored with a warning"
+next_port; FAR_PORT=$ALLOC_PORT
 cat > "$TMP/far.json" <<'EOF'
 {"schema":"capture-input/1","events":[{"frame":99999,"action":"key","key":"Enter"}]}
 EOF
-$CAPTURE --duration 1 --fps 60 --port "$(next_port)" --input-script "$TMP/far.json" \
+$CAPTURE --duration 1 --fps 60 --port "$FAR_PORT" --input-script "$TMP/far.json" \
   --output "$TMP/t6.mp4" > "$TMP/t6.log" 2>&1
 expect "out-of-range event still exits 0" "$?" "0"
 expect "and still produced its 60 frames" "$(frames_of "$TMP/t6.mp4")" "60"
@@ -170,9 +185,10 @@ fi
 
 echo
 echo "7. same seed reproduces byte-identical output"
+next_port; SEED_PORT_A=$ALLOC_PORT; next_port; SEED_PORT_B=$ALLOC_PORT
 # Divergence was measured at frame 125, so the window must run well past it.
-$CAPTURE --duration 5 --fps 60 --seed 4242 --port "$(next_port)" --output "$TMP/s1.mp4" >/dev/null 2>&1
-$CAPTURE --duration 5 --fps 60 --seed 4242 --port "$(next_port)" --output "$TMP/s2.mp4" >/dev/null 2>&1
+$CAPTURE --duration 5 --fps 60 --seed 4242 --port "$SEED_PORT_A" --output "$TMP/s1.mp4" >/dev/null 2>&1
+$CAPTURE --duration 5 --fps 60 --seed 4242 --port "$SEED_PORT_B" --output "$TMP/s2.mp4" >/dev/null 2>&1
 M1=$(md5 -q "$TMP/s1.mp4" 2>/dev/null || md5sum "$TMP/s1.mp4" | cut -d' ' -f1)
 M2=$(md5 -q "$TMP/s2.mp4" 2>/dev/null || md5sum "$TMP/s2.mp4" | cut -d' ' -f1)
 if [ "$M1" = "$M2" ]; then
@@ -183,8 +199,9 @@ fi
 
 echo
 echo "8. no seed still diverges (proves the conditional is wired, not inverted)"
-$CAPTURE --duration 5 --fps 60 --port "$(next_port)" --output "$TMP/n1.mp4" >/dev/null 2>&1
-$CAPTURE --duration 5 --fps 60 --port "$(next_port)" --output "$TMP/n2.mp4" >/dev/null 2>&1
+next_port; NOSEED_PORT_A=$ALLOC_PORT; next_port; NOSEED_PORT_B=$ALLOC_PORT
+$CAPTURE --duration 5 --fps 60 --port "$NOSEED_PORT_A" --output "$TMP/n1.mp4" >/dev/null 2>&1
+$CAPTURE --duration 5 --fps 60 --port "$NOSEED_PORT_B" --output "$TMP/n2.mp4" >/dev/null 2>&1
 N1=$(md5 -q "$TMP/n1.mp4" 2>/dev/null || md5sum "$TMP/n1.mp4" | cut -d' ' -f1)
 N2=$(md5 -q "$TMP/n2.mp4" 2>/dev/null || md5sum "$TMP/n2.mp4" | cut -d' ' -f1)
 if [ "$N1" != "$N2" ]; then
@@ -202,7 +219,7 @@ fi
 echo
 echo "9. inert without --capture-input"
 # Exit status of an ordinary bounded run.
-INERT_PORT=$(next_port)
+next_port; INERT_PORT=$ALLOC_PORT
 "$GODOT" --headless --path "$PROJ_DIR" --quit-after 120 -- --mcp-port "$INERT_PORT" > "$TMP/inert.log" 2>&1
 expect "normal launch still exits 0" "$?" "0"
 
@@ -211,7 +228,7 @@ expect "normal launch still exits 0" "$?" "0"
 # finishes headless in well under a second — the probe then answered only
 # because an unrelated agent's Godot happened to hold the port. A green that
 # came from someone else's process is the worst kind.
-PROBE_PORT=$(next_port)
+next_port; PROBE_PORT=$ALLOC_PORT
 "$GODOT" --headless --path "$PROJ_DIR" -- --mcp-port "$PROBE_PORT" > "$TMP/inert-live.log" 2>&1 &
 LIVE_PID=$!
 for _ in $(seq 1 30); do
@@ -235,14 +252,15 @@ fi
 
 echo
 echo "10. intermediate AVI cleanup"
-CLEAN_PORT=$(next_port); $CAPTURE --duration 1 --port "$CLEAN_PORT" --output "$TMP/t10.mp4" >/dev/null 2>&1
+next_port; CLEAN_PORT=$ALLOC_PORT; $CAPTURE --duration 1 --port "$CLEAN_PORT" --output "$TMP/t10.mp4" >/dev/null 2>&1
 if [ -z "$(ls -d "${TMPDIR:-/tmp}"/game-movie-$CLEAN_PORT.* 2>/dev/null)" ]; then
   pass "scratch AVI removed by default"
 else
   fail "scratch AVI removed by default"
   rm -rf "${TMPDIR:-/tmp}"/game-movie-$CLEAN_PORT.*
 fi
-KEPT=$($CAPTURE --duration 1 --port "$(next_port)" --keep-avi --output "$TMP/t10b.mp4" 2>&1 | grep "AVI kept" | sed 's/.*kept: //')
+next_port; KEEP_PORT=$ALLOC_PORT
+KEPT=$($CAPTURE --duration 1 --port "$KEEP_PORT" --keep-avi --output "$TMP/t10b.mp4" 2>&1 | grep "AVI kept" | sed 's/.*kept: //')
 if [ -n "$KEPT" ] && [ -f "$KEPT" ]; then
   pass "--keep-avi keeps it and prints the path"
   rm -rf "$(dirname "$KEPT")"
@@ -266,6 +284,45 @@ if grep -q "60.0000" "$OUT/report.md" 2>/dev/null; then
   pass "report carries the exact 60fps true rate from the sidecar"
 else
   fail "report carries the exact 60fps true rate from the sidecar"
+fi
+
+echo
+echo
+echo "12. the port allocator actually allocates (#136)"
+# The bug: every call site used X=$(next_port), and command substitution forks a
+# subshell, so PORT_CURSOR's increment was discarded and all three calls returned
+# the SAME port. The suite still went 44/44 because captures run one at a time and
+# each releases its port — which is exactly why this needs its own assertion
+# rather than being assumed from a green suite.
+next_port; A1=$ALLOC_PORT
+next_port; A2=$ALLOC_PORT
+next_port; A3=$ALLOC_PORT
+if [ "$A1" != "$A2" ] && [ "$A2" != "$A3" ] && [ "$A1" != "$A3" ]; then
+  pass "three consecutive allocations are distinct ($A1, $A2, $A3)"
+else
+  fail "three consecutive allocations are distinct (got $A1, $A2, $A3)"
+fi
+if [ "$A2" -gt "$A1" ] && [ "$A3" -gt "$A2" ]; then
+  pass "the cursor advances monotonically"
+else
+  fail "the cursor advances monotonically (got $A1, $A2, $A3)"
+fi
+# NEGATIVE CONTROL: reproduce the old shape and confirm it collapses, so this
+# assertion is known to be capable of failing.
+SUBSHELL_CURSOR=$PORT_CURSOR
+legacy_next_port() {
+  while [ "$SUBSHELL_CURSOR" -lt 65000 ]; do
+    if [ -z "$(lsof -i "tcp:$SUBSHELL_CURSOR" -sTCP:LISTEN -t 2>/dev/null)" ]; then
+      echo "$SUBSHELL_CURSOR"; SUBSHELL_CURSOR=$((SUBSHELL_CURSOR + 1)); return 0
+    fi
+    SUBSHELL_CURSOR=$((SUBSHELL_CURSOR + 1))
+  done
+}
+B1=$(legacy_next_port); B2=$(legacy_next_port)
+if [ "$B1" = "$B2" ]; then
+  pass "control: the old \$(next_port) form does collapse to one port ($B1)"
+else
+  fail "control: the old \$(next_port) form does collapse to one port (got $B1, $B2)"
 fi
 
 echo

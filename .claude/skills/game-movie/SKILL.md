@@ -177,6 +177,14 @@ easy to wire inverted as correct.
 A `--seed` that cannot take effect is refused with exit 2 rather than silently
 producing a non-reproducible capture under a flag that promises one.
 
+**Divergence needs run length to become visible.** The default timeline spends
+its first ~1.7s on menus, and two unseeded runs stay bit-identical for a while
+after that — measured divergence began at frame 125 (~2.1s). A capture shorter
+than about 5 seconds may contain too little gameplay for RNG to have diverged
+at all, so two unseeded short runs can come out byte-identical and look as
+though seeding is broken when it is not. Use `--duration 5` or more when you are
+specifically checking seed behaviour; the selftest does.
+
 ## 7. Limits
 
 - **Windowed only.** `--headless --write-movie` SIGABRTs (exit 134) and leaves a

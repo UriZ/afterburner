@@ -14,19 +14,42 @@ allowed-tools: Bash, Read
 row above game row, both sampled at the same rate in **real** time — plus a `report.md`. The
 strips are ordinary PNGs an agent can `Read`.
 
-**Does not**: measure speed. There is no px/frame value, no flow ratio, no CSV and no plot in
-v1, and `selftest.sh` mechanically asserts none appears in the report.
+**Also does, since #127**: measures speed — but only where a per-window entry gate certifies
+that the measurement means anything. When it qualifies you get mean/peak px/frame for both
+clips, a game/reference ratio, `flow-ref.csv`, `flow-game.csv` and `flow-plot.png`. When it
+does not, you get a section saying so and naming the number that disqualified it.
 
-Why: AB2's repetitive dithered ground texture temporally aliases below ~60fps sampling. A
-ground-truth decimation test (sample one window at 30/15/10/6 fps, where displacement is
-exactly proportional to `1/fps`, so the true ratios are known) showed optical flow measures
-a true 0.50 as 0.92 and a true 2.50 as 0.84 — sensitivity to actual speed is approximately
-zero. Three algorithms, five resolutions, four prefilters and four image bands all fail the
-same test, so it is a Nyquist limit, not a tuning problem. Quantitative speed is deferred to
-a follow-up gated on 60fps capture (#114).
+**Never does**: report a speed figure below 60fps sampling, or on content where the gate
+fails. `selftest.sh` asserts both directions mechanically, each with a negative control.
 
-**So: do not infer speed from these strips.** Use them for horizon height, ground coverage,
-object count, jet pose, scale and explosion size.
+### The entry gate, and why it is per-window
+
+AB2's repetitive dithered ground texture temporally aliases. Sampling the same window at
+half the rate must exactly double per-frame displacement; if it does not, the sampling is
+below the aliasing knee and any flow figure measures the estimator rather than the game.
+The gate runs that control **on the actual windows you asked about**, at 60 and 30fps, and
+requires the measured ratio within 10% of 0.5 — a tolerance set before any measurement,
+never widened to admit a result.
+
+This matters because 60fps is **not** a blanket fix. Measured on the cached 60fps reference,
+10 windows sampled across the longplay: **3 pass, 7 fail, median error 41%.** The gate turns
+on how fast the content moves, not on the file's frame rate:
+
+| 60fps flow | gate |
+|---|---|
+| below ~1.0% of frame width per frame | passes (errors 0.1–1.4%) |
+| above ~1.15% | fails (errors +32% to +82%) |
+
+That knee is re-derived on real 60fps footage. **#113 §4.2/§4.3's calibration came from a
+defective fixture, is documented as wrong, and is not reused here.** The one number that
+did survive re-derivation is the estimator's own ceiling, ~4% of frame width per frame,
+confirmed by a synthetic positive control.
+
+**Do not infer speed from the strips themselves** — that is what the numbers are for. Use
+strips for horizon height, ground coverage, object count, jet pose, scale and explosion size.
+
+**Measuring the jet's screen position (#140).** Strips are for reading composition by eye. If you need a NUMBER for where the jet sits — cx/cy distribution, off-centre fraction — use `.claude/skills/composition-metrics/jet_detect.py`. Do NOT use the older colour-threshold centroid method (`V>0.72, S<0.25`), which selects our bright ground rocks and measured terrain for a whole 60s capture while its control passed. That method is quoted in the #122 spec and is stale.
+
 
 ## 2. Quick start
 
@@ -138,6 +161,9 @@ row-to-row misalignment.
 | `--crop` | `T,B,L,R` | `0.12,0.12,0,0` | Fractions cropped off each edge, **both** clips |
 | `--aspect-policy` | `strict` \| `center-crop` | `strict` | On post-crop aspect mismatch |
 | `--keep-frames` | flag | off | Keep extracted frames for debugging |
+| `--speed` | `auto`\|`on`\|`off` | `auto` | `auto`: report speed iff both clips are >=60fps and the gate passes. `on`: require it, exit 2 otherwise. `off`: never |
+| `--flow-work-width` | int | `192` | Width the flow pass analyses at |
+| `--flow-sobel` | float | `12` | Gradient threshold selecting textured pixels |
 
 Window grammar: `START-END`, each side `[[HH:]MM:]SS[.frac]` or bare seconds.
 
@@ -189,12 +215,23 @@ perfectly — the torn PNGs everyone noticed first were the rarer half.
 | 7 | fewer than 2 cells extractable | Widen the window or lower `--strip-fps` |
 | 8 | waited over 5 min for another run's lock on this `--out` | Check nothing else is running against it; otherwise delete `<out>/.lock` or use a different `--name` |
 
+`--speed on` exits 2 in two distinct cases, and the message says which: either a clip's true
+rate is below 60fps (re-capture with `game-movie`), or both are 60fps but the entry gate
+failed on this window (the content moves too fast to measure at 60fps — pick a slower window
+or report the bound instead of a figure). In `auto` mode neither is an error: you get strips
+plus an explicit "Speed — NOT REPORTED" section.
+
 `--strip-fps` above a clip's true rate is exit 2: the clip cannot supply distinct frames that
 fast, and upsampling would duplicate cells that look like a frozen game.
 
 ## 8. Limits
 
-- **No speed numbers**, by design (§1). If a gate needs a speed claim, it is blocked on #114.
+- **Speed figures exist only for qualifying windows** (§1). Fast content fails the gate even
+  at 60fps — including, as measured, every stage-1 arcade flight window tested.
+- **Textured-region gating is not optional.** Flow is averaged only over pixels with real
+  gradient, because flat sky carries no motion information; an ungated mean would compare how
+  much sky each clip shows rather than how fast each one moves. Our capture reads 38% textured
+  against the arcade's 74%, so this is a large effect, not a refinement.
 - **Concurrent runs on a shared `--out` serialize, they do not merge** (#119). Both succeed,
   but only the last one's strips and report survive. Use a distinct `--name` when you need
   both results side by side.
@@ -210,15 +247,37 @@ fast, and upsampling would duplicate cells that look like a frozen game.
 bash .claude/skills/motion-metrics/selftest.sh
 ```
 
-64 assertions: pure-function unit tests (window parsing, crop geometry, aspect resolution,
-sampling plan, and the §3.4 time-base worked example used as a known-answer oracle) plus 14
+89 assertions: pure-function unit tests (window parsing, crop geometry, aspect resolution,
+sampling plan, and the §3.4 time-base worked example used as a known-answer oracle) plus 15
 end-to-end tests against generated fixtures — strip geometry, row alignment, real-time
 equalization on a deliberately mislabeled clip, sidecar precedence, every error path, frame
-cleanup, sequential re-run idempotency, concurrent-run safety, and the lock timeout.
+cleanup, sequential re-run idempotency, concurrent-run safety, the lock timeout, and the
+speed metric with its entry gate.
 
-Two of those carry **negative controls proving the guard can fail**: the scope-boundary
-check is run against a report that does contain speed figures, and the concurrency check's
-PNG-decode assertion is run against a deliberately torn PNG. The concurrency test itself was
-verified against the pre-fix code, where it fails 3 times out of 3.
+Two of them exist because a guard passed while a real artifact leaked (#127 QA): every
+`report.md` the suite generates is grepped, not a hand-picked pair, and both branches of
+the refusal diagnostic are rendered directly and checked — the leak lived in the branch no
+fixture happened to reach.
+
+The speed tests pan a synthetic texture at a **known** velocity, so the right answer is known
+a priori: the gate must measure 0.5, a clip compared against itself must ratio to 1.0, and
+the measured flow must land on the 2.0 px/frame the fixture actually pans at. A second
+fixture pans fast enough to break the estimator, and the gate must FAIL on it — a gate that
+cannot fail is decoration.
+
+Several carry **negative controls proving the guard can fail**: the scope-boundary check is
+run against a fixture enumerating every phrasing the quantity can take (`px/frame`, bare
+`px`, `pixels per frame`, `per-frame ... 2.75`, `ratio: 0.92`) and against a legitimate
+report that must NOT trip it — geometry like `180x96 px` is not a speed figure; the concurrency check's PNG-decode
+assertion is run against a deliberately torn PNG; the inverted scope guard (speed figures
+REQUIRED at 60fps) is run against a sub-60fps report to confirm it answers "no" there; and the
+refusal-branch check grades the exact line that once shipped, to prove its pattern is being
+evaluated by an engine that understands it.
+
+**All guard checks shell out to `grep -Eic`, never Python's `re`.** The pattern uses POSIX
+`[[:space:]]`, which Python parses as a set of the literal characters `[:space` and warns
+"possible nested set" about — every arm then matches nothing. A check written that way passes
+on leaking output and is worse than no check (#127 QA confirm). The
+concurrency test itself was verified against the pre-fix code, where it fails 3 times out of 3.
 
 `example-report.md` in this directory is the committed demo run (report text only).

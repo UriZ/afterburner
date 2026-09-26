@@ -22,6 +22,7 @@ the point ffmpeg is invoked.
 import argparse
 import contextlib
 import fcntl
+import glob
 import json
 import math
 import os
@@ -32,6 +33,9 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
+
+import flow_metrics
+from flow_metrics import flow_series
 
 # Exit codes — mirrored in SKILL.md's troubleshooting table.
 EXIT_USAGE = 2
@@ -500,11 +504,7 @@ def write_report(args, meta, strips, out_dir, warnings):
     add("What to look for: pick the same cell index in both rows and compare horizon height,")
     add("ground detail, object count, jet pose and explosion size.")
     add("")
-    add("## What this report does not contain")
-    add("No speed, px/frame or ratio figures: AB2's ground texture temporally aliases below")
-    add("~60fps sampling, so frame-to-frame motion estimates measure the estimator's ceiling")
-    add("rather than actual speed (#113 finding). Quantitative speed is gated on 60fps capture (#114).")
-    add("")
+    _add_speed_section(add, meta.get("speed") or {})
     add("## Reproduce")
     add("```bash")
     add(meta["command"])
@@ -516,6 +516,97 @@ def write_report(args, meta, strips, out_dir, warnings):
 
 
 # --------------------------------------------------------------------------
+
+def _add_speed_section(add, speed):
+    """Speed, or an explicit account of why there is none.
+
+    The scope guard inverts with the sampling rate: below 60fps a numeric speed
+    figure in this file is a defect, and at 60fps with the gate passed its
+    ABSENCE is. Both directions are asserted by selftest.
+    """
+    if speed.get("reported"):
+        gates = speed["gates"]
+        add("## Speed (quantitative)")
+        add("Measured at %.0f fps on both clips, over textured regions only, at a work width"
+            % flow_metrics.SPEED_MIN_FPS)
+        add("of %d px. Flat sky carries no motion information; including it would compare how"
+            % speed["work_width"])
+        add("much sky each clip shows rather than how fast each one moves.")
+        add("")
+        add("| clip | mean px/frame | peak | p95 | mean as % of frame width | textured pixels |")
+        add("|---|---|---|---|---|---|")
+        for key, label in (("ref", "AB2 reference"), ("game", "game")):
+            s = gates[key]["summary"]
+            add("| %s | **%.4f** | %.4f | %.4f | %.3f%% | %.1f%% |" % (
+                label, s["mean"], s["peak"], s["p95"], s["mean_pct_width"],
+                100.0 * gates[key]["textured_fraction"]))
+        add("")
+        add("**Speed ratio (game / reference): %.4f** — our game moves at %.1f%% of the"
+            % (speed["ratio"], 100.0 * speed["ratio"]))
+        add("arcade's speed over these windows.")
+        add("")
+        add("Curves: `flow-plot.png`. Per-frame values: `flow-ref.csv`, `flow-game.csv`.")
+        add("")
+        add("### Entry gate (passed — this is why the figures above are reported)")
+        add("Each window was independently resampled at %.0f fps, where per-frame displacement"
+            % (flow_metrics.SPEED_MIN_FPS / 2))
+        add("is exactly doubled. A measured ratio near 0.5 means the sampling is above the")
+        add("aliasing knee for that content; tolerance %.0f%%, set before measuring."
+            % (flow_metrics.ENTRY_GATE_TOLERANCE * 100))
+        add("")
+        add("| clip | measured ratio | true | error | verdict |")
+        add("|---|---|---|---|---|")
+        for key, label in (("ref", "AB2 reference"), ("game", "game")):
+            g = gates[key]
+            add("| %s | %.4f | 0.5 | %+.1f%% | PASS |" % (label, g["ratio"], g["error_pct"]))
+        add("")
+        return
+
+    add("## Speed — NOT REPORTED")
+    add("")
+    reason = speed.get("reason") or "speed was not requested"
+    for line in str(reason).splitlines():
+        add(line.strip())
+    add("")
+    gates = speed.get("gates")
+    if gates:
+        # Gate diagnostics only. The per-clip flow magnitudes are deliberately
+        # NOT printed here: they are exactly the numbers a reader would quote,
+        # and the whole point of this section is that they did not qualify.
+        add("| clip | decimation ratio | true | error | verdict |")
+        add("|---|---|---|---|---|")
+        for key, label in (("ref", "AB2 reference"), ("game", "game")):
+            g = gates.get(key)
+            if not g:
+                continue
+            add("| %s | %.4f | 0.5 | %+.1f%% | %s |" % (
+                label, g["ratio"], g["error_pct"], "pass" if g["passed"] else "**FAIL**"))
+        add("")
+        for key, label in (("ref", "AB2 reference"), ("game", "game")):
+            g = gates.get(key)
+            if not g or g["passed"]:
+                continue
+            h = g["headroom"]
+            # QUALITATIVE ONLY. This sentence used to quote the 30fps-arm p95 and
+            # the ceiling as bare "px" figures — which slipped past a guard
+            # looking for "px/frame" and printed a displacement magnitude two
+            # lines above the claim that no such figure appears (#127 QA). The
+            # distinction between the two causes is what a reader needs; the
+            # numbers behind it are exactly what they must not quote from a
+            # window that failed certification.
+            add("%s: %s" % (label, (
+                "the 30fps arm is running at the estimator's ceiling, so this is **estimator "
+                "saturation** — lower the window's motion or raise `--flow-work-width`."
+                if h["saturated"] else
+                "the 30fps arm sits well below the estimator's ceiling, so this is **content "
+                "aliasing, not estimator saturation** — the texture itself decorrelates between "
+                "samples, and no work-width or parameter change will recover it.")))
+            add("")
+    add("No px/frame figure and no speed ratio appear above, deliberately. A number with a")
+    add("known systematic error of this size is worse than no number: #113 exists because a")
+    add("confident flow figure with no signal in it passed three review gates.")
+    add("")
+
 
 def parse_crop(spec):
     parts = spec.split(",")
@@ -548,6 +639,14 @@ def build_parser():
     p.add_argument("--crop", default="0.12,0.12,0,0", help="T,B,L,R fractions cropped off both clips")
     p.add_argument("--aspect-policy", choices=("strict", "center-crop"), default="strict")
     p.add_argument("--keep-frames", action="store_true", help="keep extracted frames for debugging")
+    p.add_argument("--speed", choices=("auto", "on", "off"), default="auto",
+                   help="quantitative speed: auto (report iff both clips >=60fps and the "
+                        "entry gate passes), on (require it, exit 2 otherwise), off")
+    p.add_argument("--flow-work-width", type=int, default=flow_metrics.DEFAULT_WORK_WIDTH,
+                   help="width the flow pass analyses at (default %d)" % flow_metrics.DEFAULT_WORK_WIDTH)
+    p.add_argument("--flow-sobel", type=float, default=flow_metrics.SOBEL_THRESHOLD,
+                   help="gradient threshold selecting textured pixels (default %.0f)"
+                        % flow_metrics.SOBEL_THRESHOLD)
     return p
 
 
@@ -667,11 +766,16 @@ def _build_and_publish(cv2, np, args, argv, clips, windows, rects, cell_size, ce
 
     strips, used = compose_strips(cv2, np, extracted["ref"], extracted["game"], cell_size, args, meta, staging)
     meta["cells"] = min(cells, used)
+
+    speed = run_speed_pass(cv2, np, args, clips, windows, rects, effective, staging)
+    meta["speed"] = speed
+
     write_report(args, meta, strips, staging, _collect_warnings(clips, truncation_note))
 
     # Publish only once every artifact is fully written.
+    extras = [os.path.basename(p) for p in speed.get("artifacts", [])]
     published = publish(staging, out_dir,
-                        [os.path.basename(p) for p in strips] + ["report.md"])
+                        [os.path.basename(p) for p in strips] + extras + ["report.md"])
     if args.keep_frames:
         kept = os.path.join(out_dir, ".frames")
         # Must not exist, or shutil.move nests inside it instead of replacing.
@@ -680,9 +784,122 @@ def _build_and_publish(cv2, np, args, argv, clips, windows, rects, cell_size, ce
     # Otherwise the frames die with the staging tree — default because they are
     # frames of copyrighted arcade footage.
 
-    print("Strips: %s" % ", ".join(published[:-1]))
+    print("Strips: %s" % ", ".join(p for p in published if "strip-" in p))
+    for path in published:
+        if "flow" in os.path.basename(path):
+            print("Speed artifact: %s" % path)
     print("Report: %s" % published[-1])
     return 0
+
+
+def extract_flow_frames(clip, rect, work_width, real_start, real_duration, real_fps, out_dir):
+    """Grayscale frames at a given REAL rate, for the flow pass.
+
+    Shares the crop and the real-time conversion with the strip path, so the two
+    halves of the report describe the same pixels over the same seconds.
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    cw, ch, cx, cy = rect
+    cstart, cdur = container_window(real_start, real_duration, clip["time_scale"])
+    cfps = real_to_container_fps(real_fps, clip["time_scale"])
+    vf = ("fps=%.6f,crop=%d:%d:%d:%d,scale=%d:-2:flags=area,format=gray"
+          % (cfps, cw, ch, cx, cy, work_width))
+    result = _run([
+        "ffmpeg", "-v", "error",
+        "-ss", "%.6f" % cstart, "-t", "%.6f" % cdur, "-i", clip["path"],
+        "-vf", vf, "-frames:v", str(int(math.ceil(real_duration * real_fps))),
+        os.path.join(out_dir, "f-%05d.png"), "-y",
+    ])
+    frames = sorted(glob.glob(os.path.join(out_dir, "f-*.png")))
+    if len(frames) < 2:
+        raise UserError("flow extraction produced %d frames from %s: %s"
+                        % (len(frames), clip["path"], result.stderr.strip() or "(nothing)"),
+                        code=EXIT_TOO_FEW_CELLS)
+    return frames
+
+
+def run_speed_pass(cv2, np, args, clips, windows, rects, effective, staging):
+    """Quantitative speed, or a documented refusal to report it.
+
+    The refusal path is not a failure mode — it is the deliverable when the
+    entry gate says a measurement would be fiction. #113 exists because a
+    confident number with no signal in it passed three gates.
+    """
+    mode = args.speed
+    below = [k for k in ("ref", "game") if clips[k]["true_fps"] < flow_metrics.SPEED_MIN_FPS]
+
+    if mode == "off":
+        return {"reported": False, "reason": "--speed off", "artifacts": []}
+
+    if below:
+        detail = "; ".join("%s clip is %.3f fps" % (k, clips[k]["true_fps"]) for k in below)
+        message = (
+            "speed needs a true rate of at least %.0f fps on BOTH clips (%s).\n"
+            "  Below that, AB2's dithered ground temporally aliases and a flow figure\n"
+            "  measures the estimator's ceiling rather than the game's speed (#113).\n"
+            "  Re-capture the game with the game-movie skill (60fps, exact) and use\n"
+            "  the 60fps reference at .reference-cache/video/ab2-longplay-60fps.mp4."
+            % (flow_metrics.SPEED_MIN_FPS, detail))
+        if mode == "on":
+            raise UserError(message)
+        # Same wording in the report as in the exit-2 message: a reader should
+        # not have to re-run with --speed on to find out why there is no number.
+        return {"reported": False, "reason": message, "artifacts": []}
+
+    work_width = args.flow_work_width
+    flow_root = os.path.join(staging, "flow")
+    series = {}
+    gates = {}
+    for key in ("ref", "game"):
+        full = extract_flow_frames(clips[key], rects[key], work_width, windows[key][0],
+                                   effective, flow_metrics.SPEED_MIN_FPS,
+                                   os.path.join(flow_root, key, "full"))
+        half = extract_flow_frames(clips[key], rects[key], work_width, windows[key][0],
+                                   effective, flow_metrics.SPEED_MIN_FPS / 2.0,
+                                   os.path.join(flow_root, key, "half"))
+        full_series, textured = flow_series(full, cv2, np, args.flow_sobel)
+        half_series, _ = flow_series(half, cv2, np, args.flow_sobel)
+        series[key] = full_series
+        gates[key] = flow_metrics.decimation_gate(full_series, half_series, np)
+        gates[key]["textured_fraction"] = textured
+        gates[key]["headroom"] = flow_metrics.saturation_headroom(half_series, work_width, np)
+        gates[key]["summary"] = flow_metrics.summarize(full_series, work_width, np)
+
+    failed = [k for k in ("ref", "game") if not gates[k]["passed"]]
+    result = {"gates": gates, "work_width": work_width, "artifacts": [],
+              "interval_s": 1.0 / flow_metrics.SPEED_MIN_FPS}
+
+    if failed:
+        detail = "; ".join(
+            "%s window measures %.4f where 0.5 is true (%+.1f%%)"
+            % (k, gates[k]["ratio"] or float("nan"), gates[k]["error_pct"] or float("nan"))
+            for k in failed)
+        message = (
+            "fps-decimation entry gate FAILED on: %s.\n"
+            "  Sampling this window at 30fps does not halve per-frame displacement, so\n"
+            "  60fps is not above the aliasing knee for this content and a speed figure\n"
+            "  here would carry a systematic error of that size. No speed is reported."
+            % detail)
+        print("WARNING: %s" % message, file=sys.stderr)
+        if mode == "on":
+            raise UserError(message)
+        result.update({"reported": False, "reason": message})
+        return result
+
+    ratio = gates["game"]["summary"]["mean"] / gates["ref"]["summary"]["mean"]
+    flow_metrics.write_flow_csv(os.path.join(staging, "flow-ref.csv"),
+                                series["ref"], result["interval_s"])
+    flow_metrics.write_flow_csv(os.path.join(staging, "flow-game.csv"),
+                                series["game"], result["interval_s"])
+    flow_metrics.render_flow_plot(os.path.join(staging, "flow-plot.png"),
+                                  series["ref"], series["game"], result["interval_s"], cv2, np)
+    result.update({
+        "reported": True,
+        "ratio": ratio,
+        "artifacts": [os.path.join(staging, n) for n in
+                      ("flow-ref.csv", "flow-game.csv", "flow-plot.png")],
+    })
+    return result
 
 
 def _collect_warnings(clips, truncation_note):

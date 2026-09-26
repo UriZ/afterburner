@@ -248,23 +248,59 @@ echo "9. scope boundary — no speed figures in report.md"
 # The ratio arm requires a DECIMAL, not any digit — "ratio figures: AB2's" puts
 # a 2 within a few characters of the word, so a bare-digit guard false-positives
 # on the explanatory sentence itself. `[^.]` keeps each arm inside one sentence.
-SCOPE_PAT='[0-9]+(\.[0-9]+)?[[:space:]]*px/frame|px/frame[^.]{0,12}[0-9]|ratio[^.]{0,24}[0-9]+\.[0-9]|ratio[[:space:]]*[:|][[:space:]]*[0-9]'
+SCOPE_PAT='[0-9]+\.[0-9]+[[:space:]]*(px|pixels?)\b|[0-9]+(\.[0-9]+)?[[:space:]]*(px|pixels?)[[:space:]]*(/|per[[:space:]]+)[[:space:]]*frame|(px|pixels?)[[:space:]]*(/|per[[:space:]]+)[[:space:]]*frame[^.]{0,14}[0-9]|per[[:space:]]*-?[[:space:]]*frame[^.]{0,24}[0-9]+\.[0-9]|displacement[^.]{0,24}[0-9]+\.[0-9]|ratio[^.]{0,24}[0-9]+\.[0-9]|ratio[[:space:]]*[:|][[:space:]]*[0-9]'
+#
+# The guard INVERTS with sampling rate (#127). Below 60fps a numeric speed
+# figure is a defect; at 60fps with the entry gate passed, its ABSENCE is. Both
+# directions are asserted, each with its own negative control.
 OUT="$TMP/t1"
 NUMERIC=$(grep -Eic "$SCOPE_PAT" "$OUT/report.md")
-expect "report.md carries no numeric speed figure" "$NUMERIC" "0"
-if grep -q "px/frame or ratio figures" "$OUT/report.md"; then
-  pass "the explanatory sentence survives the guard"
+expect "sub-60fps report carries no numeric speed figure" "$NUMERIC" "0"
+if grep -q "Speed — NOT REPORTED" "$OUT/report.md"; then
+  pass "sub-60fps report says plainly that speed is not reported"
 else
-  fail "the explanatory sentence survives the guard"
+  fail "sub-60fps report says plainly that speed is not reported"
+fi
+if grep -q "at least 60 fps on BOTH clips" "$OUT/report.md"; then
+  pass "and names the 60fps requirement as the reason"
+else
+  fail "and names the 60fps requirement as the reason"
 fi
 # Negative control on the guard itself — a guard that cannot fail is not a guard.
+# Every phrasing the guarded quantity can take. The shipped report leaked via
+# bare "px" — "5.53 px against an estimator ceiling" — because the guard only
+# looked for "px/frame" (#127 QA). Each line here must be caught individually;
+# a guard that catches one spelling is a guard against one spelling.
 cat > "$TMP/scope-control.md" <<'EOF'
-No speed, px/frame or ratio figures: AB2's ground texture temporally aliases below
-| mean flow | 5.001 px/frame |
+mean flow 5.001 px/frame here
+p95 is 5.53 px against a ceiling
+displacement of 4.40 pixels per frame
+measured 3.06 pixels/frame
+px/frame: 5.001 in the table
+per-frame displacement was 2.75
 Flow ratio (game/ref): 0.92
+| flow ratio | 0.82 |
 EOF
-expect "the guard does catch real speed figures" \
-  "$(grep -Eic "$SCOPE_PAT" "$TMP/scope-control.md")" "2"
+expect "the guard catches every phrasing of a speed figure" \
+  "$(grep -Eic "$SCOPE_PAT" "$TMP/scope-control.md")" "8"
+# And must NOT fire on legitimate report text: geometry in px, the strip-width
+# advice, the gate table, and the qualitative aliasing sentence all contain
+# numbers and/or the word px without stating a speed.
+cat > "$TMP/scope-legit.md" <<'EOF'
+No speed, px/frame or ratio figures: AB2's ground texture temporally aliases below
+- cell size: 180x96 px
+- sampling interval (real time): 0.4159s (2.405 cells/s)
+AB2 reference: the 30fps arm sits well below the estimator's ceiling, so this is **content aliasing, not estimator saturation** — the texture itself decorrelates between samples.
+| AB2 reference | 0.7164 | 0.5 | +43.3% | **FAIL** |
+Do not go above 1568 px total width
+EOF
+expect "the guard does not fire on legitimate report text" \
+  "$(grep -Eic "$SCOPE_PAT" "$TMP/scope-legit.md")" "0"
+
+# --speed on below 60fps must refuse loudly rather than quietly omitting.
+$COMPARE --ref "$REF" --ref-window 0-5 --game "$GAME" --game-window 0-5 --speed on \
+  --name t9b --out "$TMP/t9b" >/dev/null 2>&1
+expect "--speed on below 60fps exits 2" "$?" "2"
 
 echo
 echo "10. frame cleanup"
@@ -422,6 +458,202 @@ wait $HOLDER 2>/dev/null
 # And the lock is genuinely released when the holder exits, so the next run works.
 $COMPARE --ref "$REF" --ref-window 0-5 --game "$GAME" --game-window 0-5 --name t14 --out "$OUT" >/dev/null 2>&1
 expect "the same --out works once the lock is free" "$?" "0"
+
+echo
+echo "15. speed metric and its entry gate (#127)"
+# Fixtures pan a structured texture at a KNOWN velocity, so the correct answer
+# is known a priori rather than inferred from the tool's own output. White noise
+# collapses at coarse pyramid levels (a #113 finding), so the texture carries
+# real multi-scale structure.
+#
+# Source pan V px/frame, cropped 960 wide, analysed at work width 192, so the
+# measured flow should be V/5 px/frame. SLOW picks V=10 (2.0 px at work width,
+# 30fps arm 4.0 — inside the estimator's linear band). FAST picks V=25 (5.0 and
+# 10.0 — the 30fps arm is past the ~7.7px ceiling), so its gate must FAIL.
+"$PY" - "$TMP/tex.png" <<'PYEOF'
+import cv2, numpy as np, sys
+rng = np.random.default_rng(11)
+H, W = 800, 6000
+tex = np.zeros((H, W), np.float32)
+for octave, amp in ((4, 1.0), (8, 0.7), (16, 0.5), (32, 0.35), (64, 0.2)):
+    small = rng.random((H // octave + 2, W // octave + 2)).astype(np.float32)
+    tex += amp * cv2.resize(small, (W, H), interpolation=cv2.INTER_CUBIC)
+cv2.imwrite(sys.argv[1], cv2.normalize(tex, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8))
+PYEOF
+make_pan() {  # make_pan <out.mp4> <px per frame>
+  ffmpeg -v error -y -loop 1 -framerate 60 -i "$TMP/tex.png" \
+    -vf "crop=960:672:x='n*$2':y=60,fps=60,format=yuv420p" -frames:v 180 \
+    -c:v libx264 -crf 12 "$1"
+  cat > "$1.json" <<EOF
+{"schema":"game-video-capture/1","source":"synthetic-pan","frames":180,
+ "requested_fps":60.0,"measured_fps":60.0,"encoded_fps":60.0,"paced":true}
+EOF
+}
+make_pan "$TMP/slow.mp4" 10
+make_pan "$TMP/fast.mp4" 25
+
+OUT="$TMP/t15slow"
+$COMPARE --ref "$TMP/slow.mp4" --ref-window 0-2.5 --game "$TMP/slow.mp4" --game-window 0-2.5 \
+  --speed on --strip-fps 3 --name t15slow --out "$OUT" >/dev/null 2>&1
+expect "--speed on succeeds when both clips are 60fps and the gate passes" "$?" "0"
+
+GATE=$("$PY" - "$OUT/report.md" <<'PYEOF'
+import re, sys
+text = open(sys.argv[1]).read()
+gate = re.findall(r"\|\s*(?:AB2 reference|game)\s*\|\s*(0\.\d+)\s*\|\s*0\.5\s*\|", text)
+ratio = re.search(r"Speed ratio \(game / reference\): (\d+\.\d+)", text)
+mean = re.search(r"\|\s*AB2 reference\s*\|\s*\*\*(\d+\.\d+)\*\*", text)
+print(gate[0] if gate else "none")
+print(ratio.group(1) if ratio else "none")
+print(mean.group(1) if mean else "none")
+PYEOF
+)
+GATE_RATIO=$(echo "$GATE" | sed -n 1p)
+SPEED_RATIO=$(echo "$GATE" | sed -n 2p)
+REF_MEAN=$(echo "$GATE" | sed -n 3p)
+# Known answers: the gate must land on 0.5, the self-comparison ratio on 1.0,
+# and the measured flow on the 2.0 px/frame the fixture actually pans at.
+"$PY" -c "
+import sys
+g,s,m = sys.argv[1:4]
+def near(v, t, tol): return v != 'none' and abs(float(v)/t - 1) <= tol
+print('gate' if near(g,0.5,0.10) else 'GATE-OFF:'+g)
+print('ratio' if near(s,1.0,0.02) else 'RATIO-OFF:'+s)
+print('mean' if near(m,2.0,0.10) else 'MEAN-OFF:'+m)
+" "$GATE_RATIO" "$SPEED_RATIO" "$REF_MEAN" > "$TMP/known.txt"
+expect "entry gate measures 0.5 on a known-linear pan" "$(sed -n 1p "$TMP/known.txt")" "gate"
+expect "self-comparison speed ratio is 1.0" "$(sed -n 2p "$TMP/known.txt")" "ratio"
+expect "measured flow matches the fixture's true 2.0 px/frame" "$(sed -n 3p "$TMP/known.txt")" "mean"
+
+# INVERTED scope guard: at 60fps with the gate passed, speed figures are REQUIRED.
+expect "60fps report DOES carry numeric speed figures" \
+  "$( [ "$(grep -Eic "$SCOPE_PAT" "$OUT/report.md")" -gt 0 ] && echo yes || echo no )" "yes"
+for artifact in flow-ref.csv flow-game.csv flow-plot.png; do
+  if [ -s "$OUT/$artifact" ]; then pass "$artifact produced"; else fail "$artifact produced"; fi
+done
+# Negative control for the inverted direction: the same check must return "no"
+# on a report that legitimately has no speed section, or it proves nothing.
+expect "control: the inverted check returns no on a sub-60fps report" \
+  "$( [ "$(grep -Eic "$SCOPE_PAT" "$TMP/t1/report.md")" -gt 0 ] && echo yes || echo no )" "no"
+
+# The gate must be capable of FAILING, or it is decoration.
+OUT="$TMP/t15fast"
+$COMPARE --ref "$TMP/fast.mp4" --ref-window 0-2.5 --game "$TMP/fast.mp4" --game-window 0-2.5 \
+  --speed on --strip-fps 3 --name t15fast --out "$OUT" >/dev/null 2>&1
+expect "control: --speed on exits 2 when the entry gate fails" "$?" "2"
+OUT="$TMP/t15fastauto"
+$COMPARE --ref "$TMP/fast.mp4" --ref-window 0-2.5 --game "$TMP/fast.mp4" --game-window 0-2.5 \
+  --strip-fps 3 --name t15fastauto --out "$OUT" >/dev/null 2>&1
+expect "auto mode still produces strips when the gate fails" "$?" "0"
+expect "and reports no numeric speed figure" \
+  "$(grep -Eic "$SCOPE_PAT" "$OUT/report.md")" "0"
+if grep -q "entry gate FAILED" "$OUT/report.md"; then
+  pass "and says the entry gate failed, with the measured ratio"
+else
+  fail "and says the entry gate failed, with the measured ratio"
+fi
+
+echo
+echo "16. every PRODUCTION report this suite generated is clean (#127 QA)"
+# Standing rule: grep the artifacts the tool ACTUALLY produced, not only
+# synthetic fixtures. The #127 leak sat in a shipped report while the suite was
+# green, because the only reports being checked were two hand-picked ones and
+# the leaking branch was never among them.
+REPORTS=$(find "$TMP" -name report.md 2>/dev/null | sort)
+REPORT_COUNT=$(echo "$REPORTS" | grep -c . )
+if [ "$REPORT_COUNT" -ge 8 ]; then
+  pass "found $REPORT_COUNT generated reports to check"
+else
+  fail "found only $REPORT_COUNT generated reports — expected the suite to produce at least 8"
+fi
+LEAKY=""
+for r in $REPORTS; do
+  # A report that legitimately carries speed figures is the qualifying case; it
+  # is identified by its own heading, not by guessing from the path.
+  if grep -q "^## Speed (quantitative)" "$r"; then
+    continue
+  fi
+  if [ "$(grep -Eic "$SCOPE_PAT" "$r")" -ne 0 ]; then
+    LEAKY="$LEAKY $(basename "$(dirname "$r")")"
+  fi
+done
+if [ -z "$LEAKY" ]; then
+  pass "no non-qualifying report leaks a speed figure"
+else
+  fail "reports leaking a speed figure:$LEAKY"
+fi
+# The converse: qualifying reports must still carry them.
+QUALIFYING=0
+for r in $REPORTS; do
+  grep -q "^## Speed (quantitative)" "$r" || continue
+  QUALIFYING=$((QUALIFYING + 1))
+  [ "$(grep -Eic "$SCOPE_PAT" "$r")" -gt 0 ] || LEAKY="$LEAKY missing-in-$(basename "$(dirname "$r")")"
+done
+if [ "$QUALIFYING" -gt 0 ]; then
+  pass "$QUALIFYING qualifying report(s) present and carrying figures"
+else
+  fail "no qualifying report was produced — the inverted direction is untested"
+fi
+
+echo
+echo "17. both refusal branches are number-free"
+export SKILL_DIR
+export BRANCH_DIR="$TMP"
+# The leak lived in the aliasing branch, which no fixture reached: the fast
+# synthetic pan SATURATES, so only the saturation branch was ever rendered.
+# Drive the report writer directly with both shapes instead of hunting for
+# footage that produces each one.
+#
+# The rendered branches are written to disk and graded with the SAME `grep -Eic`
+# test 16 uses. An earlier version compiled SCOPE_PAT with Python's `re`, where
+# POSIX `[[:space:]]` is not a character class at all — Python reads it as a set
+# of the literal characters `[:space` and warns "possible nested set". Every arm
+# silently matched NOTHING: the shipped leak line scores 1 under grep and 0
+# under Python re, as does the no-space form `5.53px`. The test passed only
+# because the fixed code happens to emit no numbers, so a one-sentence revert
+# would have sailed through it (#127 QA confirm). One engine, one pattern.
+"$PY" - > "$TMP/branch-report.txt" <<'PYEOF'
+import os, sys
+sys.path.insert(0, os.environ["SKILL_DIR"])
+import motion_metrics
+for label, saturated in (("saturation", True), ("aliasing", False)):
+    lines = []
+    gate = {
+        "passed": False, "ratio": 0.7164, "error_pct": 43.3,
+        "summary": {"mean": 3.1551, "peak": 7.8, "p95": 5.53, "mean_pct_width": 1.6},
+        "textured_fraction": 0.74,
+        "headroom": {"peak": 5.53, "ceiling": 7.68, "saturated": saturated},
+    }
+    motion_metrics._add_speed_section(lines.append, {
+        "reported": False, "reason": "entry gate FAILED on: ref window",
+        "gates": {"ref": gate, "game": dict(gate, passed=True, ratio=0.5035, error_pct=0.7)},
+        "work_width": 192,
+    })
+    with open(os.path.join(os.environ["BRANCH_DIR"], "branch-%s.md" % label), "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+    print("%s %s" % (label, "named" if "estimator" in "\n".join(lines) else "MISSING"))
+PYEOF
+for branch in saturation aliasing; do
+  expect "$branch refusal branch carries no speed figure" \
+    "$(grep -Eic "$SCOPE_PAT" "$TMP/branch-$branch.md")" "0"
+  if grep -q "^$branch named" "$TMP/branch-report.txt"; then
+    pass "$branch branch still names the cause"
+  else
+    fail "$branch branch still names the cause"
+  fi
+done
+
+# ENGINE-MISMATCH NEGATIVE CONTROL: the exact line that shipped must score 1
+# through test 17's OWN grading path. If this returns 0, the pattern is being
+# evaluated by an engine that does not understand it and every assertion above
+# is vacuous — which is precisely the state this test was in.
+printf '%s\n' "AB2 reference: 30fps-arm p95 is 5.53 px against an estimator ceiling of 7.68 px, so this" \
+  > "$TMP/branch-engine-control.md"
+expect "control: the shipped leak line scores 1 through test 17's own path" \
+  "$(grep -Eic "$SCOPE_PAT" "$TMP/branch-engine-control.md")" "1"
+printf '%s\n' "displacement was 5.53px with no space" > "$TMP/branch-nospace-control.md"
+expect "control: the no-space form is caught too" \
+  "$(grep -Eic "$SCOPE_PAT" "$TMP/branch-nospace-control.md")" "1"
 
 echo
 echo "================================"
