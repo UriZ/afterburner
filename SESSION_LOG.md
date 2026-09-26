@@ -1,5 +1,30 @@
 # Session Log
 
+### [2026-09-26 16:40] — TL — Retrospective: vqa-129 #124 QA — PASS; tooling committed c519b76; data rides with #139
+
+**Agent TLDR**: verbatim in its entry below. Three stages reproduced to the last digit from the committed tool; demotions confirmed byte-identical to HEAD (honest old values); G0 whole-frame read matches the dev's own disclosures (all residual gaps = #135 structural territory); all 5 negative controls trip; grand-total drift correctly traced to concurrent #147 work; off-checklist probe verified sky/horizon no-regression against both prior commits directly (0 mismatches). Noted the in-flight scroll_speed key on stage_data (verified #124 values unaffected) → TL held stage_data for a combined commit with #139.
+
+**Retrospective — applied**: qa.md (grand-total drift labeled EXPECTED). The per-stage operating-stats discipline cited as the pattern for future measurement specs (already codified in architect.md). #124 label cleared; tooling committed. vqa-129 proceeds to the #147/#129 re-verify. APPLIED.
+
+
+### [2026-09-26 16:20] — visual-qa — #124
+**Task**: Visual QA the #124 per-stage ground palette re-grade (uncommitted `scripts/stage/stage_data.gd`, `tools/measure_ground_palette.py`, `tests/test_stage_data.gd`) — 9 stages re-graded, 14 unchanged/annotated, 2 deliberately kept known-wrong (stages 3/17, follow-up #148 territory). Independently re-derive rather than re-check the developer's arithmetic.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #124 (PASS)
+**New bugs filed**: none
+**Video/frame evidence**: `tests/sky_stage_preview.gd` on port 9635 (9-stage cycling run + 3 isolated single-stage runs for 1/2/4) cross-checked against identity-proven reference frames pulled from `.reference-cache/video/ab2-longplay.mp4` at each stage's span midpoint
+**Key findings**:
+- Re-ran `tools/measure_ground_palette.py` fresh on stages 1 (`--sea-only`), 8 (`--sample-interval 0.25`), and 16 — all three reproduce exactly (yield, H/S/V75/V25+sd, both corroborators, derived ground_a/b/c) to the last published digit.
+- Stage 3's `S=1.00` at `RGB(0,0,2)` claim confirmed with a one-liner: `colorsys.rgb_to_hsv` gives H=240°, S=1.0000 exactly — the "<30% saturated" reject rule structurally cannot fire on a near-black stage.
+- Stages 3 and 17 confirmed byte-identical to `git show HEAD` — the demotions ship the honest old values, not new invented ones.
+- G0 whole-frame read on all 9 re-graded stages: every visible difference from the reference (isotropic Worley-cell ground vs the arcade's directional wave streaks/vegetation clumping, missing stage-8 canyon walls) matches what the developer's own AC 8 section already disclosed — nothing new, and per TL's framing this is #135's structural territory, not a #124 regression.
+- All 5 new tests' negative controls tripped correctly in an rsync'd scratch copy (1/1/2/2/4 failures — dev reported 2/1/2/2/4, difference is just choice of nudge for perturbation 1, guard fired either way).
+- `bash tests/run_all.sh` total (1162/13) did NOT match the dev's claimed 1168/13 — root-caused to a concurrent, unrelated developer already fixing #147 on `hud_canvas.gd`/`test_hud_layout.gd` mid-QA (confirmed via `git diff` timestamps and content, matches the TL's separate #147 retro above). `test_stage_data.gd` itself: 27/0, stable before and after `stage_data.gd` additionally picked up an unrelated additive `scroll_speed` key (consistent with `ownership.md`'s planned #124→#139 handoff by the same developer) — #124's own ground values re-verified unaffected.
+- Off-checklist probe: independently diffed `sky_top`/`sky_horizon` for all 23 stages against commit `7a7c4ef` (0 mismatches) and `horizon_fraction` against `f99baff` (0 mismatches) — AC 7's "no regression" claim holds under direct check, not just trust.
+**Improvement Insights**:
+- **CLAUDE.md / workflow**: this is now at least two QA passes in one session (#129, #124) where `bash tests/run_all.sh`'s grand total drifted mid-verification purely from concurrent unrelated work landing on the shared tree — worth stating explicitly in the QA workflow that a per-file mismatch against a stale dev-reported total is EXPECTED on this project and should be root-caused (via git diff/mtime), not treated as a red flag on the issue under review.
+- **`.claude/agents/architect.md`**: the tool's operating-stats discipline (frames accepted/total, flatfrac, both corroborators published per stage) made 3-of-3 independent re-derivations trivial to confirm exactly — worth calling out as the pattern that made this the fastest-verifying re-grade issue so far, for reuse on future measurement-heavy specs.
+
 ### [2026-09-26 16:00] — TL — Retrospective: dev-147 — base-8 missile model; at re-verify
 
 **Agent TLDR**: verbatim in its entry below. Both #147 bugs fixed + the test hardened: the TRUE missile model is base-8 place value (borrow signature found by tracking both quantities together — QA's single-quantity hypothesis was also wrong); layout is one contiguous row from a single anchor (the spec's two-rect model was one blended state); H colour RGB(0,0,247) from lossless; the hardened test fails QA's exact defeat naming the guard line (negative control run in scratch, real file md5-verified untouched). Live proof: 50→6L+2S, fire 12 → 38→4L+6S, visibly updating.
