@@ -1,5 +1,28 @@
 # Session Log
 
+### [2026-09-26 14:00] — TL — Retrospective: qa-127-final — PASS; #127+#136 committed 75f5435, closed; #146 filed
+
+**Agent TLDR**: verbatim in its entry below. Test-17 fix confirmed on disk AND the engine mismatch independently reproduced outside the suite (grep 1 vs re 0 on the shipped leak line); suites 89/0, 47/0, 1156/13-known; prior audio_manager noise confirmed transient. Off-checklist probe (4th round on this guard): per-frame/displacement arms are order-dependent — number-before-keyword scores 0 → #146 (low, non-blocking; realistic revert vector still caught).
+
+**Retrospective — applied**: CLAUDE.md (multi-arm guard rule: both operand orders + non-fixture phrasings; phrasing probe now STANDARD for guard tasks). Committed 75f5435; #127/#136 closed. The full measurement chain (#113→#146) is now shipped end-to-end. APPLIED.
+
+
+### [2026-09-26 14:10] — qa — #127, #136, #146
+**Task**: Final verification that #127's test-17 fix landed, then full re-verification to enable the combined #127+#136 commit.
+**Result**: PASS (1 new bug filed, non-blocking)
+**Issues verified**: #127 (PASS — test-17 fix confirmed present and independently reproduced), #136 (PASS — already verified in prior pass, re-confirmed via game-movie/selftest.sh test 12)
+**New bugs filed**: #146 (Low — `SCOPE_PAT`'s `per frame`/`displacement` arms are order-dependent, miss number-before-keyword phrasing; not blocking)
+**Video evidence**: N/A — infrastructure QA (test-harness/regex verification), no reference-footage mandate per TL's task framing
+**Key findings**:
+- Test 17 in `.claude/skills/motion-metrics/selftest.sh` (lines 615-656) now grades via `grep -Eic "$SCOPE_PAT"` against files written to disk, same mechanism as test 16 — no `re.compile(SCOPE_PAT)` remains anywhere in the file.
+- Independently re-derived the engine mismatch outside the suite (not just trusting printed PASS lines): `grep -Eic` scores 1 on the exact shipped leak line, `python3 re.compile` scores 0 — matches the developer's diagnosis exactly.
+- `motion-metrics/selftest.sh`: 89 passed, 0 failed. `game-movie/selftest.sh`: 47 passed, 0 failed (includes #136's test 12: three distinct/monotonic ports 9684/9685/9686, negative control collapses to 9687). `tests/run_all.sh`: 1156 passed, 13 failed, all in the known-legacy `test_jet_mesh_builder.gd` set — no new failures, and `test_audio_manager.gd` (flagged as transient in the prior QA pass) is clean, confirming it was tree noise.
+- `speed-127/report.md`: 0 guard matches. `speed-127-qualifying/report.md`: still certified 0.9672, unregressed.
+- Off-checklist probe (phrasing enumeration): found a real, reproducible gap where `SCOPE_PAT`'s `per frame` and `displacement` arms only match keyword-before-number order — `"the estimator recorded 5.53 per frame..."` (number first, no unit word) scores 0. This is the same defect class that has hit this guard three times already (phrasing → unrendered branch → wrong engine), now a 4th instance in word order. Filed as #146, not blocking since the realistic revert vector (restoring the hardcoded `px`-bearing template) is still caught.
+**Improvement Insights**:
+- **CLAUDE.md**: the recurring lesson on this one guard (#127 now 4 rounds deep: phrasing → unrendered branch → wrong regex engine → order-dependence) suggests a durable pattern worth stating once, generically: "a guard with N independent match arms needs each arm probed for both operand orders and at least one non-fixture phrasing before it's trusted" — this would have caught the #146 gap during #127's own hardening pass instead of needing a second QA round.
+- **workflow**: budgeting "one off-checklist probe" per QA pass is earning its keep on this exact skill three sessions running (#127, #136→#142, now #146) — worth keeping as a standing line item rather than optional.
+
 ### [2026-09-26 13:30] — TL — Outage #3: prior agent sessions TERMINATED; fresh team spawned
 
 Spend limit killed 5 agents mid-task (~19:46) and this time the sessions are gone from the roster entirely (not resumable). Work survived on disk: #129 HUD (implemented, was mid-QA), #124 partial palette diff, #140 composition-metrics skill (built, unreported), #127/#136 metrics fixes (test-17 state unknown), plus modified test files of uncertain provenance (left untouched for assessment).
