@@ -1,5 +1,36 @@
 # Session Log
 
+---
+### [2026-09-26 18:05] — senior-developer — #140
+**Task**: Close out the composition detector (shape-model jet locator) left unreported by a prior session; verify its three ACs and complete what was missing.
+**Result**: COMPLETED
+**Ownership claimed (this entry)**: `.claude/skills/composition-metrics/**` (whole skill), `.gitignore`, `criteria.md` (the "Measuring the jet's screen position" note only — no other section touched). No GDScript touched. Port 9670 (sky_stage_preview), 9671/9672 (gameplay captures), all released.
+**Files changed**: `.claude/skills/composition-metrics/{SKILL.md,jet_detect.py,selftest.sh,make_control.py}` (make_control.py new), `.claude/skills/composition-metrics/control/backgrounds/bg_0{0..7}.png` + `control/jetfree-extra/jetfree_0{0..3}.png` (new, committed inputs), `.gitignore`, `criteria.md`. Commit `7f29aaf`.
+**Key changes**:
+- `make_control.py` (new) — the fixture generator. `SKILL.md` said it "is recorded in the #140 issue comment"; there was no such comment, so the 80 committed composites could never be rebuilt — in a session where the jet silhouette is being rebuilt under #112/#92. Only inputs are committed now (7 MB); the 112 composites are derived and gitignored, removing 45 MB of PNGs from a 38 MB repo.
+- `selftest.sh:121-149` — the jet-free false-positive test SKIPPED unless an env var pointed at hand-rendered frames. The suite's only guard against the detector answering about terrain was off by default, and the suite still printed "6 passed, 0 failed". Turned on with committed frames; it failed at once.
+- `jet_detect.py:DEFAULT_MIN_SCORE` 0.25 → 0.30 — that failure was real: stage 17's canyon rock scores 0.262 on a frame with no jet in it. #140's own defect on terrain the first sweep had not sampled. Re-swept; 0.30 is the knee (0/12 false positives, 92/112 accepted, max cx err 0.05 pp).
+- `selftest.sh` — the same test asserted the wrong string: it grepped for `too few to report`, which also covers a run with one or two detections, so it would have passed the run that exposed the above. Asserts `0/N` now.
+- `jet_detect.py:detect()` — edge padding. `matchTemplate` only places a template wholly inside its search image, so a clipped jet had **no candidate position at all**. 28 gameplay frames driven side to side: 13/28 detected spanning cx 30.9-67.8, vs 28/28 spanning 8.3-91.7 after. The tool built to answer "does the jet roam?" was reporting half the roam.
+- `jet_detect.py:_visible_score()` — padding alone was useless: scored against the zero-gradient void, a 27%-clipped jet came back at 0.22, **below** the 0.26 that jet-free canyon rock scores. Re-scoring over the visible mask only fixes it and leaves unclipped frames bit-identical, so the threshold sweep still holds.
+- `make_control.py:CASES` — 4 clipped cases (32 fixtures) added, without which none of the above is guarded.
+**Technical decisions**:
+1. **Derived fixtures are generated, not committed.** 45 MB of PNGs in a 38 MB repo, whose inputs were lost, guarding art that is actively changing. Inputs + generator is 7 MB and survives a jet-art change; `selftest.sh` builds on demand and fingerprints its inputs so it only rebuilds when they move.
+2. **Fixed the edge blindness rather than documenting it as a bound.** A bound was the cheaper deliverable and defensible under the "honest BOUND" rule, but this tool's entire purpose is the jet's screen-position distribution, and the bias is toward the centre — i.e. it would have made a non-roaming jet look correct. That is #140 recurring, so it was in scope.
+3. **Ground truth is the post-rounding bbox centre**, not the intended sub-pixel centre the old generator used. Exact by construction, and it is the same quantity the detector reports.
+4. **Kept the original 10 case geometries** rather than adding scale jitter. Our player jet does not scale on screen, so scale invariance is not a real-world condition and testing it would have been scope creep.
+5. **Did not edit the #122 spec comment.** It is the only remaining stale quotation of the old method; `criteria.md` flags it, which is the file judge/QA actually read.
+**Testing**:
+- Skill selftest via real `bash`: **9 passed, 0 failed** (was 6 passed with the important one skipped).
+- **Negative control for the new clipped assertions**: pre-fix (unpadded) detector accepts **0/32** clipped fixtures → assertion FAILS; current accepts 26/32 → PASSES. The assertion has teeth.
+- **Negative control for the jet-free test**: it failed on the real pre-existing threshold (0.25 → bg_06 at 0.262). Not synthetic.
+- Real gameplay: 45-frame input-free capture (9/12 jet-bearing frames accepted, 0/33 title frames — correct refusal) and a 28-frame held-input capture (28/28 after the fix). Both read by eye; the refusal diagnosis came from a contact sheet of the 15 refused frames, not from the scores.
+- `bash tests/run_all.sh` → 1197 passed, 13 KNOWN (`test_jet_mesh_builder.gd`), exit 0, "Suite clean."
+**Improvement Insights**:
+- [CLAUDE.md]: a test that SKIPs by default is a test that does not exist — the skip line read as a pass in the summary. Worth a standing rule: a selftest may not depend on an env var for its primary negative control; commit the fixture instead.
+- [criteria.md]: G7 says to model the shape of what you detect. Add the corollary this cost: *a detector that cannot represent a subject at the frame edge reports a distribution truncated toward the centre* — check the REFUSED frames before trusting a refusal.
+- [workflow]: the handoff of a dead session's work should include "run its selftest and read what it SKIPS", not just "run its selftest".
+
 ### [2026-09-26 16:40] — TL — Retrospective: vqa-129 #124 QA — PASS; tooling committed c519b76; data rides with #139
 
 **Agent TLDR**: verbatim in its entry below. Three stages reproduced to the last digit from the committed tool; demotions confirmed byte-identical to HEAD (honest old values); G0 whole-frame read matches the dev's own disclosures (all residual gaps = #135 structural territory); all 5 negative controls trip; grand-total drift correctly traced to concurrent #147 work; off-checklist probe verified sky/horizon no-regression against both prior commits directly (0 mismatches). Noted the in-flight scroll_speed key on stage_data (verified #124 values unaffected) → TL held stage_data for a combined commit with #139.
