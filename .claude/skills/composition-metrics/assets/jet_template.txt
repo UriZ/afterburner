@@ -1,0 +1,8 @@
+# Player-jet template for the shape-model composition detector (#140).
+# Rendered by tests/jet_silhouette_preview.gd: the jet alone, level, on a
+# magenta key, so the silhouette is exact. Regenerate with that rig if the
+# jet art changes.
+width 344
+height 97
+centroid_x 171.50
+centroid_y 65.10

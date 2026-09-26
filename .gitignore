@@ -31,6 +31,12 @@ export/
 __pycache__/
 *.pyc
 
+# Composition-detector control fixtures (#140) — DERIVED data, 58 MB of PNGs
+# rebuilt from the committed jet-free backgrounds by make_control.py, which
+# selftest.sh runs automatically. Committing them would more than double the
+# repo and they go stale the moment the jet art changes.
+.claude/skills/composition-metrics/control/generated/
+
 # Extracted reference frames — local development reference only.
 # This repo is public; committing frames from copyrighted arcade footage
 # would be redistribution. Regenerate with the youtube-reference skill.

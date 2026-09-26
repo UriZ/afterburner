@@ -56,6 +56,8 @@ The judge and QA MUST view ALL reference images and videos (Read tool) before ev
 
 **Measuring the jet's screen position (#140).** Strips are for reading composition by eye. If you need a NUMBER for where the jet sits — cx/cy distribution, off-centre fraction — use `.claude/skills/composition-metrics/jet_detect.py`. Do NOT use the older colour-threshold centroid method (`V>0.72, S<0.25`), which selects our bright ground rocks and measured terrain for a whole 60s capture while its control passed. That method is quoted in the #122 spec and is stale.
 
+Two properties of the replacement are load-bearing when reading its output. **An off-centre fraction it reports is a FLOOR, not a point estimate** — its remaining refusals concentrate on poses that are banked and clipped by the frame edge at once, which are off-centre poses, so it can understate roaming but never overstate it. And **its detection rate counts only frames that contain a jet**: title and game-over frames correctly report nothing, so a capture that outlives the player's last life reports a rate that looks like a fault and is not one.
+
 
 Sources: [LaunchBox Games Database](https://gamesdb.launchbox-app.com/games/images/7687-after-burner-ii), [Games Database](https://www.gamesdatabase.org), [Internet Archive](https://archive.org)
 
