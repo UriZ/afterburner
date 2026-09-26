@@ -253,7 +253,7 @@ At gate time, measure the equivalent band on the identity-proven reference and c
 
 **Shape regularity is part of this rule**: matching size, edge and brightness proxies while every feature is the same lozenge still fails. Require varied feature outlines.
 
-**Colour**: measure the dominant-hue fraction on the matching reference stage at gate time. Note that **some arcade grounds are genuinely two-hue** — stage 1's ground band swings 100 degrees between frames (deep-blue sea, cyan crests, green island) and stage 7 swings 80 — so a single-dominant-hue expectation is wrong on those stages and must not be applied to them. (See disagreement D3 below; this clause resolves it in the direction the measurement supports.)
+**Colour**: measure the dominant-hue fraction on the matching reference stage at gate time. NOTE (#124): the 'more uniform than the reference' clause is currently UNSATISFIABLE by any stage_data change — the shader pins every cluster to one hue (100.0% dominance on all stages vs arcade 57-92%); it is #135's second-material work that closes it. Do not fail a palette-only issue for it; do fail #135 without it. Note that **some arcade grounds are genuinely two-hue** — stage 1's ground band swings 100 degrees between frames (deep-blue sea, cyan crests, green island) and stage 7 swings 80 — so a single-dominant-hue expectation is wrong on those stages and must not be applied to them. (See disagreement D3 below; this clause resolves it in the direction the measurement supports.)
 
 **Method note**: modal colour estimation works on flat fills (sky mode share 97.8 %) and **fails on dithered grounds** (mode share 5.7 %; 10 % sky contamination flips the mode). Methods do not transfer sky→ground.
 
