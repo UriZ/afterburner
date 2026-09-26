@@ -7,6 +7,10 @@ extends CanvasLayer
 @onready var canvas: Control = %HudCanvas
 
 var score: int = 0
+## Running maximum. Deliberately write-only for now: AB2's play screen has no HI
+## readout (#129), so nothing renders this. Kept for a future high-score screen.
+## Verified: no title-screen or game-over reader exists today — keeping it is a
+## choice, not a consequence of existing consumers.
 var high_score: int = 0
 var current_stage: int = 1
 var missile_count: int = 0
