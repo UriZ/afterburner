@@ -1,5 +1,43 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: dev-131b #131 assess+complete — production was DONE; harness bug fixed; in visual QA
+
+**Agent TLDR**: verbatim in its entry below. Assess-first found all four spec gaps already implemented exactly (constants diffed against the spec's table); the only defect was a parse-error signature mismatch in the dead session's preview harness. 144/0 standalone incl. AC 1a deterministic + all negative controls; isolated + live visual verification (different banks in one frame; type-0 reads shaded).
+
+**Retrospective — applied**: dev defs (smoke-run new preview harnesses pre-handoff). Assess-first validated as the default for dead-session recovery. Visual QA → vqa-131 (fresh; port 9656). APPLIED.
+
+
+### [2026-09-28] — developer (dev-133b) — #133
+**Task**: Assess and complete a prior session's uncommitted #133 work (projectile trails: continuous ribbons, tracer streaks, no alpha glow) after outage #4 killed it mid-task; verify against the architect spec + judge amendment, complete anything missing, verify visually, relabel for QA.
+**Result**: COMPLETED — no code changes needed. The dead session's implementation was already complete and spec-compliant (including both judge-gate corrections), so this was pure verification.
+**Files reviewed (no edits made)**: `scripts/weapons/missile_2d.gd`, `scripts/weapons/vulcan_bullet_2d.gd`, `scripts/weapons/projectile_renderer.gd` (new), `scripts/weapons/weapon_manager_2d.gd` (unrelated #128 hunk, left untouched — dev-128b territory), `scripts/game/game_world.gd` (one-line delegate, verified disjoint from other issues' hunks), `tests/test_projectile_trails.gd` (new, 23 assertions), `tests/projectile_preview.gd` (new, isolated harness), `tests/fixtures/alpha_violation_fixture.gd.txt` + `stage_lookup_fixture.gd.txt` (negative controls), `tests/test_vulcan_2d.gd`/`tests/test_enemy_bullet_2d.gd` (unrelated `HORIZON_Y`→`horizon_y` rename from #120).
+**Ownership claim**: trail/tracer/enemy-bullet drawing logic in the four weapons files + `projectile_renderer.gd` + `tests/test_projectile_trails.gd` + `tests/projectile_preview.gd` + `tests/fixtures/*trails*`. Did NOT touch `weapon_manager_2d.gd`'s `_get_container()`/reparenting hunk (dev-128b's).
+**Key verification**:
+- `tests/test_projectile_trails.gd` standalone: 23/23 pass, including both negative-control fixtures actually rejected by their guards (not vacuous passes).
+- `tests/test_vulcan_2d.gd` (27/27), `tests/test_enemy_bullet_2d.gd` (7/7) standalone clean.
+- `bash tests/run_all.sh`: 1279 passed, 13 failed (known/accepted `test_jet_mesh_builder.gd` legacy failures only). Suite clean.
+- Isolated composite-render harness (`tests/projectile_preview.gd`, port 9636, magenta background): magnified crop confirms continuous opaque ribbon (no bead-chain gaps), monotonic taper, visible white→tan value transition (not alpha fade); enemy-bullet row confirms dark-rim→hot-core 3-fill discs at r>=4px and single-fill fallback below; tracer confirmed as opaque dot+streak, length >2x width. Had to tune capture timing (~0.6s post-launch) after two earlier attempts landed either too early (ribbon barely started) or too late (missiles already past `MAX_LIFETIME`-adjacent depth and freed).
+- Live in-game capture (port 9636, held Z/X during real gameplay): captured a live enemy-bullet hot-cored disc mid-flight, and — after several timing-tuned attempts (vulcan round crosses its whole depth range in ~0.24s) — a live vulcan tracer, 4x-zoomed crop confirming opaque dot+streak with no alpha halo during actual play, not just the isolated harness.
+**Gap flagged for QA**: ACs 1 and 4 (ribbon column-continuity %, quintile V ratio) verified qualitatively via the harness crop, not re-measured numerically against the spec's exact reference segmentation pipeline applied to our own render.
+**Improvement Insights**:
+- **workflow**: when a dead session's uncommitted work already reflects a post-amendment spec correctly (both judge-gate corrections present, negative controls in the exact required form), the fastest and most honest path is verify-only — re-implementing to "be sure" would have been wasted work and risked introducing a regression into already-correct code.
+- **game-capture skill / SKILL.md**: for fast-lifetime dynamic effects (missile ribbons that despawn within ~1.1s of spawn, vulcan tracers visible for ~1-2 frames at 60fps), the standard `--interval 300-500ms` capture cadence used elsewhere in this project is too coarse to reliably catch the effect — needed `--interval 60-150ms` and, for the isolated harness, explicit real-time tuning against the object's own lifetime constants. Worth noting in the skill doc as a pattern for future fast-projectile visual QA.
+
+---
+
+### [2026-09-28] — developer (dev-131b) — #131
+**Task**: Assess+complete the #131 implementation (enemy shading/nozzles/bank) after a prior session died mid-work.
+**Result**: COMPLETED
+**Files changed**: `scripts/enemies/enemy_jet_2d.gd`, `scripts/enemies/enemy_sprite_renderer.gd`, `tests/test_enemy_jet_2d.gd`, `tests/enemy_sprite_preview.gd` (new)
+**Ownership claims**: `enemy_jet_2d.gd` (G1, G4 — `get_bank_angle()`, bank constants), `enemy_sprite_renderer.gd` (G2, G3 — `ENEMY_COLORS`, nozzle radii), `tests/test_enemy_jet_2d.gd`, `tests/enemy_sprite_preview.gd`. Zero edits to `game_world.gd` (owned by #128/dev-140-128).
+**Key changes**:
+- Assessed the on-disk state against the fully-amended spec (spec + amendment 1 + addendum, judge-PASSED 10/10) and found it already correct and complete: `MAX_BANK_RAD=1.0472` (60deg), `BANK_DRIFT_SCALE=8.3`, multiplicative oscillation `BASE=0.55/AMOUNT=0.45/RATE=0.55`, type-0 body-value spread widened to 0.215 (>=0.20 target), hot-core ratio 0.400 (`s*0.052`), red marking untouched at `s*0.13`. No further changes to the two owned production files were needed.
+- `tests/enemy_sprite_preview.gd:42` — fixed argument order in the new isolated visual harness: it called `EnemyRenderer.draw_enemy()` as `(self, pos, sizes[i], t, bank_rad)` against the real signature `(canvas, type, pos, s, bank_rad)`, putting a Vector2 where an int was expected. The script failed to parse before the fix. Harness-only bug, no production files touched by the fix.
+**Testing**: `tests/test_enemy_jet_2d.gd` standalone — 144 passed, 0 failed, covering AC1a/1b through AC8 including both negative controls (multiplicative-vs-additive zero-drift sweep, roll_rad structural scan on executable lines). `bash tests/run_all.sh` — 1279 passed, 13 failed (all `test_jet_mesh_builder.gd`, KNOWN/accepted, unrelated to this issue). Visual: isolated preview harness (3 types x 4 sizes x 4 banks on magenta, via `--mcp-port 9998` + game-capture) confirms type-0 now reads as shaded rather than a flat mass, progressive banking visible, nozzle dark-rim-then-hot-core construction visible. Live in-game capture (`--start-game --port 9655`, 8 frames/1.5s) shows multiple enemies at simultaneously varied bank angles, consistent with the reference's "one enemy steep, one level, same frame" observation.
+**Improvement Insights**:
+- **workflow**: a visual harness that calls a real production function with mismatched positional-argument order fails loudly in Godot (typed-argument parse error) rather than silently misrendering — this is a cheap, high-value check: run any new `*_preview.gd` harness once via `--script` before handing it off, the same way `run_all.sh` is mandatory for test files.
+- **agent-definition (developer.md)**: "assess before implementing" paid off directly here — the task assumed 4 gaps needed completing, but 3 of the 4 owned-file gaps were already done exactly to spec; the actual remaining defect was in a test harness, not production code. Worth keeping "diff the shipped constants against the spec's own table before writing any code" as the first step on any assess+complete task.
+
 ### [2026-09-28 — TL] — Outage #4 recovery: fresh wave spawned onto surviving disk work
 
 Spend limit killed the final-wave agents mid-task (2026-09-26 12:18); sessions terminated. Survived on disk: #128 core (game files + test_world_roll.gd), #133 (projectile_renderer.gd + weapons diffs + tests), #131 (enemy renderer + preview), #139 complete awaiting QA. Fresh spawns: dev-128b, dev-133b, dev-131b (assess+complete each), qa-139b (#139 QA). Boundary note in all prompts: weapons-file diffs may interleave #128 reparenting with #133 trail drawing — coordination via TL if ambiguous. After this wave clears: the combined stage_data commit (#124+#139), remaining commits, then CYCLE 2.
