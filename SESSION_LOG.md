@@ -1,5 +1,22 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: vqa-131 #131 — PASS; committed 0c3aef6; closed
+
+**Agent TLDR**: verbatim in its entry below. AC 1a recomputed by hand AND its clamp-only negative control run live in scratch (fails at 34.38° with exit 1 — a live discriminator); isolated harness confirms type-0 reads shaded with zoomed crops; live frame with three enemies at three banks (the arcade signature); roll_rad grep matches the structural scan (one doc-comment hit, zero executable); #128's concurrent game_world diff correctly attributed, not conflated.
+
+**Retrospective**: no new rule needed — the existing discipline executed cleanly end-to-end. Committed 0c3aef6; #131 CLOSED. vqa-131 proceeds to #133 QA (queued in its inbox). APPLIED.
+
+
+---
+### [2026-09-28 17:40] — visual-qa — #131
+**Task**: Visual QA of enemy shading/nozzles/bank (#131 assess+complete, dev-131b) — independent re-verification of AC 1a arithmetic, negative control, isolated-harness + live comparison against reference, AC 6 composition-contract scan, AC 8, full suite
+**Result**: PASS (0 bugs found)
+**Issues verified**: #131 (PASS)
+**New bugs filed**: none
+**Improvement Insights**:
+- **workflow**: the scratchpad-rsync negative control (revert `BANK_DRIFT_SCALE` 8.3→5.0, keep clamp 60, re-run `test_enemy_jet_2d.gd`) is the cheapest possible independent check of an "AC-template" deterministic criterion — 34.38° vs required [55,59]° band, exit 1, ~30s total. Worth keeping as the default pattern whenever a QA task hands over a deterministic-half AC with a stated negative-control config already in the issue thread — just run it, don't just recompute it by hand.
+- **CLAUDE.md**: the `--mcp-port` vs `--port` distinction (direct Godot launch vs capture.sh wrapper) worked exactly as documented this run — no friction, no note needed there.
+
 ### [2026-09-28 — TL] — Retrospective: qa-139b #139 — PASS all 8 ACs; data committed ed229ae; #139+#124 closed
 
 **Agent TLDR**: verbatim in its entry below. Every claim re-derived independently (own scratch doubling verified-by-diff, own captures, own arcade window at t=360-368 → 0.9888; deliberately captured ZERO stills — G6 gates speed through the analytic pipeline only, and the QA used it correctly); survivability-neutrality proven STRUCTURALLY (scroll symbols have no path into collision/spawn code) beyond the empirical 5/5; suite identical twice under 3 concurrent editors; off-checklist: stale wrap-margin comment (708s describes the old constant; real 354s — noted for the #128 commit).
