@@ -1,5 +1,22 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: vqa-131 #133 re-verify — PASS; commit staged with roll
+
+**Agent TLDR**: verbatim in its entry below. Reference constants independently re-derived (V 0.367/0.215 vs shipped 0.37/0.22 — genuinely reference-derived); 150-frame deterministic sweep: 144 valid, ratio 2.71-4.55x, ZERO below bar, youngest frame at the global minimum 2.71 (the fractional fix holds at the earliest measurable moment); a near-threshold false-positive FAIL from TCP jitter caught and resolved via the deterministic sweep — methodology lesson logged.
+
+**Retrospective — applied**: qa.md (deterministic sweep for near-threshold claims). #133 commit rides with the roll commit (shared weapon_manager/game_world files) pending §G scoped QA — vqa-131's next queue item. APPLIED.
+
+
+---
+### [2026-09-28 19:55] — visual-qa — #133
+**Task**: Scoped re-verify of #133's AC4 fix (dev-133b) — re-run PCA+quintile ribbon-value-structure methodology across MULTIPLE capture instants (the 2nd defect the fix surfaced was invisible to single-instant checks), verify the reference V=0.37/0.22 constants against `ab2-arcade-night-missiles.jpg` myself, confirm band shares hold on a young trail, spot-check for regression on AC1/AC5, confirm single-subject harness invariant.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #133 (PASS)
+**New bugs filed**: none
+**Improvement Insights**:
+- **workflow (load-bearing)**: my first re-measurement pass (real-time TCP-bridge capture, single-missile isolated harness) found a non-degenerate frame at 1.633x — BELOW the 1.8x bar, an apparent regression. A fully deterministic re-measurement (`--write-movie --fixed-fps 60 --quit-after 150` on the identical harness) across all 144 valid frames of the same missile's flight found ZERO frames below 1.8x (range 2.71x-4.55x), including the youngest possible non-degenerate frame. The 1.633x reading did not reproduce and was TCP-capture timing jitter, not a defect. **Any per-frame numeric claim near a threshold needs a deterministic MovieWriter sweep before it's trusted, not just a real-time capture** — this is the same class of hazard `--self-test`-style known-answer controls exist to catch, and it nearly produced a false-positive FAIL here.
+- **criteria.md**: worth naming the "deterministic sweep over a real-time sample" upgrade explicitly next to the existing AC-template rule — a single real-time capture instant is not evidence for or against a per-frame numeric AC near its bar; a full deterministic frame range is.
+
 ### [2026-09-28 — TL] — Retrospective: dev-128b §G jet-bank — complete; scoped QA queued; #153 filed
 
 **Agent TLDR**: verbatim in its entry below. Jet banks with its horizon (ratio 0.792/0.804 vs BANK_FOLLOW=0.8; SAME-frame peak coupling vs ≤0.1s AC — the deleted slew would have been 0.69s early); rejected the obvious demo re-point (a demo-local slew = the second source of truth §3 forbids) in favor of a published roll_command consumed by game_world — attract mode now rolls the world; spec-wording correction recorded (the 'barrel-roll' line is the death tumble); TWO more vacuous controls self-caught (same helper-vs-_process shape — third instance on this issue) and made real; six two-way controls all failing correctly. test_constants updated (MAX_BANK_ANGLE deleted). Relayed QA's ribbon-occlusion observation → #153.
