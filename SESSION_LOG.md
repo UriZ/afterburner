@@ -1,5 +1,23 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: vqa-131 #121 QA — FAIL on AC 2 counts; retune queued
+
+**Agent TLDR**: verbatim in its entry below. The numeric procedure the dev left to QA found the defect: 100-119/103-119 counted vs 20-32/12-26 target (3-9x over, robust to threshold) — root cause is the dev's own FLAGGED interpretation call (honest flag → fast diagnosis). All else passed: AC 0(b) bit-identical reproduction, wrap lockstep (algebraic + runtime), horizon guard at 65° roll, judgement-binding AC 0(a) with all differences either deferred or disclosed. Two-hue gate flagged unresolvable from screenshots (needs node data — debug dump requested). Transient mid-review compile break correctly attributed to a concurrent agent's file landing (canyon_walls_2d.gd — #135 underway) and the re-run-before-verdict practice noted.
+
+**Actions**: #121 retune queued to dev-133b (order: #154 → #121 → #135) with derive-from-target instructions + the _drawn_footprints exposure request. Cloud test failures correctly left to #132's own QA.
+
+
+---
+### [2026-09-28 21:40] — visual-qa — #121
+**Task**: Visual QA of ground terrain features (#121, developer report) — AC 0(b) published segmentation on our build vs identity-proven stage-17 reference, AC 0(a) whole-frame judgement, lockstep across the scroll wrap, horizon guard under roll, persistence, two-hue-family measure, AC 2 on-screen count (developer left this numeric procedure to QA), run_all.sh, off-checklist probe.
+**Result**: FAIL (1 bug found — High severity)
+**Issues verified**: #121 (FAIL — AC 2 fails 3-9x over target; AC 0(a)/(b), lockstep, horizon guard, persistence all PASS; two-hue-family gate comparison inconclusive, flagged not failed)
+**New bugs filed**: none (finding is #121's own AC 2 failing, reported + relabeled on the same issue per established pattern)
+**Improvement Insights**:
+- **criteria.md / AC-template rule**: AC 2 is a third instance of the project's recurring pattern — a numeric target the developer honestly declined to verify themselves, left for QA, and it turned out to miss by a large, unambiguous margin (100-119 vs a 20-32 target) rather than a marginal one. When a developer explicitly flags "I did not run this measurement, QA should," that flag should be read as a near-certain signal the number needs checking first, not last.
+- **workflow**: mid-review, `game_world.gd` referenced a preload target (`canyon_walls_2d.gd`) that didn't exist yet on disk, breaking 5 test files and the whole game's compile for several minutes until a concurrent agent's file landed. Nothing to fix (self-resolved), but it's a clean illustration of why `bash tests/run_all.sh` should be re-run immediately before finalizing a verdict rather than trusted from earlier in a long QA session — I caught it only because I happened to re-run the full suite partway through.
+- **general**: approximating a "measure the node's drawn footprints" requirement from a screenshot alone (no access to the live `_drawn_footprints` list) produced a noisy, inconclusive proxy for the two-hue dominance gate. Reported honestly as unresolved rather than forcing a verdict either way — worth remembering that some gate-time measurements genuinely need instrumentation exposed by the node itself, and a QA proxy should say so rather than manufacture false precision.
+
 ### [2026-09-28 — TL] — Retrospective: §G PASS; commit batch HELD for wave completion
 
 **vqa-131 §G TLDR**: verbatim in its entry below. Ratio reproduced on frames the dev never captured (0.792/0.822/0.804); same-frame peak coupling (0.000s); attract-mode roll matches to 0.05°; death behavior verified at the unit level (roll_command forced 0 while the tumble runs untouched); one negative control approximately reconstructed with the approximation NOTED rather than reported as a discrepancy — the honesty standard holding.
