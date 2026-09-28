@@ -109,6 +109,12 @@ func _apply_stage(stage_number: int) -> void:
 		game_world.ground_color_a = data["ground_a"]
 		game_world.ground_color_b = data["ground_b"]
 		game_world.ground_color_c = data["ground_c"]
+		# Per-stage world velocity (#139). Pushed here rather than read by
+		# GameWorld so there is exactly one place a stage's data reaches the
+		# renderer, the same call site that already sets the horizon above —
+		# apparent flow depends on BOTH, and splitting them across two owners
+		# is how they drift apart.
+		game_world.ground_scroll_speed = data["scroll_speed"]
 
 	# Update spawn difficulty — later/harder stages dispense enemies more often,
 	# but always within a band that SpawnPacing.MAX_ON_SCREEN_ENEMIES can absorb.

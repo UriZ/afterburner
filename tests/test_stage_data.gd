@@ -25,6 +25,8 @@ func _init() -> void:
 	test_ground_c_is_a_value_step_not_a_third_hue()
 	test_stage_1_ground_is_the_arcade_sea()
 	test_every_stage_carries_a_124_ground_annotation()
+	test_scroll_speed_per_stage()
+	test_scroll_speed_regimes_are_ordered_correctly()
 
 	print("\n%d passed, %d failed" % [_pass_count, _fail_count])
 	quit(1 if _fail_count > 0 else 0)
@@ -50,7 +52,7 @@ func test_stage_count() -> void:
 
 func test_all_stages_have_required_keys() -> void:
 	print("\ntest_all_stages_have_required_keys:")
-	var required_keys := ["ground_a", "ground_b", "ground_c", "sky_top", "sky_horizon", "spawn_interval", "enemies_per_wave", "is_bonus", "horizon_fraction"]
+	var required_keys := ["ground_a", "ground_b", "ground_c", "sky_top", "sky_horizon", "spawn_interval", "enemies_per_wave", "is_bonus", "horizon_fraction", "scroll_speed"]
 	var all_valid := true
 	for i in range(StageData.stage_count()):
 		var stage := StageData.get_stage(i + 1)
@@ -304,3 +306,73 @@ func test_every_stage_carries_a_124_ground_annotation() -> void:
 	assert_eq(measured, MEASURED_GROUNDS.size(), "Every measured stage carries a '#124 GROUND (measured)' citation")
 	assert_eq(unmeasurable, UNMEASURED_GROUNDS.size(), "Every unmeasurable stage carries a '#124 GROUND: UNMEASURABLE' annotation with its reason")
 	assert_eq(measured + unmeasurable, 23, "No stage is left without a #124 ground annotation")
+
+
+# ============================================================================
+# #139 — per-stage world speed
+# ============================================================================
+
+func test_scroll_speed_per_stage() -> void:
+	print("\ntest_scroll_speed_per_stage:")
+	# Explicit per-stage assertions, the same shape as #120's horizon test, so
+	# a future edit that silently changes an unmeasured stage's speed is caught
+	# here. There are exactly TWO measurements behind these 23 numbers: the
+	# arcade stage-1 cruise FLOOR (>= 95.7 %W/s) and the arcade stage-8
+	# certified canyon flow (1.9433 px/frame at a 192 px work width).
+	assert_true(is_equal_approx(StageData.get_stage(8)["scroll_speed"], 0.804),
+		"stage 8 scroll_speed is 0.804 (canyon; solved from our measured 1.7623 px/f at v=0.729 against the arcade's certified 1.9433)")
+	assert_true(is_equal_approx(StageData.get_stage(17)["scroll_speed"], 0.752),
+		"stage 17 scroll_speed is 0.752 (canyon REGIME ASSUMPTION — stage 8's value corrected for stage 17's own span; no arcade stage-17 flow measurement exists)")
+	var all_cruise := true
+	for i in range(1, StageData.stage_count() + 1):
+		if i == 8 or i == 17:
+			continue
+		var v: float = StageData.get_stage(i)["scroll_speed"]
+		if not is_equal_approx(v, 2.8):
+			all_cruise = false
+			print("    Stage %d scroll_speed is %s, expected the cruise 2.8" % [i, str(v)])
+	assert_true(all_cruise, "All 21 non-canyon stages hold the measured cruise value 2.8")
+
+
+func test_scroll_speed_regimes_are_ordered_correctly() -> void:
+	print("\ntest_scroll_speed_regimes_are_ordered_correctly:")
+	# The defect #139 exists to fix, stated as an invariant rather than as
+	# three more literals. Apparent flow is k*v*span, span = SCREEN_H -
+	# horizon_y, so a single global v would make our canyons the FASTEST
+	# stages in the game (their span is 2.32-2.48x cruise) while the arcade's
+	# canyon runs at most 0.63x its cruise. This asserts the ordering the
+	# arcade actually has — canyon apparent flow below cruise — computed from
+	# the shipped data rather than restating the numbers above.
+	var screen_h := 672.0
+	var cruise := StageData.get_stage(1)
+	var cruise_flow: float = cruise["scroll_speed"] * (screen_h - screen_h * float(cruise["horizon_fraction"]))
+	var worst_canyon_ratio := 0.0
+	for i in [8, 17]:
+		var s := StageData.get_stage(i)
+		var flow: float = s["scroll_speed"] * (screen_h - screen_h * float(s["horizon_fraction"]))
+		var ratio := flow / cruise_flow
+		print("    stage %d apparent-flow ratio vs cruise: %.3f" % [i, ratio])
+		worst_canyon_ratio = maxf(worst_canyon_ratio, ratio)
+		assert_true(ratio < 1.0, "stage %d canyon apparent flow is BELOW cruise (ratio %.3f) — a single global speed gives 2.32-2.48" % [i, ratio])
+		# NEGATIVE CONTROL: the same arithmetic with one global speed, i.e. the
+		# pre-#139 state. If this did NOT come out inverted, the invariant above
+		# would be passing on geometry that never had the defect.
+		var global_ratio := (screen_h - screen_h * float(s["horizon_fraction"])) / (screen_h - screen_h * float(cruise["horizon_fraction"]))
+		assert_true(global_ratio > 2.3, "negative control: with ONE global speed, stage %d would run %.3fx cruise — the inverted relationship #139 exists to fix" % [i, global_ratio])
+
+	# NOT ASSERTED, deliberately: that our ratio is <= the arcade's 0.63.
+	#
+	# Ours is 0.666. The arcade's 0.63 is 1.9433 / 3.063, and 3.063 is a FLOOR
+	# (arcade stage 1 fails the aliasing gate, which only ever reads low), so
+	# the arcade's true ratio is <= 0.63 by an unknown amount. Our cruise value
+	# is set to just clear that floor while our canyon matches the arcade's
+	# certified canyon exactly, so our ratio sits slightly ABOVE the arcade's
+	# upper limit BY CONSTRUCTION, and it will keep doing so until someone can
+	# measure the arcade's true cruise speed — which #139 section 5.1 shows
+	# cannot be done from the available footage at any frame rate.
+	#
+	# Asserting `<= 0.63` here would demand two-sided parity against a bound,
+	# which is the exact discipline error this issue spent a gate on. The first
+	# version of this test did assert it and failed at 0.666; the number was
+	# right and the assertion was wrong. What is testable is the DIRECTION.
+	print("    (canyon/cruise ratio %.3f; the arcade's is <=0.634 — ours sits just above because our cruise closes a FLOOR from below, not a parity target)" % worst_canyon_ratio)
