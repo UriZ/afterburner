@@ -82,7 +82,10 @@ if [ "$START_GAME" = true ]; then
 
   echo "Starting Godot on port $PORT..."
   LOG_FILE=$(mktemp)
-  /Applications/Godot.app/Contents/MacOS/Godot --path "$PROJ_DIR" -- --mcp-port "$PORT" > "$LOG_FILE" 2>&1 &
+  # --mute-audio (#143): this is a spawned instance, not a manual launch — the
+  # Master bus is audible by default since #138, and up to 6 of these can run
+  # concurrently during a pipeline wave.
+  /Applications/Godot.app/Contents/MacOS/Godot --path "$PROJ_DIR" -- --mcp-port "$PORT" --mute-audio > "$LOG_FILE" 2>&1 &
   GODOT_PID=$!
   echo "$GODOT_PID" > "$PID_FILE"
 

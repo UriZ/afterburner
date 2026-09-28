@@ -112,9 +112,13 @@ for i, ev in enumerate(events):
 PY
 
   # Dry run: loads the timeline through the real resolver and quits. Headless is
-  # fine here precisely because we are NOT writing a movie.
+  # fine here precisely because we are NOT writing a movie. --fixed-fps "$FPS"
+  # is required here too (#141): CaptureInput now refuses to schedule a
+  # timeline outside a fixed time base matching its assumed 60fps, and an
+  # unpaced headless frame is nowhere near that — the dry run would otherwise
+  # FATAL on every default invocation before ever reaching the real capture.
   DRY_LOG=$(mktemp)
-  "$GODOT" --headless --path "$PROJ_DIR" --quit-after 1 -- \
+  "$GODOT" --headless --fixed-fps "$FPS" --path "$PROJ_DIR" --quit-after 1 -- \
     --mcp-port "$PORT" --capture-input "$INPUT_SCRIPT" > "$DRY_LOG" 2>&1
   DRY_RC=$?
   if [ "$DRY_RC" -eq 3 ]; then
@@ -139,8 +143,11 @@ LOG="$TMP_DIR/godot.log"
 cleanup() { [ "$KEEP_AVI" = true ] || rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
+# --mute-audio (#143): a spawned instance, not a manual launch — the Master
+# bus is audible by default since #138, and up to 6 of these can run
+# concurrently during a pipeline wave.
 GODOT_ARGS=(--path "$PROJ_DIR" --write-movie "$AVI" --fixed-fps "$FPS"
-            --quit-after "$FRAMES" --disable-vsync -- --mcp-port "$PORT")
+            --quit-after "$FRAMES" --disable-vsync -- --mcp-port "$PORT" --mute-audio)
 [ -n "$INPUT_SCRIPT" ] && GODOT_ARGS+=(--capture-input "$INPUT_SCRIPT")
 [ -n "$SEED" ] && GODOT_ARGS+=(--capture-seed "$SEED")
 

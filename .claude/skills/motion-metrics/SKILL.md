@@ -19,8 +19,9 @@ that the measurement means anything. When it qualifies you get mean/peak px/fram
 clips, a game/reference ratio, `flow-ref.csv`, `flow-game.csv` and `flow-plot.png`. When it
 does not, you get a section saying so and naming the number that disqualified it.
 
-**Never does**: report a speed figure below 60fps sampling, or on content where the gate
-fails. `selftest.sh` asserts both directions mechanically, each with a negative control.
+**Never does**: report a speed figure below `--speed-fps` sampling (default 60, #149), or on
+content where the gate fails at whatever rate was requested. `selftest.sh` asserts both
+directions mechanically, each with a negative control.
 
 ### The entry gate, and why it is per-window
 
@@ -47,6 +48,29 @@ confirmed by a synthetic positive control.
 
 **Do not infer speed from the strips themselves** — that is what the numbers are for. Use
 strips for horizon height, ground coverage, object count, jet pose, scale and explosion size.
+
+### The analysis crop the speed pass measures through (#139)
+
+The speed pass extracts flow frames through the **same `--crop` rect** (`compute_crop_rect`,
+default `0.12,0.12,0,0` — top/bottom only) as the strips. This is not incidental: `--speed-fps`
+raises the FLOOR on which rate is trusted, but every rate still measures through this rect, and
+it is the single most consequential number a bespoke (non-`compare.sh`) flow driver can get
+wrong. #139 measured a **~28% low** reading (1.2715 vs 1.6291 px/frame, same clip, same rect
+otherwise) from a driver that analysed the full frame instead — the static HUD bands at top and
+bottom carry zero motion and dilute the mean once included. Any script that reimplements flow
+extraction outside `compare.sh` (as #139's scratch driver and this issue's `--speed-fps`
+verification both did) must reproduce **`0.12/0.12` top/bottom, `0/0` left/right** — or state
+explicitly that it used something else and why, since results are not comparable otherwise.
+
+### Raising the floor with `--speed-fps` (#149)
+
+The 60fps default is not universal — it is the rate at which AB2's dithered ground texture
+stops aliasing **for footage measured so far**. Our own post-#139 cruise speed exceeds that:
+sampled at 60fps it fails its own entry gate (+14.4% error on a real stage-1 cruise clip,
+self-compared), while the identical content at `--speed-fps 120` passes cleanly (see
+`selftest.sh` test 18 for the reproducible synthetic version of this same result). Use
+`--speed-fps 120` — or higher, re-deriving the knee the way §1 did for 60 — for any content
+fast enough to alias at the default.
 
 **Measuring the jet's screen position (#140).** Strips are for reading composition by eye. If you need a NUMBER for where the jet sits — cx/cy distribution, off-centre fraction — use `.claude/skills/composition-metrics/jet_detect.py`. Do NOT use the older colour-threshold centroid method (`V>0.72, S<0.25`), which selects our bright ground rocks and measured terrain for a whole 60s capture while its control passed. That method is quoted in the #122 spec and is stale.
 
@@ -161,7 +185,8 @@ row-to-row misalignment.
 | `--crop` | `T,B,L,R` | `0.12,0.12,0,0` | Fractions cropped off each edge, **both** clips |
 | `--aspect-policy` | `strict` \| `center-crop` | `strict` | On post-crop aspect mismatch |
 | `--keep-frames` | flag | off | Keep extracted frames for debugging |
-| `--speed` | `auto`\|`on`\|`off` | `auto` | `auto`: report speed iff both clips are >=60fps and the gate passes. `on`: require it, exit 2 otherwise. `off`: never |
+| `--speed` | `auto`\|`on`\|`off` | `auto` | `auto`: report speed iff both clips are >=`--speed-fps` and the gate passes. `on`: require it, exit 2 otherwise. `off`: never |
+| `--speed-fps` | float | `60` | Minimum true rate required on **both** clips for a speed figure (#149). Raise it for content whose motion aliases at 60fps — validated against each clip's `true_fps` (sidecar or `--*-true-fps`) exactly like the default: a clip that cannot actually supply frames that fast is refused, not interpolated |
 | `--flow-work-width` | int | `192` | Width the flow pass analyses at |
 | `--flow-sobel` | float | `12` | Gradient threshold selecting textured pixels |
 
@@ -216,10 +241,11 @@ perfectly — the torn PNGs everyone noticed first were the rarer half.
 | 8 | waited over 5 min for another run's lock on this `--out` | Check nothing else is running against it; otherwise delete `<out>/.lock` or use a different `--name` |
 
 `--speed on` exits 2 in two distinct cases, and the message says which: either a clip's true
-rate is below 60fps (re-capture with `game-movie`), or both are 60fps but the entry gate
-failed on this window (the content moves too fast to measure at 60fps — pick a slower window
-or report the bound instead of a figure). In `auto` mode neither is an error: you get strips
-plus an explicit "Speed — NOT REPORTED" section.
+rate is below `--speed-fps` (default 60 — re-capture with `game-movie` at that rate, or raise
+`--speed-fps` if the clip already supports a higher one), or both clips clear that floor but the
+entry gate failed on this window (the content moves too fast to measure at the requested rate —
+pick a slower window, raise `--speed-fps` further, or report the bound instead of a figure). In
+`auto` mode neither is an error: you get strips plus an explicit "Speed — NOT REPORTED" section.
 
 `--strip-fps` above a clip's true rate is exit 2: the clip cannot supply distinct frames that
 fast, and upsampling would duplicate cells that look like a frozen game.
@@ -247,12 +273,13 @@ fast, and upsampling would duplicate cells that look like a frozen game.
 bash .claude/skills/motion-metrics/selftest.sh
 ```
 
-89 assertions: pure-function unit tests (window parsing, crop geometry, aspect resolution,
-sampling plan, and the §3.4 time-base worked example used as a known-answer oracle) plus 15
+94 assertions: pure-function unit tests (window parsing, crop geometry, aspect resolution,
+sampling plan, and the §3.4 time-base worked example used as a known-answer oracle) plus
 end-to-end tests against generated fixtures — strip geometry, row alignment, real-time
 equalization on a deliberately mislabeled clip, sidecar precedence, every error path, frame
-cleanup, sequential re-run idempotency, concurrent-run safety, the lock timeout, and the
-speed metric with its entry gate.
+cleanup, sequential re-run idempotency, concurrent-run safety, the lock timeout, the speed
+metric with its entry gate, and `--speed-fps` certifying at a non-default rate with a negative
+control proving the sidecar validation actually rejects a too-slow clip (#149).
 
 Two of them exist because a guard passed while a real artifact leaked (#127 QA): every
 `report.md` the suite generates is grepped, not a hand-picked pair, and both branches of

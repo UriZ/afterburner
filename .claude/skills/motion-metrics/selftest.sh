@@ -656,6 +656,59 @@ expect "control: the no-space form is caught too" \
   "$(grep -Eic "$SCOPE_PAT" "$TMP/branch-nospace-control.md")" "1"
 
 echo
+echo "18. --speed-fps overrides the default floor (#149)"
+# Same known-answer methodology as test 15, at a container rate of 120 instead
+# of 60, so the POSITIVE case is a real certification at a rate the default
+# floor cannot reach — not just a threaded-through number. V=10 px/frame at
+# work width 192/960 gives the same known 2.0 px/frame answer as test 15's
+# slow.mp4, so the two are directly comparable.
+make_pan120() {  # make_pan120 <out.mp4> <px per frame>
+  ffmpeg -v error -y -loop 1 -framerate 120 -i "$TMP/tex.png" \
+    -vf "crop=960:672:x='n*$2':y=60,fps=120,format=yuv420p" -frames:v 360 \
+    -c:v libx264 -crf 12 "$1"
+  cat > "$1.json" <<EOF
+{"schema":"game-video-capture/1","source":"synthetic-pan","frames":360,
+ "requested_fps":120.0,"measured_fps":120.0,"encoded_fps":120.0,"paced":true}
+EOF
+}
+make_pan120 "$TMP/slow120.mp4" 10
+
+OUT="$TMP/t18cert"
+$COMPARE --ref "$TMP/slow120.mp4" --ref-window 0-2.5 --game "$TMP/slow120.mp4" --game-window 0-2.5 \
+  --speed on --speed-fps 120 --strip-fps 3 --name t18cert --out "$OUT" >/dev/null 2>&1
+expect "--speed-fps 120 certifies a 120fps clip that --speed-fps 60 already certifies" "$?" "0"
+if grep -q "Measured at 120 fps" "$OUT/report.md"; then
+  pass "report quotes the REQUESTED rate (120), not the module default (60)"
+else
+  fail "report quotes the REQUESTED rate (120), not the module default (60)"
+fi
+if grep -q "resampled at 60 fps" "$OUT/report.md"; then
+  pass "entry-gate half-rate line also follows --speed-fps (60 = 120/2, not 30)"
+else
+  fail "entry-gate half-rate line also follows --speed-fps (60 = 120/2, not 30)"
+fi
+
+# NEGATIVE CONTROL 1 (validated against the sidecar): slow.mp4 from test 15 is
+# a genuine 60fps-true clip. Requesting --speed-fps 120 against it must be
+# REFUSED, not silently served from interpolated/duplicated frames.
+OUT="$TMP/t18refuse"
+$COMPARE --ref "$TMP/slow.mp4" --ref-window 0-2.5 --game "$TMP/slow120.mp4" --game-window 0-2.5 \
+  --speed on --speed-fps 120 --strip-fps 3 --name t18refuse --out "$OUT" >/dev/null 2>&1
+expect "control: --speed-fps 120 against a 60fps-true clip is refused" "$?" "2"
+
+# NEGATIVE CONTROL 2: the refusal must NAME the clip and the shortfall, not
+# fail silently or with an unrelated error — same style already used for the
+# default-60 case, so a reader does not need to know --speed-fps exists to
+# understand why nothing was reported.
+MSG=$($COMPARE --ref "$TMP/slow.mp4" --ref-window 0-2.5 --game "$TMP/slow120.mp4" --game-window 0-2.5 \
+  --speed on --speed-fps 120 --strip-fps 3 --name t18refusemsg --out "$TMP/t18refusemsg" 2>&1)
+if echo "$MSG" | grep -q "at least 120 fps" && echo "$MSG" | grep -q "ref clip is 60"; then
+  pass "control: refusal names the requested floor and the short clip"
+else
+  fail "control: refusal names the requested floor and the short clip (got: $MSG)"
+fi
+
+echo
 echo "================================"
 echo "$PASSED passed, $FAILED failed"
 [ "$FAILED" -eq 0 ]

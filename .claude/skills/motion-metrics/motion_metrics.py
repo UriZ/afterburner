@@ -526,9 +526,10 @@ def _add_speed_section(add, speed):
     """
     if speed.get("reported"):
         gates = speed["gates"]
+        min_fps = speed.get("min_fps", flow_metrics.SPEED_MIN_FPS)
         add("## Speed (quantitative)")
         add("Measured at %.0f fps on both clips, over textured regions only, at a work width"
-            % flow_metrics.SPEED_MIN_FPS)
+            % min_fps)
         add("of %d px. Flat sky carries no motion information; including it would compare how"
             % speed["work_width"])
         add("much sky each clip shows rather than how fast each one moves.")
@@ -549,7 +550,7 @@ def _add_speed_section(add, speed):
         add("")
         add("### Entry gate (passed — this is why the figures above are reported)")
         add("Each window was independently resampled at %.0f fps, where per-frame displacement"
-            % (flow_metrics.SPEED_MIN_FPS / 2))
+            % (min_fps / 2))
         add("is exactly doubled. A measured ratio near 0.5 means the sampling is above the")
         add("aliasing knee for that content; tolerance %.0f%%, set before measuring."
             % (flow_metrics.ENTRY_GATE_TOLERANCE * 100))
@@ -640,8 +641,15 @@ def build_parser():
     p.add_argument("--aspect-policy", choices=("strict", "center-crop"), default="strict")
     p.add_argument("--keep-frames", action="store_true", help="keep extracted frames for debugging")
     p.add_argument("--speed", choices=("auto", "on", "off"), default="auto",
-                   help="quantitative speed: auto (report iff both clips >=60fps and the "
+                   help="quantitative speed: auto (report iff both clips >=--speed-fps and the "
                         "entry gate passes), on (require it, exit 2 otherwise), off")
+    p.add_argument("--speed-fps", type=float, default=flow_metrics.SPEED_MIN_FPS,
+                   help="minimum true rate required on BOTH clips for a speed figure "
+                        "(default %.0f). Raise this for content whose motion aliases at 60fps "
+                        "(#139: our post-#139 cruise speed needs >=120) — validated against each "
+                        "clip's true_fps (sidecar or --*-true-fps) the same way as the default, "
+                        "so a clip that cannot actually supply frames that fast is refused, not "
+                        "silently interpolated" % flow_metrics.SPEED_MIN_FPS)
     p.add_argument("--flow-work-width", type=int, default=flow_metrics.DEFAULT_WORK_WIDTH,
                    help="width the flow pass analyses at (default %d)" % flow_metrics.DEFAULT_WORK_WIDTH)
     p.add_argument("--flow-sobel", type=float, default=flow_metrics.SOBEL_THRESHOLD,
@@ -660,6 +668,8 @@ def run(args, argv):
     args.crop = parse_crop(args.crop)
     if args.strip_fps <= 0 or args.strip_cols < 1 or args.max_strips < 1 or args.strip_cell_width < 2:
         raise UserError("--strip-fps, --strip-cols, --max-strips and --strip-cell-width must be positive")
+    if args.speed_fps <= 0:
+        raise UserError("--speed-fps must be positive, got %r" % args.speed_fps)
 
     clips = {"ref": probe(args.ref), "game": probe(args.game)}
 
@@ -826,10 +836,16 @@ def run_speed_pass(cv2, np, args, clips, windows, rects, effective, staging):
     confident number with no signal in it passed three gates.
     """
     mode = args.speed
-    below = [k for k in ("ref", "game") if clips[k]["true_fps"] < flow_metrics.SPEED_MIN_FPS]
+    # --speed-fps (#149): the floor used to be the module constant everywhere
+    # below; it is now per-run so content whose motion aliases at 60fps (our
+    # post-#139 cruise speed) can certify at a higher rate instead of being
+    # permanently unmeasurable. Threaded through `result["min_fps"]` so the
+    # report section quotes the rate actually used, not the module default.
+    min_fps = args.speed_fps
+    below = [k for k in ("ref", "game") if clips[k]["true_fps"] < min_fps]
 
     if mode == "off":
-        return {"reported": False, "reason": "--speed off", "artifacts": []}
+        return {"reported": False, "reason": "--speed off", "artifacts": [], "min_fps": min_fps}
 
     if below:
         detail = "; ".join("%s clip is %.3f fps" % (k, clips[k]["true_fps"]) for k in below)
@@ -837,14 +853,15 @@ def run_speed_pass(cv2, np, args, clips, windows, rects, effective, staging):
             "speed needs a true rate of at least %.0f fps on BOTH clips (%s).\n"
             "  Below that, AB2's dithered ground temporally aliases and a flow figure\n"
             "  measures the estimator's ceiling rather than the game's speed (#113).\n"
-            "  Re-capture the game with the game-movie skill (60fps, exact) and use\n"
-            "  the 60fps reference at .reference-cache/video/ab2-longplay-60fps.mp4."
-            % (flow_metrics.SPEED_MIN_FPS, detail))
+            "  Re-capture the game with the game-movie skill (%.0ffps, exact) — this is a\n"
+            "  --speed-fps validation, not a code error: a clip's true_fps (sidecar or\n"
+            "  --*-true-fps) genuinely cannot supply frames faster than it was captured at."
+            % (min_fps, detail, min_fps))
         if mode == "on":
             raise UserError(message)
         # Same wording in the report as in the exit-2 message: a reader should
         # not have to re-run with --speed on to find out why there is no number.
-        return {"reported": False, "reason": message, "artifacts": []}
+        return {"reported": False, "reason": message, "artifacts": [], "min_fps": min_fps}
 
     work_width = args.flow_work_width
     flow_root = os.path.join(staging, "flow")
@@ -852,10 +869,10 @@ def run_speed_pass(cv2, np, args, clips, windows, rects, effective, staging):
     gates = {}
     for key in ("ref", "game"):
         full = extract_flow_frames(clips[key], rects[key], work_width, windows[key][0],
-                                   effective, flow_metrics.SPEED_MIN_FPS,
+                                   effective, min_fps,
                                    os.path.join(flow_root, key, "full"))
         half = extract_flow_frames(clips[key], rects[key], work_width, windows[key][0],
-                                   effective, flow_metrics.SPEED_MIN_FPS / 2.0,
+                                   effective, min_fps / 2.0,
                                    os.path.join(flow_root, key, "half"))
         full_series, textured = flow_series(full, cv2, np, args.flow_sobel)
         half_series, _ = flow_series(half, cv2, np, args.flow_sobel)
@@ -867,7 +884,7 @@ def run_speed_pass(cv2, np, args, clips, windows, rects, effective, staging):
 
     failed = [k for k in ("ref", "game") if not gates[k]["passed"]]
     result = {"gates": gates, "work_width": work_width, "artifacts": [],
-              "interval_s": 1.0 / flow_metrics.SPEED_MIN_FPS}
+              "interval_s": 1.0 / min_fps, "min_fps": min_fps}
 
     if failed:
         detail = "; ".join(
@@ -876,10 +893,10 @@ def run_speed_pass(cv2, np, args, clips, windows, rects, effective, staging):
             for k in failed)
         message = (
             "fps-decimation entry gate FAILED on: %s.\n"
-            "  Sampling this window at 30fps does not halve per-frame displacement, so\n"
-            "  60fps is not above the aliasing knee for this content and a speed figure\n"
+            "  Sampling this window at %.0ffps does not halve per-frame displacement, so\n"
+            "  %.0ffps is not above the aliasing knee for this content and a speed figure\n"
             "  here would carry a systematic error of that size. No speed is reported."
-            % detail)
+            % (detail, min_fps / 2.0, min_fps))
         print("WARNING: %s" % message, file=sys.stderr)
         if mode == "on":
             raise UserError(message)
