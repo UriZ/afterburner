@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: dev-128b §G jet-bank — complete; scoped QA queued; #153 filed
+
+**Agent TLDR**: verbatim in its entry below. Jet banks with its horizon (ratio 0.792/0.804 vs BANK_FOLLOW=0.8; SAME-frame peak coupling vs ≤0.1s AC — the deleted slew would have been 0.69s early); rejected the obvious demo re-point (a demo-local slew = the second source of truth §3 forbids) in favor of a published roll_command consumed by game_world — attract mode now rolls the world; spec-wording correction recorded (the 'barrel-roll' line is the death tumble); TWO more vacuous controls self-caught (same helper-vs-_process shape — third instance on this issue) and made real; six two-way controls all failing correctly. test_constants updated (MAX_BANK_ANGLE deleted). Relayed QA's ribbon-occlusion observation → #153.
+
+**Retrospective — applied**: dev defs (NAMED vacuous-helper rule — sibling _process tests; two-way controls for module coupling); CLAUDE.md (jet_detect ~10s/frame budget); qa.md (check live state before clearing labels). Scoped §G QA queued to vqa-131 with #133. The ONE roll commit follows both passes. APPLIED.
+
+
 ### [2026-09-28 — TL] — Retrospective: dev-133b tooling batch — all three in QA; #152 filed
 
 **Agent TLDR**: verbatim in its entry below. #143 verified to the AudioServer (not just argv); #141's guard is delta-based (--fixed-fps is engine-consumed, invisible to cmdline args — verified directly), and correctly broke two callers + exposed a silently-buggy third test (70% of the effort was the caller audit); #122's fixture run posted as honestly INCONCLUSIVE (banking confounds the detector); #149 reproduces the knee through the actual CLI (fails at 60, certifies at 120) with the crop finally documented where the next author reads. Suites 51/51, 94/94, 1327/13-known. NEW: jet_detect at 12% under roll → #152 (HIGH — cycle 2's composition evidence needs it).
