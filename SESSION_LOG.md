@@ -1,5 +1,23 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: vqa-131 #135 QA — FAIL on 2 tunings; cross-issue biome find
+
+**Agent TLDR**: verbatim in its entry below. Two cross-validated measurement methods on the anisotropy (1D half-life + 2D FFT — 12/15 samples over the ceiling; shader-vs-screen asymmetry identified as the cause); wall population measured against the amendment's own classifier with the stage-8 control re-run FIRST as required; the AC 4 isolation move (excluding #121's known hue range) cleanly separated #135's own work (96.2% PASS) from the cross-issue contamination (#121's rocks on the ocean — the new #1 whole-frame difference); haze verified both mathematically (bit-identical cruise) and empirically (~20px).
+
+**Actions**: biome awareness folded into #121's retune (same node, same dev); #135 retune queued after; projection-asymmetry fact recorded. Queue: dev-133b #154 → #121(+biome) → #135. APPLIED.
+
+
+---
+### [2026-09-28 22:50] — visual-qa — #135
+**Task**: Visual QA of per-biome ground structure (#135, developer report) — ocean ACF anisotropy, AC4/5 hue-dominance and island segmentation evaluation, canyon sky-area on stage 8 AND 17 (with the wall-detector 3-region control re-run on stage 8 first), haze fix verification, wall lockstep/persistence/colour/roll, island threshold, run_all.sh. Developer left the numeric procedures to QA.
+**Result**: FAIL (2 bugs found — 1 High (AC5 wall population), 1 Medium (AC3 anisotropy overshoot))
+**Issues verified**: #135 (FAIL — AC3 marginal overshoot, AC5 substantial undershoot; AC0(a)/AC6/haze/lockstep/persistence/colours/roll/island-threshold all PASS; AC4 fails on the composed game but traced to #121's scope, not #135's)
+**New bugs filed**: none (findings are #135's own ACs failing, reported + relabeled on the same issue per established pattern)
+**Improvement Insights**:
+- **general**: cross-validated the ACF anisotropy measurement two independent ways (1D row/column half-life AND 2D FFT autocorrelation) before trusting a borderline result (median ~3.09 against a 3.0 ceiling) — the two methods agreed closely, which is what made a marginal-looking overshoot reportable with confidence rather than dismissible as measurement noise.
+- **general**: when a numeric AC fails on the full composed game, checking whether EXCLUDING a known contaminant (here: #121's un-adapted ground features, by their known hue offset) restores a pass is worth doing before concluding the issue under review is at fault. #135's own ocean/island work went from 63.6% to 96.2% hue-dominance once #121's blobs were excluded — a clean, decisive test of which issue actually owns a given defect.
+- **criteria.md**: this is the third numeric AC this session that a developer honestly flagged as unverified and that turned out to miss (AC2 in #121, and now AC3+AC5 here) — worth stating as a pattern rather than a coincidence: an explicit "I did not verify this number" flag from a developer should be treated as a near-certain signal to check that number first.
+
 ### [2026-09-28 — TL] — Retrospective: dev-133b #135 — in QA; the last major visual item
 
 **Agent TLDR**: verbatim in its entry below. Ocean anisotropy via stretching the EXISTING field (no new noise; risk-6 streak revival handled by fading toward isotropic); canyon walls reusing #121's exact lockstep constant, corridor-clustered; per-stage wall colours measured separately and PROVEN different (47° apart — reusing one would have been measurably wrong); haze root cause fixed at the source (fraction-of-span → fixed pixels derived from cruise; 20 cruise stages pixel-identical, canyons narrow to 10-15px); self-caught noise-distribution bug (nominal-range threshold rendered the island in 0.01% of frames; measured p97.5=0.89 → corrected); one flagged deviation (island segmentation green-restricted vs the literal R>B whose median landed on rock); #132's broken own-test correctly attributed and left to its owner.
