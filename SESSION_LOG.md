@@ -1,5 +1,23 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: §G PASS; commit batch HELD for wave completion
+
+**vqa-131 §G TLDR**: verbatim in its entry below. Ratio reproduced on frames the dev never captured (0.792/0.822/0.804); same-frame peak coupling (0.000s); attract-mode roll matches to 0.05°; death behavior verified at the unit level (roll_command forced 0 while the tumble runs untouched); one negative control approximately reconstructed with the approximation NOTED rather than reported as a discrepancy — the honesty standard holding.
+
+**TL decision — commits held**: game_world.gd now interleaves #128(QA'd) + #121(dev-tested, QA queued) + #132(mid-flight); the shader carries #135 work; capture_input carries the #154 fix in progress. Committing now sweeps partials. The whole wave (#121 QA, #132, #135, #152, #154) completes first, then the batch lands as logical commits of fully-QA'd content. Disk survives outages; nothing at risk but tidiness.
+
+
+---
+### [2026-09-28 20:35] — visual-qa — #128
+**Task**: Scoped verification of #128 §G (jet-bank-coupling follow-up, senior-developer) — bank-tracks-roll ratio via independent shape detector, same-frame peak coupling, attract-mode roll, death behavior, 2 of 6 negative controls, spec-wording correction.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #128 §G (PASS)
+**New bugs filed**: none
+**Improvement Insights**:
+- **workflow**: running BOTH `measure_world_roll.py` (world roll) and `composition-metrics/jet_detect.py` (jet bank, shape-model) on the SAME 10 frames from one capture gave a clean paired comparison without needing to align two separate captures — worth defaulting to this pairing whenever a roll-vs-bank coupling claim needs checking.
+- **workflow**: a negative control I could only approximately reconstruct (no literal diff available, just a prose description — "restore a jet-local slew in the helper") landed close but not exact (6 failures vs their claimed 5). Worth noting for report-writing: state plainly when a reconstructed control is approximate vs a verbatim revert, so the reader doesn't read a near-match as a discrepancy in the fix itself.
+- **general**: isolating a claim at the unit level (drove `player_jet_2d.gd`'s `_process()` directly with `_is_dying`/`_death_timer` set by hand) was far faster and more precise than orchestrating an actual in-game death through a capture timeline, and caught my own harness bug immediately (forgetting `_death_timer` made the death animation appear to end on frame 0) — a `_death_timer=0.0` default is worth remembering for future dying-state fixtures.
+
 ### [2026-09-28 — TL] — Retrospective: qa-139b tooling batch — #143/#149 committed 5f1d03e; #154 BLOCKS #141
 
 **Agent TLDR**: verbatim in its entry below. #143/#149 verified with fresh independent evidence (own ps captures, own scratch AudioServer probe, own 120fps clip on a different seed — same knee conclusion at different magnitude, as expected). #141's assigned checks pass, but the off-checklist probe found the guard's coverage gap: frame-1 warm-up delta is rate-dependent — 90/120 land inside the 60fps tolerance; --fixed-fps 90 + timeline runs silent with events at 0.667x their intended time. Correctly left the label on and asked for the ruling.
