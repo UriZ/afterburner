@@ -21,6 +21,37 @@ const VALID_ACTIONS := ["key", "key_down", "key_up"]
 ## Exit code for a timeline the script should have rejected before launch.
 const TIMELINE_ERROR_EXIT_CODE := 3
 
+## Frame-scheduled timelines assume this rate — e.g. timelines/start-game.json's
+## "frame 30" means "0.5s in" (30/60). Only --fixed-fps holds delta EXACTLY
+## constant frame to frame; any other launch mode — real-time rendering,
+## unpaced headless — gives an unpredictable delta, which silently desyncs
+## every scheduled event from its intended real-world time. THIRD silent
+## time-base incident this session (#113, #116, then #141): a live rig on
+## this machine measured 142fps and a 69s timeline finished in ~29s wall —
+## 0.42x the intended duration, with no error at all.
+const ASSUMED_FPS := 60.0
+const ASSUMED_DELTA := 1.0 / ASSUMED_FPS
+## Loose enough for float rounding under --fixed-fps (measured exact to the
+## printed precision), tight enough that a --fixed-fps 30 run (2x off) or an
+## unpaced run (single-digit-ms deltas, roughly an order of magnitude off) both
+## trip it well clear of any legitimate jitter.
+const DELTA_TOLERANCE := 0.001
+## Which _process() call the guard trusts (#154 — a #141 follow-up). Frame 1's
+## delta is an ENGINE WARM-UP ARTIFACT, not the requested rate: probed
+## directly (--headless --fixed-fps N, bare _process, no CaptureInput
+## involved) at N=24/30/60/90/120/144/240, frame 1 reads a value that does
+## NOT track N (60/90/120 all report exactly 0.016667 on frame 1 alone) while
+## frame 2 onward reads the TRUE 1/N exactly, every N tested. Checking frame 1
+## alone therefore let --fixed-fps 90 and 120 sail through silently
+## (0.016667 == ASSUMED_DELTA by pure coincidence of the warm-up artifact,
+## not because either is 60fps) — confirmed at the real guard, not just the
+## probe: a --fixed-fps 90 run with start-game.json exited 0 and fired its
+## frame-30 event at 0.333s real time instead of the timeline's intended
+## 0.5s, silent. #154 filed this against the exact rate #149 pushes capture
+## work toward (120fps). Moving the checked frame to 2 uses the only frame
+## the probe showed to be reliable for every rate tried.
+const CHECK_FRAME := 2
+
 ## frame(int) -> Array of event dictionaries, in file order.
 var _schedule: Dictionary = {}
 ## frame(int) -> Array of keycodes to release then (tap implementation).
@@ -78,8 +109,28 @@ func _exit_tree() -> void:
 		)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_frame += 1
+
+	# Time-base guard (#141, frame moved to CHECK_FRAME by #154): checked once,
+	# on CHECK_FRAME (frame 2) — frame 1's delta is an engine warm-up artifact
+	# that does not track the requested rate (see CHECK_FRAME's comment), so
+	# checking it alone let --fixed-fps 90/120 through silently. Scoped to
+	# timeline playback only (not bare probing, which makes no real-world-time
+	# claim) — by the time _timeline_path is non-empty here, _load_timeline()
+	# already succeeded, since a parse failure quits the engine from _ready()
+	# before any frame runs. Any event scheduled at frame 1 itself still
+	# dispatches normally below before this check ever runs on frame 2 — the
+	# guard cannot retroactively undo a frame-1 dispatch, only catch a wrong
+	# time base before frame 2 onward compounds it.
+	if _frame == CHECK_FRAME and not _timeline_path.is_empty():
+		if absf(delta - ASSUMED_DELTA) > DELTA_TOLERANCE:
+			_fail(
+				"timeline playback requires a fixed %.0ffps time base (launch under --fixed-fps %d) — measured a %.5fs frame delta (~%.1ffps) on frame %d, not the assumed %.5fs. See #141/#154." % [
+					ASSUMED_FPS, int(ASSUMED_FPS), delta, 1.0 / maxf(delta, 0.0001), _frame, ASSUMED_DELTA,
+				]
+			)
+			return
 
 	# Probe at the TOP of the frame, before this frame's events are applied, so
 	# the reading is "what the action system holds entering frame N" — which is

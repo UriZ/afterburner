@@ -75,7 +75,12 @@ expect "container rate is exactly 60/1" "$(rate_of "$TMP/t1.mp4")" "60/1"
 
 echo
 echo "2. fps is not hard-coded"
-next_port; P2=$ALLOC_PORT; $CAPTURE --duration 2 --fps 30 --port "$P2" --output "$TMP/t2.mp4" >/dev/null 2>&1
+# --no-input (#141): this test's concern is the ENCODING rate, not input
+# scheduling. Without it, the default start-game.json timeline (authored
+# assuming 60fps — "frame 30" = 0.5s) would run under --fixed-fps 30 and
+# CaptureInput would now correctly refuse the mismatch — a genuine defect the
+# guard exists to catch, just not one this test is about.
+next_port; P2=$ALLOC_PORT; $CAPTURE --duration 2 --fps 30 --no-input --port "$P2" --output "$TMP/t2.mp4" >/dev/null 2>&1
 expect "2s at 30fps is exactly 60 frames" "$(frames_of "$TMP/t2.mp4")" "60"
 expect "container rate is exactly 30/1" "$(rate_of "$TMP/t2.mp4")" "30/1"
 
@@ -120,7 +125,9 @@ cat > "$TMP/offset.json" <<'EOF'
  {"frame":20,"action":"key_up","key":"Z"},
  {"frame":30,"action":"key","key":"Z"}]}
 EOF
-"$GODOT" --headless --path "$PROJ_DIR" --quit-after 34 -- --mcp-port "$OFFSET_PORT" \
+# --fixed-fps 60 (#141): CaptureInput now refuses timeline playback outside a
+# fixed 60fps time base — an unpaced headless frame would FATAL here otherwise.
+"$GODOT" --headless --fixed-fps 60 --path "$PROJ_DIR" --quit-after 34 -- --mcp-port "$OFFSET_PORT" \
   --capture-input "$TMP/offset.json" --capture-probe fire_vulcan > "$TMP/probe.log" 2>&1
 probe_at() { grep "^PROBE $1 " "$TMP/probe.log" | awk '{print $3}'; }
 expect "key_down at F=10: action NOT yet pressed at frame 10" "$(probe_at 10)" "0"
@@ -324,6 +331,75 @@ if [ "$B1" = "$B2" ]; then
 else
   fail "control: the old \$(next_port) form does collapse to one port (got $B1, $B2)"
 fi
+
+echo
+echo "13. timeline playback refuses a non-fixed-fps time base (#141)"
+# Reproduces the silent failure this guard exists to stop: before #141, this
+# EXACT invocation (a real timeline, headless, no --fixed-fps) exited 0 and
+# quietly ran every scheduled frame at whatever rate the unpaced loop
+# happened to achieve — the mechanism behind the reported live-rig case
+# (142fps measured, a 69s timeline finishing in ~29s wall, 0.42x the intended
+# duration). It must now exit TIMELINE_ERROR_EXIT_CODE (3) with a FATAL log
+# line, loud instead of silent.
+next_port; NOFIX_PORT=$ALLOC_PORT
+"$GODOT" --headless --path "$PROJ_DIR" --quit-after 10 -- --mcp-port "$NOFIX_PORT" \
+  --capture-input "$SKILL_DIR/timelines/start-game.json" > "$TMP/nofix.log" 2>&1
+NOFIX_RC=$?
+expect "no --fixed-fps: exits with TIMELINE_ERROR_EXIT_CODE" "$NOFIX_RC" "3"
+if grep -q "CaptureInput: FATAL.*fixed.*time base" "$TMP/nofix.log"; then
+  pass "no --fixed-fps: FATAL names the time-base mismatch"
+else
+  fail "no --fixed-fps: FATAL names the time-base mismatch"
+fi
+
+# NEGATIVE CONTROL: the guard is not a blanket refusal — the identical
+# timeline succeeds when actually launched the correct way. Without this,
+# "exits 3" could just mean the guard is now permanently broken.
+next_port; FIX_PORT=$ALLOC_PORT
+"$GODOT" --headless --fixed-fps 60 --path "$PROJ_DIR" --quit-after 95 -- --mcp-port "$FIX_PORT" \
+  --capture-input "$SKILL_DIR/timelines/start-game.json" > "$TMP/fix.log" 2>&1
+FIX_RC=$?
+expect "control: --fixed-fps 60 same timeline exits 0" "$FIX_RC" "0"
+if grep -q "CaptureInput: FATAL" "$TMP/fix.log"; then
+  fail "control: --fixed-fps 60 run must not FATAL"
+else
+  pass "control: --fixed-fps 60 run does not FATAL"
+fi
+
+echo
+echo "13b. the guard also catches --fixed-fps 30/90/120 (#154)"
+# #154: the guard originally checked ONLY frame 1, whose delta is an engine
+# warm-up artifact that happens to read exactly 0.016667s (60fps-equivalent)
+# for --fixed-fps 60, 90 AND 120 alike -- so 90 and 120 sailed through
+# UNCAUGHT despite the #141 report's untested claim that "other rates are
+# refused too". Standing rule from this incident: a "refused too" claim
+# needs an actual test at each value, not an inference from one tested case.
+# 30 is included too since it's the pre-existing case, now re-verified after
+# the frame-1 -> CHECK_FRAME (2) change rather than assumed to still hold.
+for BADFPS in 30 90 120; do
+  next_port; BAD_PORT=$ALLOC_PORT
+  "$GODOT" --headless --fixed-fps "$BADFPS" --path "$PROJ_DIR" --quit-after 10 -- --mcp-port "$BAD_PORT" \
+    --capture-input "$SKILL_DIR/timelines/start-game.json" > "$TMP/bad-$BADFPS.log" 2>&1
+  BAD_RC=$?
+  expect "--fixed-fps $BADFPS: exits with TIMELINE_ERROR_EXIT_CODE" "$BAD_RC" "3"
+  if grep -q "CaptureInput: FATAL.*fixed.*time base" "$TMP/bad-$BADFPS.log"; then
+    pass "--fixed-fps $BADFPS: FATAL names the time-base mismatch"
+  else
+    fail "--fixed-fps $BADFPS: FATAL names the time-base mismatch"
+  fi
+done
+
+# Re-confirm the negative control (--fixed-fps 60 legitimately passes) still
+# holds after the frame-1 -> frame-2 change, at a couple more quit-after
+# values -- the dry-run's own --quit-after 2 (capture-movie.sh) is the
+# tightest real caller, so 2 is exercised explicitly, not just 95.
+for OKQUIT in 2 30 95; do
+  next_port; OK_PORT=$ALLOC_PORT
+  "$GODOT" --headless --fixed-fps 60 --path "$PROJ_DIR" --quit-after "$OKQUIT" -- --mcp-port "$OK_PORT" \
+    --capture-input "$SKILL_DIR/timelines/start-game.json" > "$TMP/ok-$OKQUIT.log" 2>&1
+  OK_RC=$?
+  expect "control: --fixed-fps 60, --quit-after $OKQUIT exits 0" "$OK_RC" "0"
+done
 
 echo
 echo "================================"
