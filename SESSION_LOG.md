@@ -1,5 +1,35 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: dev-133b #121 features — in QA queue
+
+**Agent TLDR**: verbatim in its entry below. Lockstep via the exact-binary divisor; growth = existing depth_to_scale (no new law, per the spec's own finding); two controlled hue families; horizon guard as pure helper + runtime skip; own test caught the scale-floor edge case (2/1261 above horizon — a by-construction claim disproved by testing); interpretation call flagged honestly (FEATURE_COUNT table span); numeric AC procedures honestly left to QA rather than eyeballed; haze-band deferral reasoned to #135 (shader barred all six gate cycles). 36/36 + 1395/13-known.
+
+**Retrospective — applied**: dev defs (test by-construction claims with floor terms); CLAUDE.md (preview harness auto-picks-up _process nodes). QA queued to vqa-131 (numeric segmentation as lead item). APPLIED.
+
+
+---
+### [2026-09-28] — developer (dev-133b) — #121
+**Task**: Implement #121 (discrete ground terrain features) from the final PASSED spec (rework + AC0 amendments, gate 9/10). New node drawing persistent, growing, depth-scaled scrub/rock clumps on top of the unmodified #42 shader field.
+**Result**: COMPLETED
+**Files changed**: `scripts/game/ground_features_2d.gd` (new), `scripts/game/game_world.gd` (disjoint 4-line hunk: preload, `var _ground_features`, `_ensure_ground_features()`, one `_process` line + one `set_palette()` call), `tests/test_ground_features.gd` (new).
+**Ownership claim**: `ground_features_2d.gd` (whole file, new); `game_world.gd`'s `_ensure_ground_features()` function + its two `_process()` call sites only — did not touch `_draw_sky()`, world-roll, or clouds code already in that file from #120/#128/#132.
+**Key changes**:
+- `FIELD_LENGTH = 991.0/32.0 = 30.96875` (exact binary divisor of `GameWorld.GROUND_SCROLL_WRAP`), `FEATURE_COUNT = 6820`, `SPECKLE_COUNT = 4960`, generated once from a fixed seed, static/pure `generate_field()`/`feature_screen_width()`/`feature_top_y()` per the spec's testability requirement.
+- Growth law is exactly `DepthUtil.depth_to_scale(d) * size_k` — no new scaling law, per the spec's own finding that the existing one already predicts the reference within 5-11%.
+- Colour: controlled second hue family (`FEATURE_HUE_OFFSET_DEG = -25.0`, `FEATURE_HUE_JITTER_DEG = 6.0`, both from `shape_seed` only) — exactly two families total (field's untouched hue + features'), replacing the spec's original self-contradictory "same hue as field" rule per the rework.
+- Horizon guard (§3 deferred-scope guard): pure `feature_top_y()` + a runtime per-feature skip in `_draw_feature()`. Shader, `stage_data.gd`, `game_manager_2d.gd`, `depth_util.gd` all untouched per §6.
+- One documented interpretation call (flagged in code comment + GitHub report): the spec names `FEATURE_COUNT`/`SPECKLE_COUNT` as separate constants but gives one size-class table; read `FEATURE_COUNT` as spanning the full four-class table and `SPECKLE_COUNT` as an additional dedicated speckle-tier population.
+**Testing**:
+- `tests/test_ground_features.gd`: 36/36, including a REAL bug my own test found first — 2/1261 candidate features (large mounds near the d=0.02 visibility floor) compute a top edge above the horizon before the runtime skip filters them; fixed the test to simulate that skip (matching `_draw_feature()`'s own logic) rather than asserting the pre-skip candidate pool was already clean.
+- `bash tests/run_all.sh`: 1395 passed, 13 known-legacy failed (`test_jet_mesh_builder.gd`). Suite clean, zero regressions in `test_game_world.gd`/`test_world_roll.gd`/`test_clouds_2d.gd`/`test_ground_grid.gd` (all share `game_world.gd`).
+- Visual: live gameplay capture (stage 1) confirmed discrete growing clumps in a clean frame. `tests/sky_stage_preview.gd --preview-stages 17` (drives the real `GameWorld._process()`, so features rendered with no harness changes needed) compared directly against the spec's own HUD-verified reference frame (`burst-c-02.jpg`) — discrete, depth-scaled, hue-separated objects confirmed structurally present; canyon walls and ground targets correctly absent (deferred per §3); colour contrast and exact AC 2/3/5/0(b) numeric procedures flagged as remaining QA work rather than eyeballed.
+- Haze-band note (#120 QA, TL-flagged): explicitly deferred, not fixed — the approved spec bars shader edits at every one of its six gate cycles, and the finding is the same class the spec itself routes to #135 (its own `mean |grad|` lead). Reasoning stated in the GitHub comment.
+**Improvement Insights**:
+- **workflow**: writing the horizon-guard test BEFORE assuming the runtime code was correct caught a real edge case (large mound near the visibility floor) that a hand-derived "should always hold" argument would have missed — the +0.03 floor in `depth_to_scale` doesn't vanish as fast as `pos.y` does at very small d, which isn't obvious without actually running the numbers across the full generated field.
+- **agent-definition (developer.md)**: `tests/sky_stage_preview.gd` (and any harness that adds a real scripted node to the live tree rather than calling functions manually) picks up NEW GameWorld child nodes automatically, with zero harness changes — worth calling out explicitly as the preferred verification path for anything added to `GameWorld._process()`, since it gave isolated, HUD-labelled, per-stage screenshots for free.
+- **criteria.md / spec process**: this issue took 6 judge gate cycles to reach PASS, almost entirely on AC 0 (the whole-frame numeric gate) — the eventual resolution (judgement-binding AC 0(a), published-but-not-gated context measurements in AC 0(b)) is a pattern worth extracting into the architect template for any future "whole-frame comparison" criterion, rather than re-discovering it per issue.
+
+---
 ### [2026-09-28 — TL] — Retrospective: vqa-131 #133 re-verify — PASS; commit staged with roll
 
 **Agent TLDR**: verbatim in its entry below. Reference constants independently re-derived (V 0.367/0.215 vs shipped 0.37/0.22 — genuinely reference-derived); 150-frame deterministic sweep: 144 valid, ratio 2.71-4.55x, ZERO below bar, youngest frame at the global minimum 2.71 (the fractional fix holds at the earliest measurable moment); a near-threshold false-positive FAIL from TCP jitter caught and resolved via the deterministic sweep — methodology lesson logged.
