@@ -1,5 +1,80 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: dev-133b tooling batch — all three in QA; #152 filed
+
+**Agent TLDR**: verbatim in its entry below. #143 verified to the AudioServer (not just argv); #141's guard is delta-based (--fixed-fps is engine-consumed, invisible to cmdline args — verified directly), and correctly broke two callers + exposed a silently-buggy third test (70% of the effort was the caller audit); #122's fixture run posted as honestly INCONCLUSIVE (banking confounds the detector); #149 reproduces the knee through the actual CLI (fails at 60, certifies at 120) with the crop finally documented where the next author reads. Suites 51/51, 94/94, 1327/13-known. NEW: jet_detect at 12% under roll → #152 (HIGH — cycle 2's composition evidence needs it).
+
+**Retrospective — applied**: dev defs (guard tasks budget caller audits; same-session SKILL.md for re-derived numbers). Batch QA → qa-139b. APPLIED.
+
+
+---
+### [2026-09-28 19:40] — senior-developer — #128 (§G jet-bank follow-up)
+**Task**: The #128 §G follow-up — derive the jet's drawn bank from the world roll, delete the duplicate 460 deg/s slew, keep the death tumble, re-point #122's `_process_demo_flight()` call.
+**Result**: COMPLETED
+
+**File / function ownership claimed** (stacked on my uncommitted #128 core; nothing committed):
+- `scripts/player/player_jet_2d.gd` — deleted `MAX_BANK_ANGLE` and `_update_banking()`; added `BANK_FOLLOW`, `roll_command`, `_update_bank_from_world_roll()`; edited the `_process()` live branch, `_process_demo_flight()` and `_process_death()`. Did NOT touch the #122 demo path geometry, `get_bank_angle()`, `_draw_player()` or anything in the #112/#92 silhouette rebuild.
+- `scripts/game/game_world.gd` — **`_roll_input()` only** (already mine for #128 core).
+- `tests/test_world_roll.gd` (mine), `tests/test_player_jet_2d.gd` — **`test_constants` only**, which asserted the now-deleted `MAX_BANK_ANGLE`.
+- Untouched: `scripts/player/player_jet.gd` (legacy 3D path, has its own `MAX_BANK_ANGLE`).
+
+**Key changes**:
+- `player_jet_2d.gd` — bank is now `rad_to_deg(DepthUtil.roll_rad) * BANK_FOLLOW`, stateless, no rate of its own. GameWorld owns the single slew.
+- `player_jet_2d.gd` — new public `roll_command`, published from the live stick, from the demo path's scripted velocity, and zeroed on death.
+- `game_world.gd:_roll_input()` — reads `roll_command` when the player publishes one, `Input.get_axis` as the fallback for the legacy jet and test mocks.
+
+**Technical decisions**:
+1. **Rejected the obvious re-point for the demo path.** Giving `_process_demo_flight()` its own slew is the small change, but §3 explicitly says remove `_update_banking` "rather than leaving two sources of truth", and it would leave attract mode banking a jet over a level horizon — the exact defect #128 exists to fix. The command/consume split keeps one formula and makes the demo roll the world (measured −12.5° to +23.1° across demo frames 200-290).
+2. **Command comes from the jet, not from `Input`.** The jet is the only node that knows whether it is under the stick, flying the #122 path (no stick at all) or dying. Side benefit: a held key no longer rolls the world through the whole death animation.
+3. **Spec wording correction on the record**: §3/§G call `_bank_angle += 360.0 * delta` "the barrel-roll path"; in the current file it is the **death tumble** inside `_process_death()`, and grep finds no other `360.0 * delta`. Instruction unchanged, name wrong.
+
+**Testing**:
+- `bash tests/run_all.sh`: 1327 passed, 13 failed (all known-legacy `test_jet_mesh_builder.gd`). Suite clean.
+- Six negative controls in rsync'd scratch copies; **two initially passed and were closed**: the live-path publish (my test set `roll_command` by hand) and the old-slew restoration (my test called the helper directly while `_process` was free to ignore it). Final: 5 / 2 / 1 / 1 / 3 / 1 failures.
+- Capture (port 9695, seeded, 60fps): jet bank measured **independently** with the composition-metrics shape detector against world roll from `measure_world_roll.py`. High-confidence frames give ratios 0.792 and 0.804 against `BANK_FOLLOW = 0.8`; world caps at t=0.817s and the jet peaks on the **same frame** (0.000s apart, AC ≤0.1s). Three frames refused by the detector, reported rather than dropped. Level 0.00°, peak-left −52.25°, peak-right +52.25°.
+- Demo-flight capture (`--demo-flight`, 330 frames) clean, no script errors.
+
+**Improvement Insights**:
+- **[developer.md / senior-developer.md / criteria.md]**: this issue produced the SAME vacuous-test shape three separate times — a test that drives a helper directly while the per-frame update is free to never call it. It deserves a named rule: *any test of a helper that production calls from `_process()` must have a sibling that drives `_process()` itself.*
+- **[workflow]**: mandate a two-way negative control wherever a change couples two modules. My first pass had a control for "does B follow A" but none for "does A publish anything", and that half would have shipped silently.
+- **[CLAUDE.md]**: `jet_detect.py` costs ~10s/frame; a 56-frame sweep exceeds a 10-minute tool timeout. Worth a note by the skill so agents budget ~10 frames per run or background it.
+- **[relay to whoever owns #133]**: visual-QA's off-checklist probe found #133's 16px-tip missile ribbon draws over small dot-mode enemies and fully occludes them (a target bracket appeared to float on empty sky; the enemy was really there). Not a #128 defect, but a live z-order/width interaction.
+
+---
+### [2026-09-28] — developer (dev-133b) — #143, #141, #149
+**Task**: Tooling batch, three disjoint issues. #143: wire `--mute-audio` into spawned-instance launches of game-capture/game-video/game-movie. #141: CaptureInput assumed 60fps with no time-base guard (silent 0.42x-duration failure); add an enforced guard + negative-control test + run #122's committed AC6 fixture through the fixed-fps route. #149: motion-metrics `--speed-fps` flag (validated against the sidecar) + document the 0.12/0.12 analysis crop.
+**Result**: COMPLETED (all three)
+**Files changed**: `.claude/skills/game-capture/capture.sh`, `.claude/skills/game-video/capture-video.sh`, `.claude/skills/game-movie/capture-movie.sh` (#143 mute-audio hunk + #141 dry-run `--fixed-fps` hunk, disjoint), `.claude/skills/game-movie/selftest.sh` (#141: test 4/test 2 fixes + new test 13), `scripts/autoload/capture_input.gd` (#141 guard), `.claude/skills/motion-metrics/motion_metrics.py`, `.claude/skills/motion-metrics/SKILL.md`, `.claude/skills/motion-metrics/selftest.sh` (#149, new test 18)
+**Key changes**:
+- `capture.sh:79`, `capture-video.sh:85` — `--mute-audio` appended after `--mcp-port` on the `--start-game` spawn line. `capture-movie.sh:145` — same, added to `GODOT_ARGS`.
+- `capture_input.gd:24-38,98-119` — startup guard: on the first `_process()` call during timeline playback, measures the real per-frame `delta` and refuses (exit 3, FATAL log line) unless it matches `1/60` within 0.001s tolerance. Detection is delta-based because engine-consumed flags like `--fixed-fps` are invisible to `OS.get_cmdline_args()` (verified directly) — delta is the only observable signal, and empirically it's exact under `--fixed-fps 60` from frame 1 (no startup anomaly) and chaotic otherwise. Note: `--fixed-fps 30`/other non-60 values do NOT give an exactly-constant delta either (jitters 0.025-0.0417s across 5 frames) — the guard specifically enforces 60fps, matching what every committed timeline is authored against, not "any fixed rate."
+- `capture-movie.sh:117` — added `--fixed-fps "$FPS"` to the pre-flight dry-run (previously headless with no fixed-fps at all — would have FATAL'd under the new guard on every default invocation).
+- `game-movie/selftest.sh` test 4 — added `--fixed-fps 60` (same reason). Test 2 ("fps is not hard-coded") — added `--no-input`: it was silently inheriting the default `start-game.json` timeline despite testing only the encoding rate, and `--fps 30` + a 60fps-authored timeline is now correctly refused by the guard — a real defect in the test's own construction, not a guard bug.
+- `motion_metrics.py` — `--speed-fps` (default 60, so omitting it is byte-identical to before) threaded through `run_speed_pass()` replacing every use of the module constant `flow_metrics.SPEED_MIN_FPS`; "validated against the sidecar" falls out of the pre-existing `true_fps` floor check once parameterized.
+- `motion-metrics/SKILL.md` — new "analysis crop" subsection under §1 documenting the 0.12/0.12 top/bottom crop the speed pass measures through and #139's ~28% low reading from a driver that skipped it; new `--speed-fps` row in §6.
+**Testing**:
+- `.claude/skills/game-movie/selftest.sh`: 51/51 (47 pre-existing + 4 new in test 13). Verified test 13 is not vacuous by reverting the guard in an rsync'd scratchpad copy and confirming its positive assertions fail there (exit 0 instead of 3, no FATAL) while the negative control still passes.
+- `.claude/skills/motion-metrics/selftest.sh`: 94/94 (89 pre-existing + 5 new in test 18), zero regressions.
+- `bash tests/run_all.sh`: 1327 passed, 13 known-legacy failed (`test_jet_mesh_builder.gd`, unrelated). Suite clean.
+- #143: verified end-to-end with real spawned-process `ps` argv captures (not just source grep) for all three scripts, plus one full capture per script confirming no functional regression.
+- #141 AC3: ran #122's committed `composition-flight.json` fixture through the fixed-fps route via a scratch combined timeline (fixture has no `Enter` events, can't reach gameplay alone); capture succeeded end-to-end where the old live-rig approach couldn't. Result posted on #122 with honest caveats (9/74 detection rate, well below the jet detector's typical 70-80%, driven by #128's world-roll landing since the fixture was built) — AC6 not met on this measurement, reported plainly rather than smoothed over.
+- #149: captured real 8s stage-1 cruise footage at genuine 120fps and self-compared at `--speed-fps 60` (fails entry gate, +14.4% error) vs `--speed-fps 120` (certifies) — reproduces reference-facts.md's finding through the actual CLI, not just a scratch driver.
+**Improvement Insights**:
+- **process**: a task described as "wire a guard into function X" should budget time for auditing every EXISTING caller of the thing being guarded, not just the new guard code — #141's actual effort split roughly 30% guard, 70% finding and fixing the two callers it broke plus the one test whose construction papered over a real gap.
+- **motion-metrics/SKILL.md**: the crop documentation gap (#139's own 28%-low finding was never written into the skill doc, only discovered by an agent building a bespoke driver) is a pattern worth watching for elsewhere in this project — any number an agent had to re-derive empirically should get a permanent home in the relevant SKILL.md the same session it's found, not deferred to "someone will file an issue."
+- **composition-metrics**: jet_detect.py's detection rate degrades sharply on content with heavy world-roll (9/74 vs the documented 70-80% baseline) — worth a dedicated look once #128-era fixtures exist, since "banked and clipped at once" may now be the NORM rather than the edge case the tool's own docs describe it as.
+
+---
+### [2026-09-28 19:05] — visual-qa — #128
+**Task**: Visual QA of world-roll core (#128, senior-developer completion report) — the largest visual change of the project. Verify live banked gameplay, measure_world_roll.py self-test + own capture, 5 of 9 negative controls in scratch, corner coverage, level-flight regression, motion-metrics strips vs verified arcade stage-1 roll window, full suite, off-checklist probe. Explicitly told to judge the WORLD's roll only — jet bank was a known gap dispatched separately.
+**Result**: PASS (0 bugs found)
+**Issues verified**: #128 (PASS)
+**New bugs filed**: none
+**Improvement Insights**:
+- **workflow**: re-running the dev's own tool (`measure_world_roll.py`) against a FRESH capture I made myself (not their frames) is much stronger evidence than re-reading their numbers — my independent `game-movie` capture with their own timeline JSONs landed within 0.01-0.25° of their reported peak/rate/straightness, which is real corroboration rather than trusting a report.
+- **workflow**: a scene under heavy concurrent development can grow mid-review — `test_world_roll.gd` went from 57 to 74 assertions and `test_projectile_trails.gd` from 23 to 32 between when I started reading source and when I ran `run_all.sh`, because the §G jet-bank follow-up and a #133 fix landed in the shared tree during my pass. Re-running standalone tests against the CURRENT tree right before finalizing a verdict (rather than trusting counts read earlier) caught this cheaply.
+- **general**: an apparently-floating target bracket (empty box on the missile trail, no visible enemy) looked exactly like the class of bug #128's targeting fix exists to catch. Tracing it frame-by-frame (the small enemy was there, just occluded by #133's 16px-wide opaque ribbon drawn on top of it) prevented a false-positive bug report — worth remembering that z-order occlusion from an UNRELATED issue's own recent change can mimic a targeting defect.
+
 ### [2026-09-28 — TL] — Retrospective: dev-131b #133 fix — 2nd latent defect found; at re-verify
 
 **Agent TLDR**: verbatim in its entry below. Colour endpoints taken from the REFERENCE's own measured V (0.37/0.22), not invented — ceiling now 4.5x; the mandated pre-capture reachability check passed immediately, but multi-instant empirical re-measurement swung 1.66-2.20x on IDENTICAL constants → root cause: fixed-index band splits starve young trails of a tail band (pre-existing, previously QA-passed geometry) → fractional-length splits structurally guarantee band shares at any age. 11/12 valid frames 2.07-4.55x; deterministic ceiling test added mirroring #131's AC-1a pattern; harness single-subject contamination self-caught.
