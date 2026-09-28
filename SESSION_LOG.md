@@ -1,5 +1,34 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: qa-139b #139 — PASS all 8 ACs; data committed ed229ae; #139+#124 closed
+
+**Agent TLDR**: verbatim in its entry below. Every claim re-derived independently (own scratch doubling verified-by-diff, own captures, own arcade window at t=360-368 → 0.9888; deliberately captured ZERO stills — G6 gates speed through the analytic pipeline only, and the QA used it correctly); survivability-neutrality proven STRUCTURALLY (scroll symbols have no path into collision/spawn code) beyond the empirical 5/5; suite identical twice under 3 concurrent editors; off-checklist: stale wrap-margin comment (708s describes the old constant; real 354s — noted for the #128 commit).
+
+**Retrospective — applied**: CLAUDE.md (DEFAULT_STAGE scratch-jump pattern; const-comment staleness rule). Data committed ed229ae (game_world hunks ride with #128); #139/#124 CLOSED. APPLIED.
+
+
+---
+### [2026-09-28 15:05] — qa — #139
+**Task**: QA #139 (per-stage world speed) — verify all 8 ACs, regressions, negative controls, tree-noise check
+**Result**: PASS (0 bugs found; 1 low-severity doc-staleness note, not blocking)
+**Issues verified**: #139 (PASS)
+**New bugs filed**: none
+**Video evidence**: N/A — speed claims are gated through the analytic 60/120fps flow pipeline per criteria G6 ("not judged from stills"); used fresh `game-movie` captures + `flow_metrics` primitives instead of screenshot/video review
+**Key findings**:
+- AC 1 (known-answer control) re-run with a **fresh independent capture pair** (own scratch copy, own doubled constant, own 120fps captures): ratio 1.914, inside declared 2.00±0.10 (dev reported 1.940 on a different clip/window — both pass). 60fps sampling of the doubled clip fails its own decimation gate (+13.7%), corroborating the aliasing-knee finding.
+- AC 2 (stage-1 bound closure): my unmodified capture reads 97.3%W/s at 120fps vs dev's reported 97.48% — corroborated, clears the arcade floor (95.7%W/s).
+- AC 4 (stage-8 canyon): built a fresh scratch harness (temp `GameState.DEFAULT_STAGE=8`, HUD-verified, discarded) and an independently chosen arcade window (t=360-368, not the dev's) — measured ratio 0.9888, inside [0.9,1.1], both gates PASS. Corroborates dev's 0.999/0.989.
+- Stage-17's 0.752 regime-assumption labeling confirmed present and prominent in `stage_data.gd`'s header.
+- Regressions: `depth_to_scale()` zero mentions in the diff (AC 5 holds); enemy `speed` table diff is entirely unrelated #131 bank-angle work, `logical_depth += speed * delta` untouched (AC 3 holds); `player_jet_2d.gd` has zero references to ground-scroll symbols (#122 amplitudes confirmed uncoupled); `_ground_scroll`/`ground_scroll_speed` appear in only 3 files project-wide — no path into collision/spawn code, so AC 6 (survivability) is structurally guaranteed, not just the dev's empirical 5/5.
+- Negative control re-verified from scratch (not re-read): reverted `_process()` to the old constant, confirmed via `diff` the file actually changed (no macOS-sed no-op trap), ran `test_game_world.gd` standalone — all 3 targeted assertions trip exactly as the dev reported.
+- `bash tests/run_all.sh` run twice, identical both times (1279 passed, 13 known-failed) despite 3 concurrent devs (#128/#131/#133) editing adjacent files live — no tree noise.
+- Off-checklist probe: `game_world.gd`'s `GROUND_SCROLL_WRAP` comment claims a ~708s anti-repeat margin "at this speed" — that figure is `991/1.4`, the **old** default constant. The live cruise speed is now 2.8, so the real margin is `991/2.8 ≈ 354s`. Still exceeds any single stage's 30s duration (not a functional bug), but the comment now describes pre-#139 behavior. Flagged on the issue as a low-severity doc fix, not filed as a separate bug.
+**Improvement Insights**:
+- **workflow**: for numeric/speed gates, `game-movie --fps 120` + a scratch `GameState.DEFAULT_STAGE` edit is a fast, reusable way to jump straight to any stage for QA capture without needing a shipped debug flag — worth documenting as a standard QA pattern next to `set_capture_invincible` in CLAUDE.md, since AC-4-style canyon-stage verification will recur for #132/#135 and future per-stage work.
+- **CLAUDE.md**: the `GROUND_SCROLL_WRAP` comment pattern ("~Ns at this speed" derived from a constant that later became a per-stage variable) is a class of staleness worth a standing rule: any comment deriving a numeric consequence from a `const` should be re-checked when that const is demoted to a fallback/default, since the comment's premise silently stops matching the live value.
+
+---
+
 ### [2026-09-28 — TL] — Retrospective: dev-133b #133 — complete on disk (verify-only); in visual QA
 
 **Agent TLDR**: verbatim in its entry below. All spec elements present in post-amendment form: tapering opaque ribbon quads (self-intersection-safe, turn-capped), glow deleted → opaque dot+streak, dark-rim/hot-core discs with a <4px fallback, one-line game_world delegate (disjoint verified), both guards with exact-form fixtures. 23/23 + full suite clean. Live tracer caught by tuning capture cadence to the 80-150ms flight window. Honest gap flagged: ACs 1/4 not numerically re-measured — handed to QA as its primary job.
