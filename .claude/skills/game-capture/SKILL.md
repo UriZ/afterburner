@@ -109,3 +109,5 @@ The harness's usage header governs its own controls (e.g. stage cycling).
 **Reaching a late stage LIVE** (vs the preview harness): `set_capture_invincible` + continuous fire via bridge hold + a real-time background wait (~30s/stage; stage 8 ≈ 230s). Standard pattern from #120 QA — don't re-derive it.
 
 **Fast-lifetime effects** (missile ribbons ~1.1s, vulcan tracers 1-2 frames at 60fps): the usual 300-500ms interval is too coarse — use 60-150ms cadence tuned against the object's own lifetime constants, or the freeze-time harness pattern (#133 QA).
+
+**capture.sh handshake costs ~2s per invocation** (`nc -w 2` responsiveness check) — against absolute-lifetime effects (missile MAX_LIFETIME=5.0s wall-clock) repeated single-frame calls compound toward the cap; request multiple frames from ONE call (#133 QA burned three attempts on this).

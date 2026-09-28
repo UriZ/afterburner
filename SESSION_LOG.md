@@ -1,5 +1,22 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: vqa-131 #133 — FAIL on AC 4 reachability; fix routed
+
+**Agent TLDR**: verbatim in its entry below. AC 1 measured properly at 99.2% (the flagged numeric gap closed); AC 4 fails deterministically — shipped band values cap the ratio at 1.25 vs >=1.8 (own harness measured 1.215, matching the ceiling almost exactly); correctly identified as the #131 reachability class, slipping three layers because nobody ran the one-line check. All else clean (glow gone live; guards + negative controls; suite exact). Process note: capture.sh handshake vs lifetime caps.
+
+**Retrospective — applied**: dev defs (numeric-AC reachability check is part of assessment/implementation); game-capture SKILL (handshake-cost note). Fix → dev-131b (widen trail value structure vs the reference, reachability-check BEFORE capture, re-measure with QA's segmentation). APPLIED.
+
+
+---
+### [2026-09-28 18:10] — visual-qa — #133
+**Task**: Visual QA of projectile trails (#133 assess+complete, dev-131b) — numeric re-measurement of AC1 (ribbon continuity) and AC4 (value-structure quintile ratio) against our own render, which the developer's assessment explicitly flagged as not done; plus live vulcan-glow-removal check, enemy-bullet small-size fallback, both fixture negative controls, full suite.
+**Result**: FAIL (1 bug found — High severity)
+**Issues verified**: #133 (FAIL — AC 4 fails; AC 1, AC 3, AC 5, AC 6, deferred-scope guard, full suite all PASS)
+**New bugs filed**: none (finding is #133's own AC failing, reported + relabeled on the same issue per TL instruction, not split to a new issue)
+**Improvement Insights**:
+- **criteria.md / AC-template rule**: AC 4 is a second instance of the exact #131 defect class — a numeric acceptance criterion nobody checked against the constants actually chosen. `missile_2d.gd`'s three trail-band colours have V∈{1.00,0.95,0.80}; the max achievable quintile ratio is `1.00/0.80=1.25`, deterministically below AC 4's required 1.8x, independent of any capture. This is a one-line arithmetic check (`max_V / min_V` over the literal colour set) that should have been run at the architect gate the same way #131's `drift × scale` was — worth adding "for any AC of the form `max/min ≥ threshold` over a fixed, enumerable colour/constant set, compute the ratio from the constants before accepting the AC" as a named check next to the AC-template rule.
+- **workflow**: the isolated-harness capture-timing trap (missile `MAX_LIFETIME=5.0s` is an absolute wall-clock cap, but `capture.sh`'s own preliminary "is the game responding" check burns ~2s per invocation via `nc -w 2`) ate three failed capture attempts before I realized repeated `capture.sh` calls on the same instance compound toward that cap. Fix: request multiple frames from ONE `capture.sh` call (`--frames 5 --interval 400`) instead of separate calls with manual `sleep` in between — pays the connection overhead once and gives a time-lapse to pick the best frame from.
+
 ### [2026-09-28 — TL] — Retrospective: vqa-131 #131 — PASS; committed 0c3aef6; closed
 
 **Agent TLDR**: verbatim in its entry below. AC 1a recomputed by hand AND its clamp-only negative control run live in scratch (fails at 34.38° with exit 1 — a live discriminator); isolated harness confirms type-0 reads shaded with zoomed crops; live frame with three enemies at three banks (the arcade signature); roll_rad grep matches the structural scan (one doc-comment hit, zero executable); #128's concurrent game_world diff correctly attributed, not conflated.
