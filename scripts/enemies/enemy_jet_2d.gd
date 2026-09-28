@@ -77,12 +77,55 @@ const ALTITUDE_MAX: float = 1.2
 const RAM_MIN_DEPTH: float = 0.85
 # Bank angle correlates with lateral drift (#100 gate: reference frames
 # burst-a-05/burst-a-08/burst-b-05 show enemies canted hard into their turn,
-# never flat). Scaled so scattered formations' widest drift (+-0.12, see
-# game_manager_2d.gd) reads as a pronounced ~35 degree bank while gentler
-# V/line drift (+-0.02-0.08) still visibly tilts, giving varied bank angles
-# across concurrently on-screen enemies instead of every sprite flat.
-const MAX_BANK_RAD: float = 0.6109  # 35 degrees
-const BANK_DRIFT_SCALE: float = 5.0  # rad per unit of _x_drift, then clamped
+# never flat).
+#
+# WHICH CONSTANT BINDS (#131 amendment 1 — the original spec had this
+# backwards, and the inversion is worth keeping on the record because the
+# symptom is "the change did nothing"):
+#   BANK_DRIFT_SCALE sets the CEILING.  MAX_BANK_RAD is a GUARD.
+# Before #131 the widest formation drift (+-0.12, game_manager_2d.gd) gave
+# 0.12 * 5.0 = 0.6000 rad = 34.38 deg against a 0.6109 rad = 35.00 deg clamp —
+# 0.62 deg of headroom, so the clamp NEVER engaged and raising it alone would
+# have changed no pixel. The arcade's large enemy banks at ~57 deg (wing axis
+# on a 3x magnified crop of assets/reference/ab2-arcade-closeup-enemies.jpg,
+# dx 705 / dy 1080), so the scale is set to put max drift exactly there:
+#   0.12 * 8.3 = 0.9960 rad = 57.07 deg
+# Raising the clamp is still NECESSARY — at the old 0.6109 that 57.07 deg peak
+# would truncate straight back to 35.00 deg — it is just not SUFFICIENT.
+const MAX_BANK_RAD: float = 1.0472  # 60 deg guard; 2.93 deg of headroom at max drift, does not bind
+const BANK_DRIFT_SCALE: float = 8.3  # rad per unit of _x_drift — derived from the measured 57 deg ceiling
+
+# Slow per-enemy roll oscillation, so an aircraft rolls INTO and OUT OF its
+# turn instead of holding one angle from spawn to despawn (#131 G4: _x_drift is
+# assigned once in configure() and never reassigned, which made every enemy a
+# statue at its spawn bank).
+#
+# MULTIPLICATIVE, not additive. The additive form gives a zero-drift enemy a
+# constant +-20.05 deg roll for no reason — an aircraft that is not turning
+# must not be banked — so the oscillation modulates the characteristic bank
+# rather than adding to it. Factor span is [BASE-AMOUNT, BASE+AMOUNT] =
+# [0.10, 1.00].
+#
+# TUNING RULE, and it is not obvious from the values (#131 addendum): the
+# SPLIT between BASE and AMOUNT is free — it sets how deeply an enemy rolls out
+# of its turn — but their SUM is pinned, because the ceiling is
+# max_drift * BANK_DRIFT_SCALE * (BASE + AMOUNT) and that ceiling is the
+# measured 57 deg. AC 1a admits BASE + AMOUNT only in [0.9638, 1.0339] at
+# scale 8.3, i.e. ~+-3.4% around 1.00. Retuning to 0.50 + 0.40 because the
+# roll "felt too deep" looks purely cosmetic and silently drops the ceiling to
+# 51.36 deg. If you need a different sum, move BANK_DRIFT_SCALE with it so the
+# product still lands on 57 deg, and say so: the ceiling is measured, the split
+# is not.
+#
+# BANK_OSC_RATE is genuinely free — it appears nowhere in the ceiling. All
+# three OSC constants are VISUAL, not measured: no arcade bank-RATE measurement
+# exists (the two characterised enemies give a range, not a rate, and the
+# automated approaches that would have produced one failed — spec section 1.2).
+# BANK_DRIFT_SCALE is the one that is arithmetically derived, and should move
+# only if the 57 deg measurement does.
+const BANK_OSC_BASE: float = 0.55    # factor floor+amplitude span [0.10, 1.00]
+const BANK_OSC_AMOUNT: float = 0.45  # BASE + AMOUNT is pinned to ~1.00 — see above
+const BANK_OSC_RATE: float = 0.55    # rad/s of phase; free
 
 var enemy_type: int = 0  # EnemyType.FIGHTER
 var logical_x: float = 0.0
@@ -94,6 +137,8 @@ var fire_interval: float = 4.0
 var score_value: int = 100
 var _x_drift: float = 0.0
 var _fire_timer: float = 0.0
+# Seeded per enemy in configure() so a formation does not roll in unison.
+var _bank_phase: float = 0.0
 
 
 func _ready() -> void:
@@ -115,6 +160,7 @@ func configure(type: int, start_logical_x: float, start_logical_depth: float, x_
 	logical_x = start_logical_x
 	logical_depth = start_logical_depth
 	_x_drift = x_drift_amount
+	_bank_phase = randf_range(0.0, TAU)
 	logical_altitude = randf_range(ALTITUDE_MIN, ALTITUDE_MAX)
 	_apply_type_data()
 
@@ -130,6 +176,7 @@ func _apply_type_data() -> void:
 func _process(delta: float) -> void:
 	logical_depth += speed * delta
 	logical_x += _x_drift * delta
+	_bank_phase += BANK_OSC_RATE * delta
 
 	if logical_depth > DESPAWN_DEPTH:
 		queue_free()
@@ -164,8 +211,21 @@ func get_visual_type() -> int:
 	return TYPE_DATA[enemy_type]["visual"]
 
 
+## The enemy's own, WORLD-LOCAL bank. Returns bank only — never the world roll.
+##
+## Enemies are plain Node, not CanvasItem: GameWorld._draw() draws them into ITS
+## canvas (#128 amendment 2, with a runnable proof), so once world roll lands the
+## drawn orientation becomes world_roll + bank_rad for free. Adding, subtracting
+## or otherwise compensating for DepthUtil.roll_rad here double-counts it and
+## enemies roll at twice the world's rate — invisible in a level-flight capture,
+## which is why AC 6 carries a negative control.
+##
+## For the same reason bank derives from _x_drift, a WORLD-space lateral drift in
+## logical_x units. Never derive it from a screen-space delta: a screen-space
+## derivative already contains the world roll, so it double-counts silently.
 func get_bank_angle() -> float:
-	return clampf(_x_drift * BANK_DRIFT_SCALE, -MAX_BANK_RAD, MAX_BANK_RAD)
+	var osc: float = BANK_OSC_BASE + BANK_OSC_AMOUNT * sin(_bank_phase)
+	return clampf(_x_drift * BANK_DRIFT_SCALE * osc, -MAX_BANK_RAD, MAX_BANK_RAD)
 
 
 func take_damage(amount: int = 1) -> void:
@@ -191,8 +251,11 @@ func _spawn_explosion() -> void:
 	explosion.z_index = 999
 	var scale_val: float = _DepthUtil.depth_to_scale(logical_depth)
 	explosion.set("base_radius", maxf(scale_val * 240.0, 90.0))
+	# Into the rolling world layer (#128) — see the same call in missile_2d.gd.
+	# The null guard stays: this runs on death, which can happen while the jet
+	# is being torn down.
 	if get_parent():
-		get_parent().add_child(explosion)
+		_DepthUtil.world_layer_or(get_tree(), get_parent()).add_child(explosion)
 
 
 func _fire_bullet() -> void:

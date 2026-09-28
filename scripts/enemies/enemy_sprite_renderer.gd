@@ -14,10 +14,28 @@ const LEADING_EDGE_COLOR := Color(0.949, 0.918, 0.784, 0.85)  # #F2EAC8
 const ENEMY_COLORS: Array[Dictionary] = [
 	# Type 0: FIGHTER — dark olive green
 	{
-		"fuselage":        Color(0.180, 0.251, 0.094),  # #2E4018
-		"wing_base":       Color(0.145, 0.208, 0.082),  # #253515
-		"wing_underside":  Color(0.102, 0.149, 0.063),  # #1A2610
-		"panel_accent":    Color(0.110, 0.173, 0.055),  # #1C2C0E
+		# #131 G2 — value ladder widened from a 0.102 spread to 0.215. Hue and
+		# saturation are UNCHANGED per tier (87-93 deg, S 0.58-0.68); only V moved.
+		#
+		# Why this was the defect: magnify a type-0 and a type-2 enemy from the
+		# same frame and the type-2 reads as a shaded aircraft while the type-0
+		# reads as one dark mass with a red dot — same renderer, same eight draw
+		# layers, same geometry. The only difference was this table's value
+		# spread (0.102 vs type 2's 0.219). The shading was already drawn; on
+		# type 0 it was too compressed to see. That is why "add shading" would
+		# have been the wrong fix and this is a colour-table change.
+		#
+		# wing_base (the main wing top, Layer 2) is now the BRIGHTEST body tier,
+		# so the wing reads as two tiers against wing_underside rather than one
+		# mass — a 0.215 gap where it used to be 0.059. It also puts the central
+		# body below the wings in value, which is the direction the reference
+		# runs: its nacelle is the darkest element and the wings carry the
+		# brighter bands. engine_interior (V 0.039) is untouched and remains the
+		# darkest thing on the sprite by a wide margin.
+		"fuselage":        Color(0.215, 0.300, 0.112),  # #374C1D  V=0.300
+		"wing_base":       Color(0.251, 0.360, 0.142),  # #405C24  V=0.360  brightest body tier
+		"wing_underside":  Color(0.099, 0.145, 0.061),  # #192510  V=0.145  darkest body tier
+		"panel_accent":    Color(0.137, 0.215, 0.068),  # #233711  V=0.215
 		"engine_intake":   Color(0.800, 0.102, 0.039),  # #CC1A0A
 		"engine_interior": Color(0.039, 0.031, 0.031),  # #0A0808
 		"engine_glow":     Color(1.0, 0.55, 0.08, 0.7),
@@ -134,11 +152,22 @@ static func draw_enemy(canvas: CanvasItem, type: int, pos: Vector2, s: float, ba
 	# fuselage itself and read as an oversized bullseye; reference shows a
 	# modest marking, not a dominant roundel)
 	var intake_center := Vector2(0.0, -s * 0.05)
+	# The red disc radius is DELIBERATELY unchanged at s*0.13 (#131 AC 8). Ours
+	# is already 9% of wingspan against the arcade's 14% — i.e. smaller, not
+	# larger — so the cycle-1 "red roundel" wording must not be acted on by
+	# shrinking it further. The comment above records the oversized version #100
+	# already corrected; this is the other side of that same guard.
 	canvas.draw_circle(intake_center, s * 0.13, c["engine_intake"])
 	if s >= 4.0:
 		canvas.draw_circle(intake_center, s * 0.087, c["engine_interior"])
 		if s > 6.0:
-			canvas.draw_circle(intake_center, s * 0.033, c["engine_glow"])
+			# #131 G3 — hot core 0.033 -> 0.052, i.e. core/red DIAMETER 25% ->
+			# 40%, the bottom of the 40-45% measured off the magnified arcade
+			# crop (black nacelle surround -> red ring -> pale cream core).
+			# Ordering 0.052 < 0.087 < 0.13 is load-bearing and asserted in the
+			# tests: the dark interior must stay a rim around the core rather
+			# than the core swallowing it.
+			canvas.draw_circle(intake_center, s * 0.052, c["engine_glow"])
 
 	# Layer 6: Canopy (only at s >= 8)
 	if s >= 8.0:
