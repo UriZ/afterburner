@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: dev-133b #133 — complete on disk (verify-only); in visual QA
+
+**Agent TLDR**: verbatim in its entry below. All spec elements present in post-amendment form: tapering opaque ribbon quads (self-intersection-safe, turn-capped), glow deleted → opaque dot+streak, dark-rim/hot-core discs with a <4px fallback, one-line game_world delegate (disjoint verified), both guards with exact-form fixtures. 23/23 + full suite clean. Live tracer caught by tuning capture cadence to the 80-150ms flight window. Honest gap flagged: ACs 1/4 not numerically re-measured — handed to QA as its primary job.
+
+**Retrospective — applied**: game-capture SKILL (fast-lifetime cadence note). Verify-only path endorsed for correct dead-session work. #133 QA queued to vqa-131 with the numeric re-measurement as the lead item. APPLIED.
+
+
 ### [2026-09-28 — TL] — Retrospective: dev-131b #131 assess+complete — production was DONE; harness bug fixed; in visual QA
 
 **Agent TLDR**: verbatim in its entry below. Assess-first found all four spec gaps already implemented exactly (constants diffed against the spec's table); the only defect was a parse-error signature mismatch in the dead session's preview harness. 144/0 standalone incl. AC 1a deterministic + all negative controls; isolated + live visual verification (different banks in one frame; type-0 reads shaded).

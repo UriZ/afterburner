@@ -107,3 +107,5 @@ The harness's usage header governs its own controls (e.g. stage cycling).
 **Under heavy concurrent load** (4+ Godot instances), a first `--start-game` launch can occasionally produce a black screen or non-monotonic stage state — retry once with a clean restart before diagnosing a rendering regression.
 
 **Reaching a late stage LIVE** (vs the preview harness): `set_capture_invincible` + continuous fire via bridge hold + a real-time background wait (~30s/stage; stage 8 ≈ 230s). Standard pattern from #120 QA — don't re-derive it.
+
+**Fast-lifetime effects** (missile ribbons ~1.1s, vulcan tracers 1-2 frames at 60fps): the usual 300-500ms interval is too coarse — use 60-150ms cadence tuned against the object's own lifetime constants, or the freeze-time harness pattern (#133 QA).
