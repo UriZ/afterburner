@@ -14,7 +14,15 @@ Judge insight (#120-#122 gate): ownership must live in a repo file, not issue pr
 ## Pending combined commit
 - #112+#92 (jet rebuild + opacity): QA-PASSED, but player_jet_2d.gd also carries in-progress #122 work (same owner dev-sky-115) — commits together when #122 completes+passes QA.
 
-## Current assignments (REBUILT after outage #3 — prior agent sessions terminated; fresh spawns)
+## Current assignments (REBUILT after outage #4, 2026-09-28 — fresh spawns onto surviving disk work)
+| Issue | Agent | Files owned | Ports |
+|---|---|---|---|
+| #128 CORE assess+complete | dev-128b | depth_util, game_world draw/rotation, shader contract check, reparenting sites | 9670+ |
+| #133 assess+complete | dev-133b | scripts/weapons trail drawing (projectile_renderer + call sites) | 9636 |
+| #131 assess+complete | dev-131b | enemy_sprite_renderer + constants + enemy_jet | 9655 |
+| #139 QA | qa-139b | read-only | 9690+ |
+
+## Prior assignments (outage #3 wave — sessions dead)
 | Issue | Agent | Files owned | Ports |
 |---|---|---|---|
 | #129 HUD QA | vqa-129 | read-only | 9635 |

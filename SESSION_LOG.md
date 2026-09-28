@@ -1,5 +1,10 @@
 # Session Log
 
+### [2026-09-28 — TL] — Outage #4 recovery: fresh wave spawned onto surviving disk work
+
+Spend limit killed the final-wave agents mid-task (2026-09-26 12:18); sessions terminated. Survived on disk: #128 core (game files + test_world_roll.gd), #133 (projectile_renderer.gd + weapons diffs + tests), #131 (enemy renderer + preview), #139 complete awaiting QA. Fresh spawns: dev-128b, dev-133b, dev-131b (assess+complete each), qa-139b (#139 QA). Boundary note in all prompts: weapons-file diffs may interleave #128 reparenting with #133 trail drawing — coordination via TL if ambiguous. After this wave clears: the combined stage_data commit (#124+#139), remaining commits, then CYCLE 2.
+
+
 ### [2026-09-26 19:10] — TL — Retrospective: qa-127-final #140 — PASS, closed; #151 filed; #139 QA dispatched
 
 **Agent TLDR**: verbatim in its entry below. All ACs verified with independent evidence beyond re-running the dev's numbers — incl. reconstructing the pre-fix detector and running it on REAL edge-clipped live-capture frames (0/6 vs 6/6); fixtures regenerate byte-identical; stale SKILL.md number noted (28.41 vs actual 43.21 — doc nit). Off-checklist: make_control.py concurrency crash → #151 (loud, set intact; THIRD fixed-default-path tool caught this session).
