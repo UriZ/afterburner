@@ -1,5 +1,10 @@
 # Session Log
 
+### [2026-09-29 — TL] — Outage #5 recovery: three-agent wave; game launched for user
+
+Spend limit killed dev-133b (before the retunes) and dev-128b (after implementing #132 on disk, before reporting); dev-131b died mid-#152-verification (fix applied). Fresh spawns: dev-tune (#121+biome → #135 retunes per the QA verdicts), dev-132b (#132 close-out incl. its broken own-test), dev-152b (#152 verification completion + #122 conclusive result). Game launched for the user (current tree: rolling world, banking jet, arcade speed, HUD, enemies, trails, features, walls, ocean, clouds — everything visible, pre-commit). COMMITS still held for wave completion.
+
+
 ### [2026-09-28 — TL] — Retrospective: #154 fix + re-check — committed 0deb462; #141+#154 closed
 
 **qa-139b TLDR**: verbatim in its entry below. Own scratch negative-control reconstruction (30 catches / 90-120 pass on the frame-1 revert); rate sweep BEYOND the tested values found the overclaim ('every N' → some rates never stabilize; e.g. 75→80fps lock) and correctly triaged it as non-live-risk (MovieWriter exactness is separate machinery; no caller uses untested rates); concurrent WIP failures correctly attributed.

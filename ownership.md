@@ -14,7 +14,15 @@ Judge insight (#120-#122 gate): ownership must live in a repo file, not issue pr
 ## Pending combined commit
 - #112+#92 (jet rebuild + opacity): QA-PASSED, but player_jet_2d.gd also carries in-progress #122 work (same owner dev-sky-115) — commits together when #122 completes+passes QA.
 
-## Current assignments (REBUILT after outage #4, 2026-09-28 — fresh spawns onto surviving disk work)
+## Current assignments (REBUILT after outage #5, 2026-09-29)
+| Issue | Agent | Files owned | Ports |
+|---|---|---|---|
+| #121+biome retune → #135 retune | dev-tune | ground_features_2d + canyon_walls_2d + shader aniso constant | 9636 |
+| #132 close-out | dev-132b | clouds_2d + its tests + cloud hooks | 9670 |
+| #152 close-out | dev-152b | composition-metrics skill | 9655 |
+| re-checks on deck | vqa-131 / qa-139b (dead — respawn fresh QA when deliveries land) | read-only | 9656/9690 |
+
+## Prior assignments (outage #4/#5 waves — sessions dead)
 | Issue | Agent | Files owned | Ports |
 |---|---|---|---|
 | #128 CORE assess+complete | dev-128b | depth_util, game_world draw/rotation, shader contract check, reparenting sites | 9670+ |
