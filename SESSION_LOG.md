@@ -1,5 +1,12 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: dev-131b #133 fix — 2nd latent defect found; at re-verify
+
+**Agent TLDR**: verbatim in its entry below. Colour endpoints taken from the REFERENCE's own measured V (0.37/0.22), not invented — ceiling now 4.5x; the mandated pre-capture reachability check passed immediately, but multi-instant empirical re-measurement swung 1.66-2.20x on IDENTICAL constants → root cause: fixed-index band splits starve young trails of a tail band (pre-existing, previously QA-passed geometry) → fractional-length splits structurally guarantee band shares at any age. 11/12 valid frames 2.07-4.55x; deterministic ceiling test added mirroring #131's AC-1a pattern; harness single-subject contamination self-caught.
+
+**Retrospective — applied**: dev defs (deterministic + multi-sample BOTH; single-subject invariant for repeated-spawn harnesses). Re-verify queued to vqa-131 behind #128. APPLIED.
+
+
 ### [2026-09-28 — TL] — Retrospective: dev-128b #128 core COMPLETE — in visual QA; §G follow-up dispatched
 
 **Agent TLDR**: verbatim in its entry below. Assessment found most of the core correct; THREE defects found by running controls: (1) the transform had phantom controls — comments describing tests that never reached the test file (three disconnection deletions left 35/0 green; now 5/3/3 failures); (2) one of three reparentings uncovered (two _spawn_explosion impls); (3) a LATENT cross-space bug outside the grep's scope — weapon_manager compared screen vs world-layer positions, fine until the world rolls: brackets floating in sky, ribbons spawning off-jet — four sites fixed with failing controls, before/after at 65° on the issue. Refused to call the roll-0 regression 'pixel-identical' (separation-ratio framing); abandoned a confounded A/B for an isolation harness with a null control (560/560). measure_world_roll.py reproduces both arcade fits within 0.2°. All ACs measured; 1310/13-known. KNOWN GAP loud: jet doesn't bank — §G follow-up dispatched immediately (same owner, stacking).
