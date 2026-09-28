@@ -1,5 +1,67 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: dev-128b #128 core COMPLETE — in visual QA; §G follow-up dispatched
+
+**Agent TLDR**: verbatim in its entry below. Assessment found most of the core correct; THREE defects found by running controls: (1) the transform had phantom controls — comments describing tests that never reached the test file (three disconnection deletions left 35/0 green; now 5/3/3 failures); (2) one of three reparentings uncovered (two _spawn_explosion impls); (3) a LATENT cross-space bug outside the grep's scope — weapon_manager compared screen vs world-layer positions, fine until the world rolls: brackets floating in sky, ribbons spawning off-jet — four sites fixed with failing controls, before/after at 65° on the issue. Refused to call the roll-0 regression 'pixel-identical' (separation-ratio framing); abandoned a confounded A/B for an isolation harness with a null control (560/560). measure_world_roll.py reproduces both arcade fits within 0.2°. All ACs measured; 1310/13-known. KNOWN GAP loud: jet doesn't bank — §G follow-up dispatched immediately (same owner, stacking).
+
+**Retrospective — applied**: dev defs (re-run every comment-named control); CLAUDE.md (reparenting confounds A/B; null-control trick); criteria (grep ACs name scope; separation ratios not pixel-identical). QA → vqa-131 (parallel with §G work). APPLIED.
+
+
+---
+### [2026-09-28] — developer (dev-133b) — #133
+**Task**: Fix #133's AC 4 failure (QA verdict: missile trail bright/dark quintile ratio capped at 1.25x, provably short of the >=1.8x bar) without regressing AC 1/2/3/5/6/7/8, which QA verified as passing.
+**Result**: COMPLETED
+**Files changed**: `scripts/weapons/missile_2d.gd`, `tests/test_projectile_trails.gd`
+**Ownership claims**: `missile_2d.gd` trail band constants and `_trail_band_color()`/`_draw_trail()` call site only. No other #133 file touched.
+**Key changes**:
+- `missile_2d.gd` — `TRAIL_COLOR_MID`/`TRAIL_COLOR_TAIL` darkened from (0.95,0.91,0.88)/(0.80,0.78,0.75) to (0.37,0.35,0.34)/(0.22,0.21,0.21), using the reference's OWN measured V values (overall mean 0.37, darkest-quintile mean 0.22 from `ab2-arcade-night-missiles.jpg` §1) rather than an invented intermediate — TIP unchanged (spec-mandated). Deterministic ceiling 1.00/0.22=4.545x.
+- `missile_2d.gd` — band split changed from fixed absolute sample-index cutoffs (`tip_idx<=8`/`<=20`) to fractional-length cutoffs (`TRAIL_BAND_1_FRAC=0.25`, `TRAIL_BAND_2_FRAC=0.55`), a second defect found while re-measuring: a young/still-growing trail never reached the fixed tail-index threshold at all, so the darkest quintile was a mix of tip+mid and the measured ratio swung 1.66x-2.20x across capture instants of identical constants, occasionally below the 1.8x bar. Fractional cutoffs guarantee each extreme band's length share regardless of trail maturity.
+- `tests/test_projectile_trails.gd` — added `test_ac4_value_structure_ceiling` (deterministic, computed from constants alone, mirrors #131's AC 1a standing rule; also retroactively fails against the pre-fix 1.00/0.80 constants) plus explicit band-length-share assertions; updated the band-ordering test for the renamed fractional constants.
+**Testing**: `tests/test_projectile_trails.gd` standalone 32/32 (up from 23). `bash tests/run_all.sh`: 1310 passed, 13 failed (all `test_jet_mesh_builder.gd`, KNOWN/accepted). Empirical re-measurement with QA's own PCA+quintile segmentation methodology, via a throwaway single-missile-at-a-time isolated harness (deleted after use, confirmed via `git status`): 11/12 captured frames measured 2.07x-4.55x, comfortably clearing 1.8x (1 degenerate near-empty frame excluded per spec's own `_trail_count<3` no-draw rule). Visual crop confirms a continuous, opaque, monotonically-tapered bright-to-dark ribbon. Live in-game capture (real missile fire against an enemy formation) confirms the trail renders in actual gameplay and a hit/explosion still occurs (AC 7 unaffected).
+**Improvement Insights**:
+- **workflow**: the mandatory "reachability check before capturing" rule (from #131) caught the colour-value half of this bug instantly, but a SECOND defect (fixed-index band split vs. trail maturity) was invisible to that same deterministic check and only surfaced by re-measuring empirically across MULTIPLE capture instants of the same constants, not just one. A deterministic ceiling check proves the colours CAN reach the bar; it does not prove every real capture WILL — multi-sample empirical re-measurement remains necessary even after a passing deterministic check.
+- **workflow**: a repeated-spawn isolated harness for "always have a fresh subject in flight" needs an explicit single-subject invariant (free the previous instance before spawning a new one) — a harness with unconstrained overlapping instances silently contaminates single-subject segmentation methodologies (PCA/quintile) and can manufacture fake measurement variance that looks like a code defect but is actually a harness defect. Worth a line in the isolated-harness guidance.
+
+---
+### [2026-09-28 18:15] — senior-developer — #128
+**Task**: Assess the prior (killed) session's uncommitted #128 world-roll core and complete it against the spec + amendments 1-3.
+**Result**: COMPLETED
+
+**File / function ownership claimed** (nothing committed; work left in the tree):
+- `scripts/weapons/weapon_manager_2d.gd` — `_update_lockon()`, `_fire_vulcan()`, `_fire_missile()`. **NOT** `_get_container()` (already correct) and **NOT** anything in `vulcan_bullet_2d.gd` / `missile_2d.gd` / `projectile_renderer.gd`, which are #133's.
+- `tests/test_world_roll.gd` — whole file (was untracked from the dead session).
+- New, mine: `tools/measure_world_roll.py`, `tests/world_roll_preview.gd`, `.claude/skills/game-movie/timelines/roll-hold-left-right.json`, `.claude/skills/game-movie/timelines/roll-bank-and-fire.json`.
+- Untouched by me: `stage_data.gd` / `game_manager_2d.gd` speed keys (#139), `enemy_jet_2d.gd` bank oscillation (#131), the weapons trail hunks (#133), `game_world.gd` / `depth_util.gd` / `ground_terrain_2d.gd` (assessed as already correct).
+
+**Key changes**:
+- `weapon_manager_2d.gd:116,133` — lock-on compared `sight_screen_pos` (screen) against enemy world positions, and handed an enemy's world position to the screen-fixed `Reticle2D`. Now `screen_to_world()` in / `world_to_screen()` out.
+- `weapon_manager_2d.gd` `_fire_vulcan`/`_fire_missile` — round `logical_x`, `aim_x` and spawn `position` derived from screen coords without conversion; now via `screen_to_world()`.
+- `tests/test_world_roll.gd` 35 → 57 assertions: transform test rewritten to drive `_set_world_roll()`, new `test_process_drives_the_roll()`, R2 extended to `missile_2d`'s spawn path, new `test_targeting_crosses_the_roll_boundary()`.
+- `tools/measure_world_roll.py` — the §8 detector with the §D edge guard and the §2.4 coverage floor, plus a `--self-test` known-answer control.
+- `tests/world_roll_preview.gd` — isolation harness for the projectiles/explosions-roll AC.
+
+**Technical decisions**:
+1. **The shader diff is legitimate.** 10 lines, all comment — the do-not-use-`SCREEN_UV` note amendment 1 §A asked for. No functional change, contract intact.
+2. **Fixed the weapon-manager cross-space bug rather than filing it.** §C's audit is a grep over `game_world.gd` alone, so it could not see it; reparenting the projectiles activated it. Shipping #128 without it ships visible targeting breakage at bank. Confined to functions no other issue claims.
+3. **Refused to call the roll-0 regression "pixel-identical."** It is 0.09% isolated single pixels at shader thresholds, max 3/255, from UV interpolation precision — against 96% of ground pixels at mean 34.7/255 for the error it guards. Reported as measured.
+4. **Abandoned the in-game A/B for the explosion AC and built an isolation harness.** Reparenting shifts `_process` order, which shifts `randf()` interleaving, which re-randomises the whole terrain — 250,782 px apart on the first differing frame with the enemies pixel-identical. Diffing cannot separate that from a rolled explosion. Null control (identical code, separate dir) rendered 560/560 identical, so the pipeline itself is fine.
+
+**Testing**:
+- `bash tests/run_all.sh`: 1310 passed, 13 failed (all known-legacy `test_jet_mesh_builder.gd`). Suite clean.
+- Detector self-test reproduces both independent arcade fits within 0.2° (60.598 / −64.563 / −3.824), and the unguarded control within 0.3°.
+- Nine negative controls, each run in an rsync'd scratch copy, each confirmed failing: `rotation=` removed (5), `position=` removed (3), slew call removed (3), `SCREEN_UV` swap (1), three wraps removed (3), three reparentings reverted (1/2/1), four targeting conversions reverted (2/1/2/1).
+- Capture ACs at 60fps, ports 9670-9694: peak +65.10°/−65.16°, rate median 79.1°/s, straightness max 2.49px above 30°, HUD bbox shift ≤1px, 0/4 corners uncovered (control: 143,674 px / 4 corners), SCORE 300 + HIT 02 at 65° roll, return to level within ±0.24°, horizon exactly 62.500 %H.
+- Isolation harness: subjects rotate 39.992° against 40.0 expected, centroids within 0.5px, whole-frame rotate-and-compare 99.876% vs 27.6% differing unrotated.
+
+**Known gap, flagged loudly**: the player jet still does not bank — the §3/§G follow-up. It is the most visible thing in every banked frame and risk 4 predicted exactly this interim state.
+
+**Improvement Insights**:
+- **[developer.md / senior-developer.md]**: a code comment that *describes* a negative control ("deleting this line left the test green") is not evidence the control was re-run after the fix. Here the comment was accurate about the finding and the fix never reached the test file. Re-run every control named in a comment during assessment.
+- **[CLAUDE.md]**: node parentage changes `_process` order, which changes global-RNG interleaving, which re-randomises procedural content — so an A/B capture across a reparenting is confounded by construction. Worth a named entry beside the isolation-harness rule, with the null-control-in-a-separate-directory trick (560/560 identical) as the way to tell a confounded A/B from a broken pipeline.
+- **[criteria.md / architect.md]**: a file-scoped grep is not an audit of a cross-cutting coordinate-space change. §C's grep was exact and still missed four sites because they live in another file. When an AC is a grep, the AC must name the search **scope** as well as the pattern.
+- **[workflow]**: "pixel-identical" is not achievable across a float-interpolation change and should not be written into an AC. State it as a separation ratio against the failure being guarded.
+
+---
 ### [2026-09-28 — TL] — Retrospective: vqa-131 #133 — FAIL on AC 4 reachability; fix routed
 
 **Agent TLDR**: verbatim in its entry below. AC 1 measured properly at 99.2% (the flagged numeric gap closed); AC 4 fails deterministically — shipped band values cap the ratio at 1.25 vs >=1.8 (own harness measured 1.215, matching the ceiling almost exactly); correctly identified as the #131 reachability class, slipping three layers because nobody ran the one-line check. All else clean (glow gone live; guards + negative controls; suite exact). Process note: capture.sh handshake vs lifetime caps.
