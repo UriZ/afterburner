@@ -1,5 +1,30 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: #154 fix + re-check — committed 0deb462; #141+#154 closed
+
+**qa-139b TLDR**: verbatim in its entry below. Own scratch negative-control reconstruction (30 catches / 90-120 pass on the frame-1 revert); rate sweep BEYOND the tested values found the overclaim ('every N' → some rates never stabilize; e.g. 75→80fps lock) and correctly triaged it as non-live-risk (MovieWriter exactness is separate machinery; no caller uses untested rates); concurrent WIP failures correctly attributed.
+
+**Retrospective — applied**: CLAUDE.md (rate-stability note + tested-scope comment rule). Committed 0deb462; both issues closed. Remaining wave: #121+biome retune, #135 retune (dev-133b), #132 (dev-128b), #152 (dev-131b). APPLIED.
+
+
+---
+### [2026-09-28 19:05] — qa — #154 scoped re-check
+**Task**: Re-check dev-133b's fix for #154 (CaptureInput guard frame-1 blind spot), scoped to confirming the fix and spot-checking other --fixed-fps values
+**Result**: PASS — fix verified independently; one non-blocking wording note, one unrelated tree-noise item correctly attributed
+**Issues verified**: #154 (PASS), #141 (qa label removed — blocking dependency resolved)
+**New bugs filed**: none
+**Video evidence**: N/A — pure tooling/CLI verification
+**Key findings**:
+- Reproduced the exact original repro myself: `--fixed-fps 90`/`120` + `start-game.json` now FATAL on frame 2 with the correct message; `--fixed-fps 60` still clean.
+- Negative control reproduced independently in a FRESH scratch copy (not reusing the dev's): reverted `CHECK_FRAME` 2→1, diff-confirmed exactly one line changed, ran all three test values directly — 30 still catches it (as before #154, by tolerance luck), 90 and 120 silently pass, matching the dev's table exactly.
+- `game-movie/selftest.sh`: 60/60, matches. `run_all.sh`: 1435/15 (13 known + 2 in `test_ground_features.gd`) — the 2 new failures are in an untracked file touching files #154 never modifies (concurrent WIP from a different feature); reproduced twice, isolated standalone, explicitly attributed as tree noise, not silently dropped and not blamed on #154.
+- Off-checklist: swept `--fixed-fps` far beyond 30/90/120 (75, 100, 110, 130, 144, 150, 180, 200, 300) and found several values where Godot's engine never converges to the true `1/N` delta even after 12 frames on this machine — so the fix's own comment ("every N tested") overclaims relative to what was actually tested. Confirmed this does NOT threaten the real `--write-movie` pipeline (an actual capture at an untested rate still produces an exact frame-count/container-rate via ffprobe, a separately-verified guarantee), and no script in this project currently requests a `--fixed-fps` outside {30,60,90,120}, so it's a wording note, not a live risk.
+**Improvement Insights**:
+- **workflow**: when a fix for a "checked value X was wrong" bug lands, the re-check should spot-check well beyond the newly-added test values, not just confirm the reported cases — the wider sweep here found the underlying claim ("every N") was still narrower than stated, even though the actual fix is correct for everything this project uses.
+- **CLAUDE.md**: worth folding into the existing "any guard keyed to a single fixed frame needs verification across multiple rates" note — add that comments claiming "works for every N" need explicit scoping to what was tested, since Godot's fixed-fps warm-up behavior is highly rate-dependent and non-obvious (confirmed some rates never converge to a stable delta at all on this machine).
+
+---
+
 ### [2026-09-28 — TL] — Retrospective: vqa-131 #135 QA — FAIL on 2 tunings; cross-issue biome find
 
 **Agent TLDR**: verbatim in its entry below. Two cross-validated measurement methods on the anisotropy (1D half-life + 2D FFT — 12/15 samples over the ceiling; shader-vs-screen asymmetry identified as the cause); wall population measured against the amendment's own classifier with the stage-8 control re-run FIRST as required; the AC 4 isolation move (excluding #121's known hue range) cleanly separated #135's own work (96.2% PASS) from the cross-issue contamination (#121's rocks on the ocean — the new #1 whole-frame difference); haze verified both mathematically (bit-identical cruise) and empirically (~20px).

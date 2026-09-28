@@ -37,7 +37,7 @@ Read the `burst-*` frames **in order** — they are 0.25s apart, and motion live
 
 **BlockFont.draw_text is square-pixel only** — any HUD glyph whose box is far from the font's 5:7 (the arcade stage digit is 1:2.2) silently renders at 1px/cell under width-constrained sizing: present in source, invisible on screen, passing %W-only checks (#129). Use a per-axis path for non-5:7 boxes. **Godot .uid files are COMMITTED** (project policy — they've been landing with their scripts all session).
 
-**A guard keyed to a single fixed frame under --fixed-fps needs verification across multiple requested RATES** — Godot's frame-1 warm-up delta is rate-dependent invisibly from source (#154: 90/120fps silently passed a 60fps-keyed check; 30 cleared by luck). And a report claiming 'value X is refused too' needs an actual test AT X.
+**A guard keyed to a single fixed frame under --fixed-fps needs verification across multiple requested RATES** — Godot's frame-1 warm-up delta is rate-dependent invisibly from source (#154: 90/120fps silently passed a 60fps-keyed check; 30 cleared by luck; frame 2 is rate-faithful). Some rates NEVER stabilize on this machine (75 locks to 80fps) — comments claim only 'every N actually tested', never 'every N'. And a report claiming 'value X is refused too' needs an actual test AT X.
 
 **A negative-control perturbation must VERIFY it changed the file** — macOS sed silently no-ops the `0,/re/` address form (exit 0, file unchanged), and a no-op perturbation is indistinguishable from a vacuous guard: the natural response is deleting a GOOD test (#139 hit this twice).
 
