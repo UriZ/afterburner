@@ -1,5 +1,33 @@
 # Session Log
 
+### [2026-09-28 — TL] — Retrospective: qa-139b tooling batch — #143/#149 committed 5f1d03e; #154 BLOCKS #141
+
+**Agent TLDR**: verbatim in its entry below. #143/#149 verified with fresh independent evidence (own ps captures, own scratch AudioServer probe, own 120fps clip on a different seed — same knee conclusion at different magnitude, as expected). #141's assigned checks pass, but the off-checklist probe found the guard's coverage gap: frame-1 warm-up delta is rate-dependent — 90/120 land inside the 60fps tolerance; --fixed-fps 90 + timeline runs silent with events at 0.667x their intended time. Correctly left the label on and asked for the ruling.
+
+**TL ruling**: #154 BLOCKS #141 (the guard is defeated at the exact rate speed certification now uses). Fix interleaved to dev-133b (its guard) with multi-rate tests mandated; #143/#149 committed independently (5f1d03e).
+
+**Retrospective — applied**: CLAUDE.md (fixed-frame guards need multi-rate verification; 'refused too' needs a test at each value). APPLIED.
+
+
+---
+### [2026-09-28 18:20] — qa — #143, #141, #149
+**Task**: QA the tooling batch (#143 --mute-audio, #141 CaptureInput fixed-fps guard, #149 motion-metrics --speed-fps)
+**Result**: #143 PASS, #149 PASS, #141 assigned-checks PASS but a high-severity off-checklist gap found — left in qa, not closed clean
+**Issues verified**: #143 (PASS), #149 (PASS), #141 (assigned ACs PASS; see #154)
+**New bugs filed**: #154 (CaptureInput guard frame-1 blind spot at --fixed-fps 90/120)
+**Video evidence**: N/A — pure tooling/CLI verification, no gameplay visuals in scope
+**Key findings**:
+- #143: independently confirmed `--mute-audio` in all three spawned scripts' real `ps` argv (own capture, not the dev's log), and confirmed the mechanism with a fresh scratch `SceneTree` probe of the real `audio_manager.gd` — manual/direct launch stays audible, flag mutes correctly. All three scripts still functional.
+- #149: default `--speed-fps` omission is byte-identical to explicit `--speed-fps 60` (diffed two fresh reports, only timestamp/reproduce-line differ). Sidecar validation refuses `--speed-fps 120` against a real 60fps arcade clip (own re-run). Captured a **fresh** stage-1 clip at genuine 120fps (different seed from the dev's) — self-compare fails the gate at `--speed-fps 60` (+28.4% on my window, dev reported +14.4% on theirs — same direction/conclusion, different magnitude from a different window) and certifies cleanly at `--speed-fps 120`. Crop documented in SKILL.md, confirmed present. `selftest.sh` 94/94 matching.
+- #141: all three literally-assigned checks verified independently (direct guard invocation for both cases, negative control re-run from a fresh scratch copy against the FULL selftest — not just the one manual repro — with exactly the 2 expected failures and the control itself staying green in both versions, `game-movie/selftest.sh` 51/51, `run_all.sh` 1327/13-known reproducible).
+- **Off-checklist probe (#154)**: the guard's report claims other `--fixed-fps` values "are refused too — correctly," verified by the dev only at 30. Built a bare delta probe (no CaptureInput) and found Godot's `--fixed-fps N` engine loop does NOT deliver the true `1/N` delta on frame 1 — a warm-up artifact that, for `N=60/90/120`, all land inside the guard's tolerance of `ASSUMED_DELTA` (1/60s). Confirmed at the actual guard: `--fixed-fps 90` + the default 60fps-authored timeline exits 0 with no FATAL, firing its frame-30 event at 30/90=0.333s instead of the intended 0.5s — the exact silent-desync class #141 exists to catch. This lands squarely on `--fixed-fps 120`, which #149 (same batch) now pushes teams toward for speed work, and two new frame-scheduled timelines in this same batch (`roll-bank-and-fire.json`, `roll-hold-left-right.json`) depend on precise timing. Zero test coverage of 90/120 + a timeline in `selftest.sh`'s test 13.
+**Improvement Insights**:
+- **workflow**: a guard whose report claims "value X is refused too" needs a test at X, not just at the one value that happened to be tried — the 30fps case coincidentally cleared tolerance by chance (jittery frame-1 delta), giving false confidence the mechanism generalizes when it verifiably does not at 90 or 120.
+- **CLAUDE.md**: worth a standing rule alongside the existing time-base ones — any guard/check keyed to `_frame == 1` (or any single fixed frame) under `--fixed-fps` should be verified across MULTIPLE requested rates, not just the one the fix was built around, since Godot's engine-level warm-up behavior on frame 1 is rate-dependent in a way that isn't obvious from source.
+- **#154**: needs a design decision (check frame 2 instead of/in addition to frame 1, or accumulate a short window) before it's safe to say #141 is closed out.
+
+---
+
 ### [2026-09-28 — TL] — Retrospective: dev-133b #121 features — in QA queue
 
 **Agent TLDR**: verbatim in its entry below. Lockstep via the exact-binary divisor; growth = existing depth_to_scale (no new law, per the spec's own finding); two controlled hue families; horizon guard as pure helper + runtime skip; own test caught the scale-floor edge case (2/1261 above horizon — a by-construction claim disproved by testing); interpretation call flagged honestly (FEATURE_COUNT table span); numeric AC procedures honestly left to QA rather than eyeballed; haze-band deferral reasoned to #135 (shader barred all six gate cycles). 36/36 + 1395/13-known.
